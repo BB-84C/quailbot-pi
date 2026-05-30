@@ -1,0 +1,31 @@
+# Installed dependencies / local package state
+node_modules/
+.npm/
+
+# Build and test output
+dist/
+coverage/
+*.log
+
+# Local environment and editor state
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# OpenCode local artifacts
+.opencode/artifacts/
+
+# Existing handoff package: kept locally, intentionally not tracked.
+# Do not ignore docs/ itself; future docs can still be tracked.
+HANDOFF.md
+docs/new-project-handoff/CONTEXT.md
+docs/new-project-handoff/specs/INDEX.md
+docs/new-project-handoff/specs/01-workspace-contract.md
+docs/new-project-handoff/specs/02-linked-observable-protocol.md
+docs/new-project-handoff/specs/03-tool-capability-contract.md
+docs/new-project-handoff/specs/04-agent-loop-contract.md
+docs/new-project-handoff/specs/05-session-job-observability-contract.md
+docs/new-project-handoff/specs/06-pi-seams-and-firebreaks.md
+docs/new-project-handoff/specs/07-acceptance-scenarios.md

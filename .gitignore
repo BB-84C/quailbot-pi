@@ -16,7 +16,7 @@ coverage/
 Thumbs.db
 
 # OpenCode local artifacts
-.opencode/artifacts/
+.opencode/
 
 # Existing handoff package: kept locally, intentionally not tracked.
 # Do not ignore docs/ itself; future docs can still be tracked.

@@ -2,7 +2,8 @@
   "name": "quailbot-pi",
   "version": "0.0.0",
   "scripts": {
-    "test": "echo \"No tests configured yet\""
+    "test": "echo \"No tests configured yet\"",
+    "pi": "node scripts/run-pi.mjs"
   },
   "keywords": [],
   "author": "",

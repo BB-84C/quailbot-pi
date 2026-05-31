@@ -1,6 +1,7 @@
 # Installed dependencies / local package state
 node_modules/
 .npm/
+.pi-state/
 
 # Build and test output
 dist/

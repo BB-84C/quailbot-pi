@@ -1,4 +1,5 @@
 import type { Workspace, WorkspaceAnchor } from "../workspace/types.js";
+import { validateActiveRois } from "./observe.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
 export type SetFieldInput = {
@@ -24,7 +25,17 @@ export async function executeSetField(ctx: { workspace: Workspace }, input: SetF
 }
 
 export function validateSetFieldInput(workspace: Workspace, input: SetFieldInput): WorkspaceAnchor {
-  return requireActiveAnchor(workspace, input.anchor);
+  const anchor = requireActiveAnchor(workspace, input.anchor);
+  if (typeof input.typed_text !== "string" || input.typed_text.length === 0) {
+    throw new Error("set_field requires non-empty typed_text");
+  }
+  if (input.submit !== undefined && input.submit !== "enter" && input.submit !== "tab") {
+    throw new Error("set_field submit must be enter or tab");
+  }
+  if (input.rois !== undefined) {
+    validateActiveRois(workspace, input.rois);
+  }
+  return anchor;
 }
 
 function requireActiveAnchor(workspace: Workspace, name: string): WorkspaceAnchor {

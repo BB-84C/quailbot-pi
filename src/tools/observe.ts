@@ -28,7 +28,7 @@ function activeRoiNames(workspace: Workspace): string[] {
   return workspace.rois.filter((roi) => roi.active).map((roi) => roi.name ?? roi.ref);
 }
 
-function validateActiveRois(workspace: Workspace, names: string[]): string[] {
+export function validateActiveRois(workspace: Workspace, names: string[]): string[] {
   for (const name of names) {
     requireActiveRoi(workspace, name);
   }

@@ -1,4 +1,5 @@
 import type { Workspace, WorkspaceAnchor } from "../workspace/types.js";
+import { validateActiveRois } from "./observe.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
 export type ClickAnchorInput = {
@@ -22,7 +23,11 @@ export async function executeClickAnchor(ctx: { workspace: Workspace }, input: C
 }
 
 export function validateClickAnchorInput(workspace: Workspace, input: ClickAnchorInput): WorkspaceAnchor {
-  return requireActiveAnchor(workspace, input.anchor);
+  const anchor = requireActiveAnchor(workspace, input.anchor);
+  if (input.rois !== undefined) {
+    validateActiveRois(workspace, input.rois);
+  }
+  return anchor;
 }
 
 function requireActiveAnchor(workspace: Workspace, name: string): WorkspaceAnchor {

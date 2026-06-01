@@ -128,6 +128,27 @@ describe("quailbot_plan_and_execute", () => {
     expect(runCli).not.toHaveBeenCalled();
   });
 
+  it("preflight-validates GUI ROI arguments before any real mutating CLI side effects", async () => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: workspaceWithGuiTargets(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [
+        { kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 },
+        { kind: "set_field", anchor: "active_anchor", typed_text: "42", rois: ["missing_roi"] },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.primary_result).toMatchObject({
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: expect.stringContaining("unknown or inactive ROI: missing_roi"),
+      steps: [],
+    });
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
   it("reports unsupported step kinds as validation failures before execution", async () => {
     const runCli = vi.fn<RunCli>();
     const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });

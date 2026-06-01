@@ -71,6 +71,17 @@ describe("GUI backup tool boundaries", () => {
     });
   });
 
+  it("executeClickAnchor rejects unknown or inactive ROI readbacks", async () => {
+    const workspace = workspaceWithAnchors();
+
+    await expect(executeClickAnchor({ workspace }, { anchor: "active_anchor", rois: ["missing_roi"] })).rejects.toThrow(
+      /unknown or inactive ROI: missing_roi/,
+    );
+    await expect(executeClickAnchor({ workspace }, { anchor: "active_anchor", rois: ["inactive_roi"] })).rejects.toThrow(
+      /unknown or inactive ROI: inactive_roi/,
+    );
+  });
+
   it("executeClickAnchor accepts active anchor refs including ref-only anchors", async () => {
     const workspace = workspaceWithAnchors();
 
@@ -112,6 +123,31 @@ describe("GUI backup tool boundaries", () => {
         message: "GUI text-entry backend is not configured in this plugin implementation round.",
       },
     });
+  });
+
+  it("executeSetField rejects unknown or inactive ROI readbacks", async () => {
+    const workspace = workspaceWithAnchors();
+
+    await expect(
+      executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "42", rois: ["missing_roi"] }),
+    ).rejects.toThrow(/unknown or inactive ROI: missing_roi/);
+    await expect(
+      executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "42", rois: ["inactive_roi"] }),
+    ).rejects.toThrow(/unknown or inactive ROI: inactive_roi/);
+  });
+
+  it("executeSetField rejects invalid text-entry arguments", async () => {
+    const workspace = workspaceWithAnchors();
+
+    await expect(executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "" })).rejects.toThrow(
+      /set_field requires non-empty typed_text/,
+    );
+    await expect(executeSetField({ workspace }, { anchor: "active_anchor", typed_text: 42 } as never)).rejects.toThrow(
+      /set_field requires non-empty typed_text/,
+    );
+    await expect(
+      executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "42", submit: "escape" } as never),
+    ).rejects.toThrow(/set_field submit must be enter or tab/);
   });
 
   it("executeSetField accepts active anchor refs including ref-only anchors", async () => {
@@ -171,6 +207,10 @@ function workspaceWithRois(): Workspace {
 
 function workspaceWithAnchors(): Workspace {
   const workspace = fixtureWorkspace();
+  workspace.rois.push(
+    { ref: "roi:status", name: "status_roi", active: true, linkedObservables: [], schema: {} },
+    { ref: "roi:inactive", name: "inactive_roi", active: false, linkedObservables: [], schema: {} },
+  );
   workspace.anchors.push(
     {
       ref: "anchor:active",

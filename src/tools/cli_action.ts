@@ -9,20 +9,22 @@ export type CliActionInput = {
   cli_name?: string;
   action_name: string;
   args?: Record<string, unknown>;
+  linked_observables?: string[];
   timeout_ms?: number;
 };
 
 export async function executeCliAction(ctx: ToolContext, input: CliActionInput): Promise<QuailbotToolResult> {
-  const cliName = input.cli_name ?? ctx.workspace.cli.defaultCliName;
-  const action = requireAction(ctx, cliName, input.action_name);
-  const cliArgs = ["act", input.action_name, ...formatArgs(validateDeclaredArgs(action, input.args ?? {}))];
-  const run = await ctx.runCli(cliName, cliArgs, { timeoutMs: input.timeout_ms });
+  const target = cliTarget(input.action_name, input.cli_name ?? ctx.workspace.cli.defaultCliName);
+  const action = requireAction(ctx, target);
+  const cliArgs = ["act", target.name, ...formatArgs(validateDeclaredArgs(action, input.args ?? {}))];
+  const run = await ctx.runCli(target.cliName, cliArgs, { timeoutMs: input.timeout_ms });
   const linkedObservation = await readLinkedObservables(
     ctx,
     resolveLinkedObservables(ctx.workspace, {
       kind: "cli_action",
-      cli_name: cliName,
+      cli_name: target.cliName,
       action_name: input.action_name,
+      linked_observables: input.linked_observables,
     }),
   );
 
@@ -44,26 +46,38 @@ export async function executeCliAction(ctx: ToolContext, input: CliActionInput):
   };
 }
 
-function requireAction(ctx: ToolContext, cliName: string, name: string) {
+type CliTarget = {
+  cliName: string;
+  name: string;
+  ref: string;
+};
+
+function requireAction(ctx: ToolContext, target: CliTarget) {
   if (!ctx.workspace.cli.enabled) {
     throw new Error("workspace CLI is not enabled");
   }
 
-  const ref = cliRef(cliName, name);
-  const action = ctx.workspace.cli.actions.get(ref);
+  const action = ctx.workspace.cli.actions.get(target.ref);
   if (!action) {
-    throw new Error(`unknown CLI action: ${ref}`);
+    throw new Error(`unknown CLI action: ${target.ref}`);
   }
 
   if (!action.enabled) {
-    throw new Error(`CLI action is disabled: ${ref}`);
+    throw new Error(`CLI action is disabled: ${target.ref}`);
   }
 
   if (action.safetyMode === "blocked") {
-    throw new Error(`CLI action is blocked: ${ref}`);
+    throw new Error(`CLI action is blocked: ${target.ref}`);
   }
 
   return action;
+}
+
+function cliTarget(name: string, defaultCliName: string): CliTarget {
+  const separator = name.indexOf(":");
+  const cliName = separator === -1 ? defaultCliName : name.slice(0, separator);
+  const targetName = separator === -1 ? name : name.slice(separator + 1);
+  return { cliName, name: targetName, ref: cliRef(cliName, targetName) };
 }
 
 function formatArgs(args: Record<string, unknown> | undefined): string[] {

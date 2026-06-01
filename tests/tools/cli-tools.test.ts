@@ -10,7 +10,7 @@ import { executeCliAction } from "../../src/tools/cli_action.js";
 import { executeCliGet } from "../../src/tools/cli_get.js";
 import { executeCliRamp } from "../../src/tools/cli_ramp.js";
 import { executeCliSet } from "../../src/tools/cli_set.js";
-import { sleepSecondsParameters } from "../../src/tools/register-tools.js";
+import { registerQuailbotTools, sleepSecondsParameters } from "../../src/tools/register-tools.js";
 import { executeSleepSeconds } from "../../src/tools/sleep_seconds.js";
 
 describe("CLI-backed tools", () => {
@@ -120,6 +120,67 @@ describe("CLI-backed tools", () => {
         cli: {
           observables: ["nqctl:zctrl_setpnt", "nqctl:current"],
           results: {
+            "nqctl:zctrl_setpnt": { ok: true, payload: { setpoint: 1.5 } },
+            "nqctl:current": { ok: true, payload: { current: 1.2 } },
+          },
+        },
+      },
+      unresolved: [],
+    });
+  });
+
+  it("executeCliSet preserves explicit linked observables from the tool input", async () => {
+    const runCli = vi
+      .fn<RunCli>()
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        payload: undefined,
+        argv: ["nqctl", "set", "zctrl_setpnt", "--arg", "setpoint=1.5"],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: '{"aux":9}',
+        stderr: "",
+        payload: { aux: 9 },
+        argv: ["nqctl", "get", "aux"],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: '{"setpoint":1.5}',
+        stderr: "",
+        payload: { setpoint: 1.5 },
+        argv: ["nqctl", "get", "zctrl_setpnt"],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: '{"current":1.2}',
+        stderr: "",
+        payload: { current: 1.2 },
+        argv: ["nqctl", "get", "current"],
+      });
+    const workspace = fixtureWorkspace();
+    workspace.cli.parameters.set("nqctl:aux", readableParameter("nqctl", "aux"));
+    const ctx = createToolContext({ workspace, runCli });
+
+    const result = await executeCliSet(ctx, {
+      cli_name: "nqctl",
+      parameter: "zctrl_setpnt",
+      value: 1.5,
+      linked_observables: ["aux"],
+    });
+
+    expect(result.linked_observation).toMatchObject({
+      channels: {
+        cli: {
+          observables: ["nqctl:aux", "nqctl:zctrl_setpnt", "nqctl:current"],
+          results: {
+            "nqctl:aux": { ok: true, payload: { aux: 9 } },
             "nqctl:zctrl_setpnt": { ok: true, payload: { setpoint: 1.5 } },
             "nqctl:current": { ok: true, payload: { current: 1.2 } },
           },
@@ -300,6 +361,40 @@ describe("CLI-backed tools", () => {
     expect(runCli).toHaveBeenCalledTimes(1);
   });
 
+  it("executeCliAction preserves explicit linked observables from the tool input", async () => {
+    const runCli = vi
+      .fn<RunCli>()
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: "started",
+        stderr: "",
+        payload: undefined,
+        argv: ["nqctl", "act", "Scan_Action", "--arg", "action=start"],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: '{"current":1.2}',
+        stderr: "",
+        payload: { current: 1.2 },
+        argv: ["nqctl", "get", "current"],
+      });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeCliAction(ctx, {
+      cli_name: "nqctl",
+      action_name: "Scan_Action",
+      args: { action: "start" },
+      linked_observables: ["current"],
+    });
+
+    expect(result.linked_observation).toMatchObject({
+      channels: { cli: { observables: ["nqctl:current"], results: { "nqctl:current": { ok: true, payload: { current: 1.2 } } } } },
+      unresolved: ["scan_status", "scan_buffer", "scan_speed"],
+    });
+  });
+
   it("executeCliAction enforces required and known declared arg fields before driver execution", async () => {
     const runCli = vi.fn<RunCli>();
     const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
@@ -365,6 +460,20 @@ describe("sleep_seconds", () => {
   });
 });
 
+describe("registered CLI tool schemas", () => {
+  it("accept explicit linked observables on mutating CLI tools", () => {
+    const tools: Array<{ name: string; parameters: { properties?: Record<string, unknown> } }> = [];
+    const pi = { registerTool: (tool: { name: string; parameters: { properties?: Record<string, unknown> } }) => tools.push(tool) };
+
+    registerQuailbotTools(pi as never, { workspace: fixtureWorkspace() } as never);
+
+    for (const name of ["cli_set", "cli_ramp", "cli_action"]) {
+      const tool = tools.find((item) => item.name === name);
+      expect(tool?.parameters.properties).toHaveProperty("linked_observables");
+    }
+  });
+});
+
 function fixtureWorkspace(): Workspace {
   return loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
 }
@@ -382,6 +491,18 @@ function writableParameter(cliName: string, name: string, schema: Record<string,
     actions: { get: true, set: true, ramp: true },
     linkedObservables: [],
     schema,
+  };
+}
+
+function readableParameter(cliName: string, name: string): CliParameter {
+  return {
+    ref: `${cliName}:${name}`,
+    cliName,
+    name,
+    enabled: true,
+    actions: { get: true, set: false, ramp: false },
+    linkedObservables: [],
+    schema: {},
   };
 }
 

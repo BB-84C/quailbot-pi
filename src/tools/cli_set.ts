@@ -10,12 +10,13 @@ export type CliSetInput = {
   parameter: string;
   value?: unknown;
   args?: Record<string, unknown>;
+  linked_observables?: string[];
   timeout_ms?: number;
 };
 
 export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promise<QuailbotToolResult> {
-  const cliName = input.cli_name ?? ctx.workspace.cli.defaultCliName;
-  const parameter = requireParameter(ctx, cliName, input.parameter);
+  const target = cliTarget(input.parameter, input.cli_name ?? ctx.workspace.cli.defaultCliName);
+  const parameter = requireParameter(ctx, target);
 
   if (!parameter.actions.set) {
     throw new Error(`CLI parameter does not allow set: ${parameter.ref}`);
@@ -30,15 +31,16 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
   }
 
   const cliArgs = hasArgs
-    ? ["set", input.parameter, ...formatArgs(validateDeclaredArgs(parameter, input.args ?? {}))]
-    : ["set", input.parameter, ...valueModeArgs(parameter, input.value)];
-  const run = await ctx.runCli(cliName, cliArgs, { timeoutMs: input.timeout_ms });
+    ? ["set", target.name, ...formatArgs(validateDeclaredArgs(parameter, input.args ?? {}))]
+    : ["set", target.name, ...valueModeArgs(parameter, input.value)];
+  const run = await ctx.runCli(target.cliName, cliArgs, { timeoutMs: input.timeout_ms });
   const linkedObservation = await readLinkedObservables(
     ctx,
     resolveLinkedObservables(ctx.workspace, {
       kind: "cli_set",
-      cli_name: cliName,
+      cli_name: target.cliName,
       parameter: input.parameter,
+      linked_observables: input.linked_observables,
     }),
   );
 
@@ -61,22 +63,34 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
   };
 }
 
-function requireParameter(ctx: ToolContext, cliName: string, name: string) {
+type CliTarget = {
+  cliName: string;
+  name: string;
+  ref: string;
+};
+
+function requireParameter(ctx: ToolContext, target: CliTarget) {
   if (!ctx.workspace.cli.enabled) {
     throw new Error("workspace CLI is not enabled");
   }
 
-  const ref = cliRef(cliName, name);
-  const parameter = ctx.workspace.cli.parameters.get(ref);
+  const parameter = ctx.workspace.cli.parameters.get(target.ref);
   if (!parameter) {
-    throw new Error(`unknown CLI parameter: ${ref}`);
+    throw new Error(`unknown CLI parameter: ${target.ref}`);
   }
 
   if (!parameter.enabled) {
-    throw new Error(`CLI parameter is disabled: ${ref}`);
+    throw new Error(`CLI parameter is disabled: ${target.ref}`);
   }
 
   return parameter;
+}
+
+function cliTarget(name: string, defaultCliName: string): CliTarget {
+  const separator = name.indexOf(":");
+  const cliName = separator === -1 ? defaultCliName : name.slice(0, separator);
+  const targetName = separator === -1 ? name : name.slice(separator + 1);
+  return { cliName, name: targetName, ref: cliRef(cliName, targetName) };
 }
 
 function formatArgs(args: Record<string, unknown>): string[] {

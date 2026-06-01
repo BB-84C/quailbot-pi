@@ -12,6 +12,9 @@ import { createToolContext } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
 const argsSchema = Type.Record(Type.String({ minLength: 1 }), Type.Any(), { minProperties: 1 });
+const linkedObservablesSchema = Type.Array(Type.String({ minLength: 1 }), {
+  description: "Additional linked observables to read after this mutating command.",
+});
 export const sleepSecondsParameters = Type.Object({
   seconds: Type.Number({ minimum: 0, description: "Number of seconds to wait." }),
 });
@@ -44,6 +47,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       parameter: Type.String({ minLength: 1, description: "Workspace parameter name to set." }),
       value: Type.Optional(Type.Any({ description: "Single value to pass to the CLI set command." })),
       args: Type.Optional(argsSchema),
+      linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
     async execute(_toolCallId, params) {
@@ -64,6 +68,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       end: Type.Number({ description: "Ramp end value." }),
       step: Type.Number({ description: "Ramp step value." }),
       interval_s: Type.Number({ description: "Interval between ramp steps in seconds." }),
+      linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
     async execute(_toolCallId, params) {
@@ -81,6 +86,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       ),
       action_name: Type.String({ minLength: 1, description: "Workspace action name to invoke." }),
       args: Type.Optional(argsSchema),
+      linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
     async execute(_toolCallId, params) {

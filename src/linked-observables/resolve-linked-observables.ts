@@ -21,11 +21,13 @@ export function resolveLinkedObservables(workspace: Workspace, actionRef: Mutati
 
   for (const name of sourceObservableNames(workspace, actionRef)) {
     const classification = classifyLinkedObservable(workspace, actionRef, name);
-    if (classification.kind === "cli") {
-      addUnique(resolved.cli, seen.cli, classification.ref);
-    } else if (classification.kind === "roi") {
-      addUnique(resolved.roi, seen.roi, classification.ref);
-    } else {
+    if (classification.cli !== undefined) {
+      addUnique(resolved.cli, seen.cli, classification.cli);
+    }
+    if (classification.roi !== undefined) {
+      addUnique(resolved.roi, seen.roi, classification.roi);
+    }
+    if (classification.cli === undefined && classification.roi === undefined) {
       addUnique(resolved.unresolved, seen.unresolved, name);
     }
   }
@@ -33,10 +35,10 @@ export function resolveLinkedObservables(workspace: Workspace, actionRef: Mutati
   return resolved;
 }
 
-type Classification =
-  | { kind: "cli"; ref: string }
-  | { kind: "roi"; ref: string }
-  | { kind: "unresolved" };
+type Classification = {
+  cli?: string;
+  roi?: string;
+};
 
 function sourceObservableNames(workspace: Workspace, actionRef: MutatingActionRef): string[] {
   const names = [...(actionRef.linked_observables ?? [])];
@@ -70,26 +72,29 @@ function sourceObservableNames(workspace: Workspace, actionRef: MutatingActionRe
 }
 
 function classifyLinkedObservable(workspace: Workspace, actionRef: MutatingActionRef, name: string): Classification {
+  const classification: Classification = {};
   const roi = workspace.rois.find((item) => item.active && (item.ref === name || item.name === name));
   if (roi) {
-    return { kind: "roi", ref: roi.ref };
+    classification.roi = roi.ref;
   }
 
   const [cliName, parameterName] = splitCliRef(name, defaultCliName(workspace, actionRef));
   const parameter = workspace.cli.parameters.get(`${cliName}:${parameterName}`);
   if (parameter?.enabled && parameter.actions.get) {
-    return { kind: "cli", ref: parameter.ref };
+    classification.cli = parameter.ref;
   }
 
-  return { kind: "unresolved" };
+  return classification;
 }
 
 function cliParameter(workspace: Workspace, cliName: string | undefined, parameterName: string) {
-  return workspace.cli.parameters.get(`${cliName ?? workspace.cli.defaultCliName}:${parameterName}`);
+  const [targetCliName, targetParameterName] = splitCliRef(parameterName, cliName ?? workspace.cli.defaultCliName);
+  return workspace.cli.parameters.get(`${targetCliName}:${targetParameterName}`);
 }
 
 function cliAction(workspace: Workspace, cliName: string | undefined, actionName: string) {
-  return workspace.cli.actions.get(`${cliName ?? workspace.cli.defaultCliName}:${actionName}`);
+  const [targetCliName, targetActionName] = splitCliRef(actionName, cliName ?? workspace.cli.defaultCliName);
+  return workspace.cli.actions.get(`${targetCliName}:${targetActionName}`);
 }
 
 function defaultCliName(workspace: Workspace, actionRef: MutatingActionRef): string {

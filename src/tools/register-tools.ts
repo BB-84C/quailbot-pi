@@ -9,6 +9,7 @@ import { executeCliGet } from "./cli_get.js";
 import { executeCliRamp } from "./cli_ramp.js";
 import { executeCliSet } from "./cli_set.js";
 import { executeObserve } from "./observe.js";
+import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
 import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
 import { createToolContext } from "./tool-context.js";
@@ -26,6 +27,22 @@ export const sleepSecondsParameters = Type.Object({
 });
 
 export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime): void {
+  pi.registerTool({
+    name: "quailbot_planwrite",
+    label: "Quailbot planwrite",
+    description: "Write persistent or ephemeral plan context for future Quailbot agent turns.",
+    parameters: Type.Object({
+      text: Type.String({ description: "Plan text to write or return ephemerally." }),
+      mode: Type.Union([Type.Literal("system"), Type.Literal("ephemeral")], {
+        description: "Persist text into system plan context or return it ephemerally.",
+      }),
+      clean: Type.Optional(Type.Boolean({ description: "Clear the persistent plan before processing this input." })),
+    }),
+    async execute(_toolCallId, params) {
+      return piToolResult(await executeQuailbotPlanwrite(runtime.planContext, params));
+    },
+  });
+
   pi.registerTool({
     name: "cli_get",
     label: "CLI get",

@@ -14,7 +14,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.74.2"
+    "@earendil-works/pi-coding-agent": "0.74.2",
+    "typebox": "^1.1.39"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

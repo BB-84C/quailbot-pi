@@ -1,6 +1,7 @@
 import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
+import type { CliAction } from "../workspace/types.js";
 
 export type CliActionInput = {
   cli_name?: string;
@@ -12,7 +13,7 @@ export type CliActionInput = {
 export async function executeCliAction(ctx: ToolContext, input: CliActionInput): Promise<QuailbotToolResult> {
   const cliName = input.cli_name ?? ctx.workspace.cli.defaultCliName;
   const action = requireAction(ctx, cliName, input.action_name);
-  const cliArgs = ["act", input.action_name, ...formatArgs(input.args)];
+  const cliArgs = ["act", input.action_name, ...formatArgs(validateDeclaredArgs(action, input.args ?? {}))];
   const run = await ctx.runCli(cliName, cliArgs, { timeoutMs: input.timeout_ms });
 
   return {
@@ -61,6 +62,51 @@ function formatArgs(args: Record<string, unknown> | undefined): string[] {
   }
 
   return Object.entries(args).flatMap(([key, value]) => ["--arg", `${key}=${String(value)}`]);
+}
+
+function validateDeclaredArgs(action: CliAction, args: Record<string, unknown>): Record<string, unknown> {
+  const fields = actionArgFields(action);
+  if (fields.length === 0) {
+    return args;
+  }
+
+  const knownNames = new Set(fields.map((field) => field.name));
+  const missing = fields.filter((field) => field.required && !(field.name in args)).map((field) => field.name);
+  if (missing.length > 0) {
+    throw new Error(`missing required args for CLI action ${action.ref}: ${missing.join(", ")}`);
+  }
+
+  const unknown = Object.keys(args).filter((key) => !knownNames.has(key));
+  if (unknown.length > 0) {
+    throw new Error(`unknown args for CLI action ${action.ref}: ${unknown.join(", ")}`);
+  }
+
+  return args;
+}
+
+type ArgField = {
+  name: string;
+  required: boolean;
+};
+
+function actionArgFields(action: CliAction): ArgField[] {
+  const actionCmd = record(action.actionCmd);
+  return argFields(actionCmd.arg_fields);
+}
+
+function argFields(value: unknown): ArgField[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    const field = record(item);
+    return typeof field.name === "string" ? [{ name: field.name, required: field.required === true }] : [];
+  });
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 function linkedObservation(refs: string[]): unknown {

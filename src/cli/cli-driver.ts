@@ -7,6 +7,8 @@ export type CliRunResult = {
   stderr: string;
   payload: unknown;
   argv: string[];
+  error_type?: string;
+  error_message?: string;
 };
 
 export type RunCliOptions = {
@@ -21,17 +23,18 @@ export const runCli: RunCli = async (file, args, options = {}) => {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const argv = [file, ...args];
 
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("timeoutMs must be a finite positive number");
+  }
+
   return new Promise<CliRunResult>((resolve) => {
     let stdout = "";
     let stderr = "";
     let settled = false;
     let timedOut = false;
+    let timeout: NodeJS.Timeout | undefined;
 
-    const child = spawn(file, args, { windowsHide: true });
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, timeoutMs);
+    const child = spawn(file, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 
     const finish = (result: CliRunResult): void => {
       if (settled) {
@@ -39,9 +42,27 @@ export const runCli: RunCli = async (file, args, options = {}) => {
       }
 
       settled = true;
-      clearTimeout(timeout);
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+      }
       resolve(result);
     };
+
+    timeout = setTimeout(() => {
+      timedOut = true;
+      const message = `process timed out after ${timeoutMs}ms`;
+      finish({
+        ok: false,
+        exitCode: -1,
+        stdout,
+        stderr: appendLine(stderr, message),
+        payload: undefined,
+        argv,
+        error_type: "timeout",
+        error_message: message,
+      });
+      child.kill();
+    }, timeoutMs);
 
     child.stdout?.on("data", (chunk: Buffer | string) => {
       stdout += chunk.toString();
@@ -59,6 +80,8 @@ export const runCli: RunCli = async (file, args, options = {}) => {
         stderr: stderr ? `${stderr}\n${error.message}` : error.message,
         payload: undefined,
         argv,
+        error_type: "spawn_error",
+        error_message: error.message,
       });
     });
 

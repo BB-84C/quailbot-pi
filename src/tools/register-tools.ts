@@ -11,7 +11,7 @@ import { executeSleepSeconds } from "./sleep_seconds.js";
 import { createToolContext } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
-const argsSchema = Type.Record(Type.String(), Type.Any());
+const argsSchema = Type.Record(Type.String({ minLength: 1 }), Type.Any(), { minProperties: 1 });
 
 export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime): void {
   pi.registerTool({
@@ -19,9 +19,11 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     label: "CLI get",
     description: "Read a workspace-declared CLI parameter through the configured driver-agnostic CLI executable.",
     parameters: Type.Object({
-      cli_name: Type.Optional(Type.String({ description: "CLI executable name, defaults to the workspace CLI name." })),
-      parameter: Type.String({ description: "Workspace parameter name to read." }),
-      timeout_ms: Type.Optional(Type.Number({ description: "Optional CLI timeout in milliseconds." })),
+      cli_name: Type.Optional(
+        Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
+      ),
+      parameter: Type.String({ minLength: 1, description: "Workspace parameter name to read." }),
+      timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
     async execute(_toolCallId, params) {
       return piToolResult(await executeCliGet(runtimeToolContext(runtime), params));
@@ -33,11 +35,13 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     label: "CLI set",
     description: "Set a workspace-declared CLI parameter through the configured driver-agnostic CLI executable.",
     parameters: Type.Object({
-      cli_name: Type.Optional(Type.String({ description: "CLI executable name, defaults to the workspace CLI name." })),
-      parameter: Type.String({ description: "Workspace parameter name to set." }),
+      cli_name: Type.Optional(
+        Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
+      ),
+      parameter: Type.String({ minLength: 1, description: "Workspace parameter name to set." }),
       value: Type.Optional(Type.Any({ description: "Single value to pass to the CLI set command." })),
       args: Type.Optional(argsSchema),
-      timeout_ms: Type.Optional(Type.Number({ description: "Optional CLI timeout in milliseconds." })),
+      timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
     async execute(_toolCallId, params) {
       return piToolResult(await executeCliSet(runtimeToolContext(runtime), params));
@@ -49,13 +53,15 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     label: "CLI ramp",
     description: "Ramp a workspace-declared CLI parameter through the configured driver-agnostic CLI executable.",
     parameters: Type.Object({
-      cli_name: Type.Optional(Type.String({ description: "CLI executable name, defaults to the workspace CLI name." })),
-      parameter: Type.String({ description: "Workspace parameter name to ramp." }),
+      cli_name: Type.Optional(
+        Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
+      ),
+      parameter: Type.String({ minLength: 1, description: "Workspace parameter name to ramp." }),
       start: Type.Number({ description: "Ramp start value." }),
       end: Type.Number({ description: "Ramp end value." }),
       step: Type.Number({ description: "Ramp step value." }),
       interval_s: Type.Number({ description: "Interval between ramp steps in seconds." }),
-      timeout_ms: Type.Optional(Type.Number({ description: "Optional CLI timeout in milliseconds." })),
+      timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
     async execute(_toolCallId, params) {
       return piToolResult(await executeCliRamp(runtimeToolContext(runtime), params));
@@ -67,10 +73,12 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     label: "CLI action",
     description: "Run a workspace-declared CLI action through the configured driver-agnostic CLI executable.",
     parameters: Type.Object({
-      cli_name: Type.Optional(Type.String({ description: "CLI executable name, defaults to the workspace CLI name." })),
-      action_name: Type.String({ description: "Workspace action name to invoke." }),
+      cli_name: Type.Optional(
+        Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
+      ),
+      action_name: Type.String({ minLength: 1, description: "Workspace action name to invoke." }),
       args: Type.Optional(argsSchema),
-      timeout_ms: Type.Optional(Type.Number({ description: "Optional CLI timeout in milliseconds." })),
+      timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
     async execute(_toolCallId, params) {
       return piToolResult(await executeCliAction(runtimeToolContext(runtime), params));
@@ -82,7 +90,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     label: "Sleep seconds",
     description: "Wait for a finite non-negative number of seconds before continuing.",
     parameters: Type.Object({
-      seconds: Type.Number({ description: "Number of seconds to wait." }),
+      seconds: Type.Number({ exclusiveMinimum: 0, description: "Number of seconds to wait." }),
     }),
     async execute(_toolCallId, params) {
       return piToolResult(await executeSleepSeconds(params));

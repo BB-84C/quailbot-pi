@@ -12,6 +12,9 @@ import { createToolContext } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
 const argsSchema = Type.Record(Type.String({ minLength: 1 }), Type.Any(), { minProperties: 1 });
+export const sleepSecondsParameters = Type.Object({
+  seconds: Type.Number({ minimum: 0, description: "Number of seconds to wait." }),
+});
 
 export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime): void {
   pi.registerTool({
@@ -89,9 +92,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "sleep_seconds",
     label: "Sleep seconds",
     description: "Wait for a finite non-negative number of seconds before continuing.",
-    parameters: Type.Object({
-      seconds: Type.Number({ exclusiveMinimum: 0, description: "Number of seconds to wait." }),
-    }),
+    parameters: sleepSecondsParameters,
     async execute(_toolCallId, params) {
       return piToolResult(await executeSleepSeconds(params));
     },

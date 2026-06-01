@@ -10,6 +10,8 @@ import { executeCliAction } from "../../src/tools/cli_action.js";
 import { executeCliGet } from "../../src/tools/cli_get.js";
 import { executeCliRamp } from "../../src/tools/cli_ramp.js";
 import { executeCliSet } from "../../src/tools/cli_set.js";
+import { sleepSecondsParameters } from "../../src/tools/register-tools.js";
+import { executeSleepSeconds } from "../../src/tools/sleep_seconds.js";
 
 describe("CLI-backed tools", () => {
   it("executeCliGet validates the workspace target and dispatches through the generic driver", async () => {
@@ -286,6 +288,29 @@ describe("runCli", () => {
     expect(Date.now() - startedAt).toBeLessThan(1000);
     expect(result).toMatchObject({ ok: false, exitCode: -1, error_type: "timeout" });
     expect(result.stderr).toContain("process timed out after 25ms");
+  });
+});
+
+describe("sleep_seconds", () => {
+  it("accepts zero seconds and rejects negative seconds", async () => {
+    await expect(executeSleepSeconds({ seconds: 0 })).resolves.toMatchObject({
+      ok: true,
+      action: "sleep_seconds",
+      primary_result: { slept_seconds: 0 },
+    });
+
+    await expect(executeSleepSeconds({ seconds: -1 })).rejects.toThrow(
+      /sleep_seconds requires a finite non-negative seconds value/,
+    );
+  });
+
+  it("declares sleep seconds as non-negative in the registered schema", () => {
+    const schema = sleepSecondsParameters as unknown as {
+      properties: { seconds: { minimum?: number; exclusiveMinimum?: number } };
+    };
+
+    expect(schema.properties.seconds.minimum).toBe(0);
+    expect(schema.properties.seconds.exclusiveMinimum).toBeUndefined();
   });
 });
 

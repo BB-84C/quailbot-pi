@@ -9,6 +9,7 @@ import { executeCliGet } from "./cli_get.js";
 import { executeCliRamp } from "./cli_ramp.js";
 import { executeCliSet } from "./cli_set.js";
 import { executeObserve } from "./observe.js";
+import { executeQuailbotPlanAndExecute } from "./quailbot_plan_and_execute.js";
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
 import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
@@ -164,6 +165,16 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     parameters: sleepSecondsParameters,
     async execute(_toolCallId, params) {
       return piToolResult(await executeSleepSeconds(params));
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_plan_and_execute",
+    label: "Quailbot Plan And Execute",
+    description: "Execute a concrete serial Quailbot program and return one final result with per-step readbacks.",
+    parameters: Type.Object({ steps: Type.Array(Type.Record(Type.String(), Type.Any())) }),
+    async execute(_toolCallId, params) {
+      return piToolResult(await executeQuailbotPlanAndExecute(runtimeToolContext(runtime), params as never));
     },
   });
 }

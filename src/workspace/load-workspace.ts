@@ -7,7 +7,6 @@ import type {
   Workspace,
   WorkspaceAnchor,
   WorkspaceRoi,
-  WorkspaceSchema,
 } from "./types.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -73,22 +72,23 @@ function parseParameters(cliParams: JsonRecord, cliName: string): Map<string, Cl
   const parameters = new Map<string, CliParameter>();
   const container = record(cliParams.parameters);
 
-  for (const parameter of records(container.items)) {
+  for (const [index, parameter] of itemRecords(container.items, "cli_params.parameters.items").entries()) {
     const name = stringValue(parameter.name);
     if (!name) {
-      continue;
+      throw new Error(`workspace parameter at cli_params.parameters.items[${index}] is missing name`);
     }
 
-    const ref = `${cliName}:${name}`;
+    const parameterCliName = itemCliName(parameter, cliName);
+    const ref = `${parameterCliName}:${name}`;
     parameters.set(ref, {
       ref,
-      cliName,
+      cliName: parameterCliName,
       name,
       label: stringValue(parameter.label),
       description: stringValue(parameter.description),
       enabled: booleanValue(parameter.enabled, true),
       actions: deriveActions(parameter),
-      linkedObservables: strings(parameter.linked_observables),
+      linkedObservables: linkedObservables(parameter),
       schema: parameter,
     });
   }
@@ -100,21 +100,23 @@ function parseActions(cliParams: JsonRecord, cliName: string): Map<string, CliAc
   const actions = new Map<string, CliAction>();
   const container = record(cliParams.action_commands);
 
-  for (const action of records(container.items)) {
+  for (const [index, action] of itemRecords(container.items, "cli_params.action_commands.items").entries()) {
     const name = stringValue(action.name);
     if (!name) {
-      continue;
+      throw new Error(`workspace action at cli_params.action_commands.items[${index}] is missing name`);
     }
 
-    const ref = `${cliName}:${name}`;
+    const actionCliName = itemCliName(action, cliName);
+    const ref = `${actionCliName}:${name}`;
     actions.set(ref, {
       ref,
-      cliName,
+      cliName: actionCliName,
       name,
       description: stringValue(action.description),
       enabled: booleanValue(action.enabled, true),
+      safetyMode: stringValue(action.safety_mode),
       actions: deriveActions(action),
-      linkedObservables: strings(action.linked_observables),
+      linkedObservables: linkedObservables(action),
       actionCmd: action.action_cmd,
       schema: action,
     });
@@ -127,9 +129,12 @@ function deriveActions(schema: JsonRecord): CliActionPermissions {
   const explicitActions = record(schema.actions);
   const safety = record(schema.safety);
   const derived: CliActionPermissions = {
-    get: booleanValue(schema.readable, false) || schema.get_cmd !== undefined,
-    set: booleanValue(schema.writable, false) || schema.set_cmd !== undefined,
-    ramp: booleanValue(schema.has_ramp, false) || booleanValue(safety.ramp_enabled, false),
+    get: booleanValue(schema.readable, false),
+    set: booleanValue(schema.writable, false) && isRecord(schema.set_cmd),
+    ramp:
+      booleanValue(schema.writable, false) &&
+      booleanValue(schema.has_ramp, false) &&
+      booleanValue(safety.ramp_enabled, false),
   };
 
   return {
@@ -137,6 +142,14 @@ function deriveActions(schema: JsonRecord): CliActionPermissions {
     set: booleanValue(explicitActions.set, derived.set),
     ramp: booleanValue(explicitActions.ramp, derived.ramp),
   };
+}
+
+function itemCliName(item: JsonRecord, defaultCliName: string): string {
+  return stringValue(item.cli_name) ?? stringValue(item.CLI_Name) ?? defaultCliName;
+}
+
+function linkedObservables(item: JsonRecord): string[] {
+  return strings(item.linked_observables ?? item.linked_ROIs);
 }
 
 function strings(value: unknown): string[] {
@@ -153,6 +166,24 @@ function records(value: unknown): JsonRecord[] {
   }
 
   return value.filter(isRecord);
+}
+
+function itemRecords(value: unknown, context: string): JsonRecord[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`workspace ${context} must be an array`);
+  }
+
+  return value.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new Error(`workspace ${context}[${index}] must be an object`);
+    }
+
+    return item;
+  });
 }
 
 function record(value: unknown): JsonRecord {

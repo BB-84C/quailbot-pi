@@ -15,12 +15,12 @@ export function settingsPath(cwd = process.cwd()): string {
 }
 
 export function starterWorkspacePath(cwd = process.cwd()): string {
-  return join(quailbotStateRoot(cwd), "starter.workspace.json");
+  return join(quailbotStateRoot(cwd), "workspace.json");
 }
 
 export function saveLastWorkspace(path: string, cwd = process.cwd()): void {
   mkdirSync(quailbotStateRoot(cwd), { recursive: true });
-  writeFileSync(settingsPath(cwd), `${JSON.stringify({ workspace: resolve(path) }, null, 2)}\n`, "utf8");
+  writeFileSync(settingsPath(cwd), `${JSON.stringify({ workspace: resolve(cwd, path) }, null, 2)}\n`, "utf8");
 }
 
 export function loadLastWorkspace(cwd = process.cwd()): string | undefined {
@@ -34,14 +34,14 @@ export function loadLastWorkspace(cwd = process.cwd()): string | undefined {
     return undefined;
   }
 
-  return parsed.workspace;
+  return resolve(cwd, parsed.workspace);
 }
 
 export function resolveWorkspaceSelection(options: { explicitPath?: string; cwd?: string } = {}): WorkspaceSelection {
   const cwd = options.cwd ?? process.cwd();
 
   if (options.explicitPath) {
-    return { path: resolve(options.explicitPath), source: "explicit" };
+    return { path: resolve(cwd, options.explicitPath), source: "explicit" };
   }
 
   const settingsWorkspace = loadLastWorkspace(cwd);

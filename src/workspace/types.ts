@@ -41,6 +41,7 @@ export type CliAction = {
   name: string;
   description?: string;
   enabled: boolean;
+  safetyMode?: string;
   actions: CliActionPermissions;
   linkedObservables: string[];
   actionCmd: unknown;

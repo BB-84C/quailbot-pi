@@ -1,7 +1,23 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
+import {
+  loadLastWorkspace,
+  resolveWorkspaceSelection,
+  saveLastWorkspace,
+  starterWorkspacePath,
+} from "../../src/workspace/workspace-state.js";
+
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { force: true, recursive: true });
+  }
+});
 
 describe("loadWorkspace", () => {
   it("loads a real workspace JSON path through the product resolver", () => {
@@ -18,6 +34,11 @@ describe("loadWorkspace", () => {
       "scan_buffer",
       "scan_speed",
     ]);
+    expect(workspace.cli.actions.get("nqctl:Scan_Action")?.safetyMode).toBe("guarded");
+    expect(workspace.cli.actions.get("nqctl:Scan_Action")?.actionCmd).toEqual({
+      command: "Scan_Action",
+      arg_fields: [{ name: "action", required: true }],
+    });
   });
 
   it("throws when the workspace path does not exist", () => {
@@ -25,4 +46,162 @@ describe("loadWorkspace", () => {
       /workspace file does not exist/,
     );
   });
+
+  it("derives parameter action permissions conservatively unless explicit actions are present", () => {
+    const workspace = loadWorkspace(
+      writeWorkspace({
+        cli_params: {
+          cli_name: "nqctl",
+          parameters: {
+            items: [
+              { name: "readable_only", readable: true, writable: false },
+              { name: "writable_without_set_cmd", readable: false, writable: true },
+              { name: "writable_with_set_cmd", readable: false, writable: true, set_cmd: { command: "Set" } },
+              {
+                name: "ramp_blocked",
+                writable: true,
+                has_ramp: true,
+                safety: { ramp_enabled: false },
+                set_cmd: { command: "Set" },
+              },
+              {
+                name: "ramp_enabled",
+                writable: true,
+                has_ramp: true,
+                safety: { ramp_enabled: true },
+                set_cmd: { command: "Set" },
+              },
+              { name: "explicit", actions: { get: true, set: true, ramp: true } },
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(workspace.cli.parameters.get("nqctl:readable_only")?.actions).toEqual({ get: true, set: false, ramp: false });
+    expect(workspace.cli.parameters.get("nqctl:writable_without_set_cmd")?.actions).toEqual({
+      get: false,
+      set: false,
+      ramp: false,
+    });
+    expect(workspace.cli.parameters.get("nqctl:writable_with_set_cmd")?.actions).toEqual({
+      get: false,
+      set: true,
+      ramp: false,
+    });
+    expect(workspace.cli.parameters.get("nqctl:ramp_blocked")?.actions.ramp).toBe(false);
+    expect(workspace.cli.parameters.get("nqctl:ramp_enabled")?.actions.ramp).toBe(true);
+    expect(workspace.cli.parameters.get("nqctl:explicit")?.actions).toEqual({ get: true, set: true, ramp: true });
+  });
+
+  it("uses item-level CLI names for parameter and action refs", () => {
+    const workspace = loadWorkspace(
+      writeWorkspace({
+        cli_params: {
+          cli_name: "nqctl",
+          parameters: { items: [{ name: "bias", cli_name: "qctl", readable: true }] },
+          action_commands: { items: [{ name: "Approach", CLI_Name: "motion", action_cmd: { command: "Approach" } }] },
+        },
+      }),
+    );
+
+    expect(workspace.cli.defaultCliName).toBe("nqctl");
+    expect(workspace.cli.parameters.has("qctl:bias")).toBe(true);
+    expect(workspace.cli.parameters.has("nqctl:bias")).toBe(false);
+    expect(workspace.cli.actions.has("motion:Approach")).toBe(true);
+  });
+
+  it("accepts legacy linked_ROIs as linked observables for parameters and actions", () => {
+    const workspace = loadWorkspace(
+      writeWorkspace({
+        cli_params: {
+          cli_name: "nqctl",
+          parameters: { items: [{ name: "bias", readable: true, linked_ROIs: ["roi_a"] }] },
+          action_commands: {
+            items: [{ name: "Approach", linked_ROIs: ["roi_a", "roi_b"], action_cmd: { command: "Approach" } }],
+          },
+        },
+      }),
+    );
+
+    expect(workspace.cli.parameters.get("nqctl:bias")?.linkedObservables).toEqual(["roi_a"]);
+    expect(workspace.cli.actions.get("nqctl:Approach")?.linkedObservables).toEqual(["roi_a", "roi_b"]);
+  });
+
+  it("loads action safety modes including blocked metadata", () => {
+    const workspace = loadWorkspace(
+      writeWorkspace({
+        cli_params: {
+          cli_name: "nqctl",
+          action_commands: {
+            items: [
+              { name: "Guarded", safety_mode: "guarded", action_cmd: { command: "Guarded" } },
+              { name: "Blocked", safety_mode: "blocked", action_cmd: { command: "Blocked" } },
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(workspace.cli.actions.get("nqctl:Guarded")?.safetyMode).toBe("guarded");
+    expect(workspace.cli.actions.get("nqctl:Blocked")?.safetyMode).toBe("blocked");
+    expect(workspace.cli.actions.get("nqctl:Blocked")?.actionCmd).toEqual({ command: "Blocked" });
+  });
+
+  it("rejects malformed parameter entries with contextual errors", () => {
+    expect(() =>
+      loadWorkspace(
+        writeWorkspace({
+          cli_params: { cli_name: "nqctl", parameters: { items: [{ readable: true }] } },
+        }),
+      ),
+    ).toThrow(/workspace parameter at cli_params\.parameters\.items\[0\] is missing name/);
+  });
+
+  it("rejects malformed action entries with contextual errors", () => {
+    expect(() =>
+      loadWorkspace(
+        writeWorkspace({
+          cli_params: { cli_name: "nqctl", action_commands: { items: [{ action_cmd: { command: "Action" } }] } },
+        }),
+      ),
+    ).toThrow(/workspace action at cli_params\.action_commands\.items\[0\] is missing name/);
+  });
 });
+
+describe("workspace state", () => {
+  it("uses the starter workspace path under the Quailbot state root", () => {
+    const cwd = makeTempDir();
+
+    expect(starterWorkspacePath(cwd)).toBe(join(cwd, ".quailbot-pi", "workspace.json"));
+  });
+
+  it("resolves explicit and saved relative workspace paths against the provided cwd", () => {
+    const cwd = makeTempDir();
+
+    expect(resolveWorkspaceSelection({ explicitPath: "workspace.json", cwd })).toEqual({
+      path: join(cwd, "workspace.json"),
+      source: "explicit",
+    });
+
+    saveLastWorkspace("saved.workspace.json", cwd);
+
+    expect(loadLastWorkspace(cwd)).toBe(join(cwd, "saved.workspace.json"));
+    expect(resolveWorkspaceSelection({ cwd })).toEqual({
+      path: join(cwd, "saved.workspace.json"),
+      source: "settings",
+    });
+  });
+});
+
+function writeWorkspace(workspace: unknown): string {
+  const workspacePath = join(makeTempDir(), "workspace.json");
+  writeFileSync(workspacePath, JSON.stringify(workspace), "utf8");
+  return workspacePath;
+}
+
+function makeTempDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "quailbot-workspace-"));
+  tempDirs.push(dir);
+  return dir;
+}

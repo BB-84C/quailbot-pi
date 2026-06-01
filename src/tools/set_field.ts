@@ -24,7 +24,7 @@ export async function executeSetField(ctx: { workspace: Workspace }, input: SetF
 }
 
 function requireActiveAnchor(workspace: Workspace, name: string): WorkspaceAnchor {
-  const anchor = workspace.anchors.find((item) => item.active && item.name === name);
+  const anchor = workspace.anchors.find((item) => item.active && (item.ref === name || item.name === name));
   if (!anchor) {
     throw new Error(`unknown or inactive anchor: ${name}`);
   }

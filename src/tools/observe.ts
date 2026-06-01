@@ -1,4 +1,4 @@
-import type { Workspace } from "../workspace/types.js";
+import type { Workspace, WorkspaceRoi } from "../workspace/types.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
 export type ObserveInput = {
@@ -6,7 +6,7 @@ export type ObserveInput = {
 };
 
 export async function executeObserve(ctx: { workspace: Workspace }, input: ObserveInput): Promise<QuailbotToolResult> {
-  const requestedRois = input.rois ?? activeRoiNames(ctx.workspace);
+  const requestedRois = input.rois === undefined ? activeRoiNames(ctx.workspace) : validateActiveRois(ctx.workspace, input.rois);
 
   return {
     ok: false,
@@ -22,4 +22,21 @@ export async function executeObserve(ctx: { workspace: Workspace }, input: Obser
 
 function activeRoiNames(workspace: Workspace): string[] {
   return workspace.rois.filter((roi) => roi.active).map((roi) => roi.name ?? roi.ref);
+}
+
+function validateActiveRois(workspace: Workspace, names: string[]): string[] {
+  for (const name of names) {
+    requireActiveRoi(workspace, name);
+  }
+
+  return names;
+}
+
+function requireActiveRoi(workspace: Workspace, name: string): WorkspaceRoi {
+  const roi = workspace.rois.find((item) => item.active && (item.ref === name || item.name === name));
+  if (!roi) {
+    throw new Error(`unknown or inactive ROI: ${name}`);
+  }
+
+  return roi;
 }

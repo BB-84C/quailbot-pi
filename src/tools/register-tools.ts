@@ -19,7 +19,7 @@ const linkedObservablesSchema = Type.Array(Type.String({ minLength: 1 }), {
   description: "Additional linked observables to read after this mutating command.",
 });
 const roisSchema = Type.Array(Type.String({ minLength: 1 }), {
-  description: "Workspace ROI names to use for GUI readback.",
+  description: "Workspace ROI names or refs to use for GUI readback.",
 });
 export const sleepSecondsParameters = Type.Object({
   seconds: Type.Number({ minimum: 0, description: "Number of seconds to wait." }),
@@ -117,7 +117,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     label: "Click GUI anchor",
     description: "Click an active workspace GUI anchor. This plugin round exposes the explicit unavailable backend boundary.",
     parameters: Type.Object({
-      anchor: Type.String({ minLength: 1, description: "Active workspace anchor name to click." }),
+      anchor: Type.String({ minLength: 1, description: "Active workspace anchor name or ref to click." }),
       rois: Type.Optional(roisSchema),
     }),
     async execute(_toolCallId, params) {
@@ -130,7 +130,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     label: "Set GUI field",
     description: "Type text into an active workspace GUI anchor. This plugin round exposes the explicit unavailable backend boundary.",
     parameters: Type.Object({
-      anchor: Type.String({ minLength: 1, description: "Active workspace anchor name for text entry." }),
+      anchor: Type.String({ minLength: 1, description: "Active workspace anchor name or ref for text entry." }),
       typed_text: Type.String({ minLength: 1, description: "Text to type into the GUI field." }),
       submit: Type.Optional(Type.Union([Type.Literal("enter"), Type.Literal("tab")], { description: "Optional submit key." })),
       rois: Type.Optional(roisSchema),

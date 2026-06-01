@@ -10,17 +10,24 @@ import { registerQuailbotTools } from "../../src/tools/register-tools.js";
 import { executeSetField } from "../../src/tools/set_field.js";
 
 describe("GUI backup tool boundaries", () => {
-  it("executeObserve reports ROI backend unavailable for requested ROIs", async () => {
-    const workspace = fixtureWorkspace();
+  it("executeObserve validates requested active ROI names and refs before reporting backend unavailable", async () => {
+    const workspace = workspaceWithRois();
 
-    const result = await executeObserve({ workspace }, { rois: ["missing_roi"] });
+    await expect(executeObserve({ workspace }, { rois: ["missing_roi"] })).rejects.toThrow(
+      /unknown or inactive ROI: missing_roi/,
+    );
+    await expect(executeObserve({ workspace }, { rois: ["inactive_roi"] })).rejects.toThrow(
+      /unknown or inactive ROI: inactive_roi/,
+    );
+
+    const result = await executeObserve({ workspace }, { rois: ["named_roi", "roi:ref-only"] });
 
     expect(result).toMatchObject({
       ok: false,
       action: "observe",
-      action_input: { rois: ["missing_roi"] },
+      action_input: { rois: ["named_roi", "roi:ref-only"] },
       primary_result: {
-        requested_rois: ["missing_roi"],
+        requested_rois: ["named_roi", "roi:ref-only"],
         error_type: "roi_backend_unavailable",
         message: "ROI screenshot/OCR backend is not configured in this plugin implementation round.",
       },
@@ -64,6 +71,22 @@ describe("GUI backup tool boundaries", () => {
     });
   });
 
+  it("executeClickAnchor accepts active anchor refs including ref-only anchors", async () => {
+    const workspace = workspaceWithAnchors();
+
+    const result = await executeClickAnchor({ workspace }, { anchor: "anchor:ref-only" });
+
+    expect(result).toMatchObject({
+      ok: false,
+      action: "click_anchor",
+      action_input: { anchor: "anchor:ref-only" },
+      primary_result: {
+        anchor: "anchor:ref-only",
+        error_type: "gui_backend_unavailable",
+      },
+    });
+  });
+
   it("executeSetField throws for unknown or inactive anchors and reports unavailable for active anchors", async () => {
     const workspace = workspaceWithAnchors();
 
@@ -87,6 +110,22 @@ describe("GUI backup tool boundaries", () => {
         anchor: "active_anchor",
         error_type: "gui_backend_unavailable",
         message: "GUI text-entry backend is not configured in this plugin implementation round.",
+      },
+    });
+  });
+
+  it("executeSetField accepts active anchor refs including ref-only anchors", async () => {
+    const workspace = workspaceWithAnchors();
+
+    const result = await executeSetField({ workspace }, { anchor: "anchor:ref-only", typed_text: "42" });
+
+    expect(result).toMatchObject({
+      ok: false,
+      action: "set_field",
+      action_input: { anchor: "anchor:ref-only", typed_text: "42" },
+      primary_result: {
+        anchor: "anchor:ref-only",
+        error_type: "gui_backend_unavailable",
       },
     });
   });
@@ -120,6 +159,16 @@ function fixtureWorkspace(): Workspace {
   return loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
 }
 
+function workspaceWithRois(): Workspace {
+  const workspace = fixtureWorkspace();
+  workspace.rois.push(
+    { ref: "roi:named", name: "named_roi", active: true, linkedObservables: [], schema: {} },
+    { ref: "roi:inactive", name: "inactive_roi", active: false, linkedObservables: [], schema: {} },
+    { ref: "roi:ref-only", active: true, linkedObservables: [], schema: {} },
+  );
+  return workspace;
+}
+
 function workspaceWithAnchors(): Workspace {
   const workspace = fixtureWorkspace();
   workspace.anchors.push(
@@ -135,6 +184,13 @@ function workspaceWithAnchors(): Workspace {
       ref: "anchor:inactive",
       name: "inactive_anchor",
       active: false,
+      linkedObservables: [],
+      linkedRois: [],
+      schema: {},
+    },
+    {
+      ref: "anchor:ref-only",
+      active: true,
       linkedObservables: [],
       linkedRois: [],
       schema: {},

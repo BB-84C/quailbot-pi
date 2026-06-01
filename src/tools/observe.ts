@@ -6,7 +6,7 @@ export type ObserveInput = {
 };
 
 export async function executeObserve(ctx: { workspace: Workspace }, input: ObserveInput): Promise<QuailbotToolResult> {
-  const requestedRois = input.rois === undefined ? activeRoiNames(ctx.workspace) : validateActiveRois(ctx.workspace, input.rois);
+  const requestedRois = validateObserveInput(ctx.workspace, input);
 
   return {
     ok: false,
@@ -18,6 +18,10 @@ export async function executeObserve(ctx: { workspace: Workspace }, input: Obser
       message: "ROI screenshot/OCR backend is not configured in this plugin implementation round.",
     },
   };
+}
+
+export function validateObserveInput(workspace: Workspace, input: ObserveInput): string[] {
+  return input.rois === undefined ? activeRoiNames(workspace) : validateActiveRois(workspace, input.rois);
 }
 
 function activeRoiNames(workspace: Workspace): string[] {

@@ -197,6 +197,51 @@ describe("quailbot_plan_and_execute", () => {
     expect(runCli).not.toHaveBeenCalled();
   });
 
+  it("does not call GUI executors during preflight before validation completes", async () => {
+    const executeClickAnchor = vi.fn().mockResolvedValue({
+      ok: false,
+      action: "click_anchor",
+      action_input: { anchor: "active_anchor" },
+      primary_result: { error_type: "mock_gui_backend" },
+    });
+    const validateClickAnchorInput = vi.fn().mockReturnValue({
+      ref: "anchor:active",
+      name: "active_anchor",
+      active: true,
+      linkedObservables: [],
+      linkedRois: [],
+      schema: {},
+    });
+
+    vi.resetModules();
+    vi.doMock("../../src/tools/click_anchor.js", () => ({ executeClickAnchor, validateClickAnchorInput }));
+
+    try {
+      const { executeQuailbotPlanAndExecute: executePlan } = await import(
+        "../../src/tools/quailbot_plan_and_execute.js"
+      );
+      const runCli = vi.fn<RunCli>();
+
+      const result = await executePlan(createToolContext({ workspace: workspaceWithGuiTargets(), runCli }), {
+        steps: [{ kind: "click_anchor", anchor: "active_anchor" }, { kind: "not_supported" }] as never,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.primary_result).toMatchObject({
+        ok: false,
+        stopped_reason: "validation_failed",
+        validation_error: expect.stringContaining("unsupported step"),
+        steps: [],
+      });
+      expect(executeClickAnchor).not.toHaveBeenCalled();
+      expect(validateClickAnchorInput).toHaveBeenCalledWith(expect.any(Object), { kind: "click_anchor", anchor: "active_anchor" });
+      expect(runCli).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("../../src/tools/click_anchor.js");
+      vi.resetModules();
+    }
+  });
+
   it("registers the tool and returns the JSON result envelope", async () => {
     const tools: Array<{
       name: string;
@@ -223,7 +268,7 @@ describe("quailbot_plan_and_execute", () => {
     expect(tool?.description).toBe(
       "Execute a concrete serial Quailbot program and return one final result with per-step readbacks.",
     );
-    expect(tool?.parameters.properties?.steps).toMatchObject({ type: "array" });
+    expect(tool?.parameters.properties?.steps).toMatchObject({ type: "array", minItems: 1 });
     const schemaText = JSON.stringify(tool?.parameters.properties?.steps);
     for (const kind of [
       "cli_get",

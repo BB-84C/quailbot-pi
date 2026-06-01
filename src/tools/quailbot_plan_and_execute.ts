@@ -1,11 +1,11 @@
 import { validateRunCliOptions } from "../cli/cli-driver.js";
-import { executeClickAnchor, type ClickAnchorInput } from "./click_anchor.js";
+import { executeClickAnchor, validateClickAnchorInput, type ClickAnchorInput } from "./click_anchor.js";
 import { executeCliAction, type CliActionInput } from "./cli_action.js";
 import { executeCliGet, type CliGetInput } from "./cli_get.js";
 import { executeCliRamp, type CliRampInput } from "./cli_ramp.js";
 import { executeCliSet, type CliSetInput } from "./cli_set.js";
-import { executeObserve, type ObserveInput } from "./observe.js";
-import { executeSetField, type SetFieldInput } from "./set_field.js";
+import { executeObserve, validateObserveInput, type ObserveInput } from "./observe.js";
+import { executeSetField, validateSetFieldInput, type SetFieldInput } from "./set_field.js";
 import { executeSleepSeconds, type SleepSecondsInput } from "./sleep_seconds.js";
 import type { ToolContext } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
@@ -48,9 +48,13 @@ async function validateStep(ctx: ToolContext, step: unknown): Promise<void> {
       await runStep(validationContext(ctx), step as PlanAndExecuteStep);
       return;
     case "click_anchor":
+      validateClickAnchorInput(ctx.workspace, step as ClickAnchorInput);
+      return;
     case "set_field":
+      validateSetFieldInput(ctx.workspace, step as SetFieldInput);
+      return;
     case "observe":
-      await runStep(ctx, step as PlanAndExecuteStep);
+      validateObserveInput(ctx.workspace, step as ObserveInput);
       return;
     case "sleep_seconds":
       validateSleepSeconds(step as Partial<SleepSecondsInput>);

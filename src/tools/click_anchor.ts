@@ -7,7 +7,7 @@ export type ClickAnchorInput = {
 };
 
 export async function executeClickAnchor(ctx: { workspace: Workspace }, input: ClickAnchorInput): Promise<QuailbotToolResult> {
-  const anchor = requireActiveAnchor(ctx.workspace, input.anchor);
+  const anchor = validateClickAnchorInput(ctx.workspace, input);
 
   return {
     ok: false,
@@ -19,6 +19,10 @@ export async function executeClickAnchor(ctx: { workspace: Workspace }, input: C
       message: "GUI click backend is not configured in this plugin implementation round.",
     },
   };
+}
+
+export function validateClickAnchorInput(workspace: Workspace, input: ClickAnchorInput): WorkspaceAnchor {
+  return requireActiveAnchor(workspace, input.anchor);
 }
 
 function requireActiveAnchor(workspace: Workspace, name: string): WorkspaceAnchor {

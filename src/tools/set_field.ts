@@ -9,7 +9,7 @@ export type SetFieldInput = {
 };
 
 export async function executeSetField(ctx: { workspace: Workspace }, input: SetFieldInput): Promise<QuailbotToolResult> {
-  const anchor = requireActiveAnchor(ctx.workspace, input.anchor);
+  const anchor = validateSetFieldInput(ctx.workspace, input);
 
   return {
     ok: false,
@@ -21,6 +21,10 @@ export async function executeSetField(ctx: { workspace: Workspace }, input: SetF
       message: "GUI text-entry backend is not configured in this plugin implementation round.",
     },
   };
+}
+
+export function validateSetFieldInput(workspace: Workspace, input: SetFieldInput): WorkspaceAnchor {
+  return requireActiveAnchor(workspace, input.anchor);
 }
 
 function requireActiveAnchor(workspace: Workspace, name: string): WorkspaceAnchor {

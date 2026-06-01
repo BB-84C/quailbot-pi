@@ -82,7 +82,7 @@ const planAndExecuteStepSchema = Type.Union([
     seconds: Type.Number({ minimum: 0 }),
   }),
 ]);
-const planAndExecuteParameters = Type.Object({ steps: Type.Array(planAndExecuteStepSchema) });
+const planAndExecuteParameters = Type.Object({ steps: Type.Array(planAndExecuteStepSchema, { minItems: 1 }) });
 
 export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime): void {
   pi.registerTool({

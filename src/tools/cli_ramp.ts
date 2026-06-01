@@ -1,6 +1,8 @@
 import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
+import { readLinkedObservables } from "../linked-observables/read-linked-observables.js";
+import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
 
 export type CliRampInput = {
   cli_name?: string;
@@ -30,6 +32,14 @@ export async function executeCliRamp(ctx: ToolContext, input: CliRampInput): Pro
     String(input.interval_s),
   ];
   const run = await ctx.runCli(cliName, cliArgs, { timeoutMs: input.timeout_ms });
+  const linkedObservation = await readLinkedObservables(
+    ctx,
+    resolveLinkedObservables(ctx.workspace, {
+      kind: "cli_ramp",
+      cli_name: cliName,
+      parameter: input.parameter,
+    }),
+  );
 
   return {
     ok: run.ok,
@@ -48,7 +58,7 @@ export async function executeCliRamp(ctx: ToolContext, input: CliRampInput): Pro
       payload: run.payload,
       argv: run.argv,
     },
-    linked_observation: linkedObservation(parameter.linkedObservables),
+    linked_observation: linkedObservation,
   };
 }
 
@@ -68,8 +78,4 @@ function requireParameter(ctx: ToolContext, cliName: string, name: string) {
   }
 
   return parameter;
-}
-
-function linkedObservation(refs: string[]): unknown {
-  return refs.length > 0 ? { refs } : undefined;
 }

@@ -71,14 +71,32 @@ describe("CLI-backed tools", () => {
   });
 
   it("executeCliSet enforces declared set arg fields and maps value mode to the single field", async () => {
-    const runCli = vi.fn<RunCli>().mockResolvedValue({
+    const runCli = vi
+      .fn<RunCli>()
+      .mockResolvedValueOnce({
       ok: true,
       exitCode: 0,
       stdout: "",
       stderr: "",
       payload: undefined,
       argv: ["nqctl", "set", "zctrl_setpnt", "--arg", "setpoint=1.5"],
-    });
+    })
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: '{"setpoint":1.5}',
+        stderr: "",
+        payload: { setpoint: 1.5 },
+        argv: ["nqctl", "get", "zctrl_setpnt"],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: '{"current":1.2}',
+        stderr: "",
+        payload: { current: 1.2 },
+        argv: ["nqctl", "get", "current"],
+      });
     const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
 
     await expect(
@@ -90,11 +108,25 @@ describe("CLI-backed tools", () => {
 
     const result = await executeCliSet(ctx, { cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 });
 
-    expect(runCli).toHaveBeenCalledTimes(1);
+    expect(runCli).toHaveBeenCalledTimes(3);
     expect(runCli).toHaveBeenCalledWith("nqctl", ["set", "zctrl_setpnt", "--arg", "setpoint=1.5"], {
       timeoutMs: undefined,
     });
+    expect(runCli).toHaveBeenCalledWith("nqctl", ["get", "zctrl_setpnt"]);
+    expect(runCli).toHaveBeenCalledWith("nqctl", ["get", "current"]);
     expect(result.primary_result).toMatchObject({ parameter: "zctrl_setpnt", value: 1.5, ok: true });
+    expect(result.linked_observation).toMatchObject({
+      channels: {
+        cli: {
+          observables: ["nqctl:zctrl_setpnt", "nqctl:current"],
+          results: {
+            "nqctl:zctrl_setpnt": { ok: true, payload: { setpoint: 1.5 } },
+            "nqctl:current": { ok: true, payload: { current: 1.2 } },
+          },
+        },
+      },
+      unresolved: [],
+    });
   });
 
   it("executeCliSet keeps positional value mode when no arg fields are declared", async () => {
@@ -175,14 +207,24 @@ describe("CLI-backed tools", () => {
   });
 
   it("executeCliRamp dispatches ramp arguments as strings for a ramp-enabled workspace parameter", async () => {
-    const runCli = vi.fn<RunCli>().mockResolvedValue({
+    const runCli = vi
+      .fn<RunCli>()
+      .mockResolvedValueOnce({
       ok: true,
       exitCode: 0,
       stdout: "",
       stderr: "",
       payload: undefined,
       argv: ["nqctl", "ramp", "bias", "0", "1", "0.25", "--interval-s", "0.5"],
-    });
+    })
+      .mockResolvedValueOnce({
+        ok: true,
+        exitCode: 0,
+        stdout: '{"bias":1}',
+        stderr: "",
+        payload: { bias: 1 },
+        argv: ["nqctl", "get", "bias"],
+      });
     const workspace = fixtureWorkspace();
     workspace.cli.parameters.set("nqctl:bias", rampParameter("nqctl", "bias"));
     const ctx = createToolContext({ workspace, runCli });
@@ -199,6 +241,7 @@ describe("CLI-backed tools", () => {
     expect(runCli).toHaveBeenCalledWith("nqctl", ["ramp", "bias", "0", "1", "0.25", "--interval-s", "0.5"], {
       timeoutMs: undefined,
     });
+    expect(runCli).toHaveBeenCalledWith("nqctl", ["get", "bias"]);
     expect(result.primary_result).toMatchObject({
       parameter: "bias",
       start: 0,
@@ -206,6 +249,10 @@ describe("CLI-backed tools", () => {
       step: 0.25,
       interval_s: 0.5,
       ok: true,
+    });
+    expect(result.linked_observation).toMatchObject({
+      channels: { cli: { observables: ["nqctl:bias"], results: { "nqctl:bias": { ok: true, payload: { bias: 1 } } } } },
+      unresolved: [],
     });
   });
 
@@ -242,6 +289,10 @@ describe("CLI-backed tools", () => {
       timeoutMs: undefined,
     });
     expect(result.primary_result).toMatchObject({ action_name: "Scan_Action", args: { action: "start" }, ok: true });
+    expect(result.linked_observation).toMatchObject({
+      channels: { cli: { observables: [], results: {} }, roi: { rois: [], results: {}, unavailable: [] } },
+      unresolved: ["scan_status", "scan_buffer", "scan_speed"],
+    });
 
     await expect(executeCliAction(ctx, { cli_name: "nqctl", action_name: "Danger" })).rejects.toThrow(
       /CLI action is blocked: nqctl:Danger/,

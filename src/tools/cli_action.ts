@@ -2,6 +2,8 @@ import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 import type { CliAction } from "../workspace/types.js";
+import { readLinkedObservables } from "../linked-observables/read-linked-observables.js";
+import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
 
 export type CliActionInput = {
   cli_name?: string;
@@ -15,6 +17,14 @@ export async function executeCliAction(ctx: ToolContext, input: CliActionInput):
   const action = requireAction(ctx, cliName, input.action_name);
   const cliArgs = ["act", input.action_name, ...formatArgs(validateDeclaredArgs(action, input.args ?? {}))];
   const run = await ctx.runCli(cliName, cliArgs, { timeoutMs: input.timeout_ms });
+  const linkedObservation = await readLinkedObservables(
+    ctx,
+    resolveLinkedObservables(ctx.workspace, {
+      kind: "cli_action",
+      cli_name: cliName,
+      action_name: input.action_name,
+    }),
+  );
 
   return {
     ok: run.ok,
@@ -30,7 +40,7 @@ export async function executeCliAction(ctx: ToolContext, input: CliActionInput):
       payload: run.payload,
       argv: run.argv,
     },
-    linked_observation: linkedObservation(action.linkedObservables),
+    linked_observation: linkedObservation,
   };
 }
 
@@ -107,8 +117,4 @@ function argFields(value: unknown): ArgField[] {
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function linkedObservation(refs: string[]): unknown {
-  return refs.length > 0 ? { refs } : undefined;
 }

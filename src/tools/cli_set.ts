@@ -2,6 +2,8 @@ import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 import type { CliParameter } from "../workspace/types.js";
+import { readLinkedObservables } from "../linked-observables/read-linked-observables.js";
+import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
 
 export type CliSetInput = {
   cli_name?: string;
@@ -31,6 +33,14 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
     ? ["set", input.parameter, ...formatArgs(validateDeclaredArgs(parameter, input.args ?? {}))]
     : ["set", input.parameter, ...valueModeArgs(parameter, input.value)];
   const run = await ctx.runCli(cliName, cliArgs, { timeoutMs: input.timeout_ms });
+  const linkedObservation = await readLinkedObservables(
+    ctx,
+    resolveLinkedObservables(ctx.workspace, {
+      kind: "cli_set",
+      cli_name: cliName,
+      parameter: input.parameter,
+    }),
+  );
 
   return {
     ok: run.ok,
@@ -47,7 +57,7 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
       payload: run.payload,
       argv: run.argv,
     },
-    linked_observation: linkedObservation(parameter.linkedObservables),
+    linked_observation: linkedObservation,
   };
 }
 
@@ -137,8 +147,4 @@ function record(value: unknown): Record<string, unknown> {
 
 function argEntries(args: Record<string, unknown> | undefined): [string, unknown][] {
   return args === undefined ? [] : Object.entries(args);
-}
-
-function linkedObservation(refs: string[]): unknown {
-  return refs.length > 0 ? { refs } : undefined;
 }

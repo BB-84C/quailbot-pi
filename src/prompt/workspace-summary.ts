@@ -55,9 +55,7 @@ export type WorkspaceActionsAvailableSummary = {
   cli_get: boolean;
   cli_set: boolean;
   cli_ramp: boolean;
-  action_get: boolean;
-  action_set: boolean;
-  action_ramp: boolean;
+  cli_action: boolean;
 };
 
 export function buildWorkspaceSummary(workspace: Workspace): WorkspaceSummary {
@@ -134,8 +132,6 @@ function summarizeActionsAvailable(
     cli_get: parameters.some((parameter) => parameter.actions_available.get),
     cli_set: parameters.some((parameter) => parameter.actions_available.set),
     cli_ramp: parameters.some((parameter) => parameter.actions_available.ramp),
-    action_get: actions.some((action) => action.actions_available.get),
-    action_set: actions.some((action) => action.actions_available.set),
-    action_ramp: actions.some((action) => action.actions_available.ramp),
+    cli_action: actions.some((action) => action.safety_mode !== "blocked"),
   };
 }

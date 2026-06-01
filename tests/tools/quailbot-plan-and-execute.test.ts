@@ -107,6 +107,27 @@ describe("quailbot_plan_and_execute", () => {
     expect(runCli).not.toHaveBeenCalled();
   });
 
+  it("preflight-validates CLI timeout options before any real mutating side effects", async () => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [
+        { kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 },
+        { kind: "cli_get", cli_name: "nqctl", parameter: "current", timeout_ms: 0 },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.primary_result).toMatchObject({
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: expect.stringContaining("timeoutMs must be a finite positive number"),
+      steps: [],
+    });
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
   it("reports unsupported step kinds as validation failures before execution", async () => {
     const runCli = vi.fn<RunCli>();
     const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });

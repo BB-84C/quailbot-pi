@@ -1,3 +1,4 @@
+import { validateRunCliOptions } from "../cli/cli-driver.js";
 import { executeClickAnchor, type ClickAnchorInput } from "./click_anchor.js";
 import { executeCliAction, type CliActionInput } from "./cli_action.js";
 import { executeCliGet, type CliGetInput } from "./cli_get.js";
@@ -73,14 +74,17 @@ async function validatePlan(ctx: ToolContext, steps: PlanAndExecuteStep[]): Prom
 function validationContext(ctx: ToolContext): ToolContext {
   return {
     workspace: ctx.workspace,
-    runCli: async (cliName, args) => ({
-      ok: true,
-      exitCode: 0,
-      stdout: "",
-      stderr: "",
-      payload: undefined,
-      argv: [cliName, ...args],
-    }),
+    runCli: async (cliName, args, options) => {
+      validateRunCliOptions(options);
+      return {
+        ok: true,
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        payload: undefined,
+        argv: [cliName, ...args],
+      };
+    },
   };
 }
 

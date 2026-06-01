@@ -19,13 +19,19 @@ export type RunCli = (file: string, args: string[], options?: RunCliOptions) => 
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
-export const runCli: RunCli = async (file, args, options = {}) => {
+export function validateRunCliOptions(options: RunCliOptions = {}): number {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const argv = [file, ...args];
 
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error("timeoutMs must be a finite positive number");
   }
+
+  return timeoutMs;
+}
+
+export const runCli: RunCli = async (file, args, options = {}) => {
+  const timeoutMs = validateRunCliOptions(options);
+  const argv = [file, ...args];
 
   return new Promise<CliRunResult>((resolve) => {
     let stdout = "";

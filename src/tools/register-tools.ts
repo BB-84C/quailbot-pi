@@ -3,10 +3,13 @@ import { Type } from "typebox";
 
 import type { QuailbotRuntime } from "../extension.js";
 import type { Workspace } from "../workspace/types.js";
+import { executeClickAnchor } from "./click_anchor.js";
 import { executeCliAction } from "./cli_action.js";
 import { executeCliGet } from "./cli_get.js";
 import { executeCliRamp } from "./cli_ramp.js";
 import { executeCliSet } from "./cli_set.js";
+import { executeObserve } from "./observe.js";
+import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
 import { createToolContext } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
@@ -14,6 +17,9 @@ import type { QuailbotToolResult } from "./tool-result.js";
 const argsSchema = Type.Record(Type.String({ minLength: 1 }), Type.Any(), { minProperties: 1 });
 const linkedObservablesSchema = Type.Array(Type.String({ minLength: 1 }), {
   description: "Additional linked observables to read after this mutating command.",
+});
+const roisSchema = Type.Array(Type.String({ minLength: 1 }), {
+  description: "Workspace ROI names to use for GUI readback.",
 });
 export const sleepSecondsParameters = Type.Object({
   seconds: Type.Number({ minimum: 0, description: "Number of seconds to wait." }),
@@ -91,6 +97,46 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     }),
     async execute(_toolCallId, params) {
       return piToolResult(await executeCliAction(runtimeToolContext(runtime), params));
+    },
+  });
+
+  pi.registerTool({
+    name: "observe",
+    label: "Observe GUI ROIs",
+    description: "Request GUI ROI screenshot/OCR readback. This plugin round exposes the explicit unavailable backend boundary.",
+    parameters: Type.Object({
+      rois: Type.Optional(roisSchema),
+    }),
+    async execute(_toolCallId, params) {
+      return piToolResult(await executeObserve(runtimeToolContext(runtime), params));
+    },
+  });
+
+  pi.registerTool({
+    name: "click_anchor",
+    label: "Click GUI anchor",
+    description: "Click an active workspace GUI anchor. This plugin round exposes the explicit unavailable backend boundary.",
+    parameters: Type.Object({
+      anchor: Type.String({ minLength: 1, description: "Active workspace anchor name to click." }),
+      rois: Type.Optional(roisSchema),
+    }),
+    async execute(_toolCallId, params) {
+      return piToolResult(await executeClickAnchor(runtimeToolContext(runtime), params));
+    },
+  });
+
+  pi.registerTool({
+    name: "set_field",
+    label: "Set GUI field",
+    description: "Type text into an active workspace GUI anchor. This plugin round exposes the explicit unavailable backend boundary.",
+    parameters: Type.Object({
+      anchor: Type.String({ minLength: 1, description: "Active workspace anchor name for text entry." }),
+      typed_text: Type.String({ minLength: 1, description: "Text to type into the GUI field." }),
+      submit: Type.Optional(Type.Union([Type.Literal("enter"), Type.Literal("tab")], { description: "Optional submit key." })),
+      rois: Type.Optional(roisSchema),
+    }),
+    async execute(_toolCallId, params) {
+      return piToolResult(await executeSetField(runtimeToolContext(runtime), params));
     },
   });
 

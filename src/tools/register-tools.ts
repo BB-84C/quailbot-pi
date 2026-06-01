@@ -26,6 +26,63 @@ const roisSchema = Type.Array(Type.String({ minLength: 1 }), {
 export const sleepSecondsParameters = Type.Object({
   seconds: Type.Number({ minimum: 0, description: "Number of seconds to wait." }),
 });
+const planAndExecuteStepSchema = Type.Union([
+  Type.Object({
+    kind: Type.Literal("cli_get"),
+    cli_name: Type.Optional(Type.String({ minLength: 1 })),
+    parameter: Type.String({ minLength: 1 }),
+    timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  }),
+  Type.Object({
+    kind: Type.Literal("cli_set"),
+    cli_name: Type.Optional(Type.String({ minLength: 1 })),
+    parameter: Type.String({ minLength: 1 }),
+    value: Type.Optional(Type.Any()),
+    args: Type.Optional(argsSchema),
+    linked_observables: Type.Optional(linkedObservablesSchema),
+    timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  }),
+  Type.Object({
+    kind: Type.Literal("cli_ramp"),
+    cli_name: Type.Optional(Type.String({ minLength: 1 })),
+    parameter: Type.String({ minLength: 1 }),
+    start: Type.Number(),
+    end: Type.Number(),
+    step: Type.Number(),
+    interval_s: Type.Number(),
+    linked_observables: Type.Optional(linkedObservablesSchema),
+    timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  }),
+  Type.Object({
+    kind: Type.Literal("cli_action"),
+    cli_name: Type.Optional(Type.String({ minLength: 1 })),
+    action_name: Type.String({ minLength: 1 }),
+    args: Type.Optional(argsSchema),
+    linked_observables: Type.Optional(linkedObservablesSchema),
+    timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  }),
+  Type.Object({
+    kind: Type.Literal("click_anchor"),
+    anchor: Type.String({ minLength: 1 }),
+    rois: Type.Optional(roisSchema),
+  }),
+  Type.Object({
+    kind: Type.Literal("set_field"),
+    anchor: Type.String({ minLength: 1 }),
+    typed_text: Type.String({ minLength: 1 }),
+    submit: Type.Optional(Type.Union([Type.Literal("enter"), Type.Literal("tab")])),
+    rois: Type.Optional(roisSchema),
+  }),
+  Type.Object({
+    kind: Type.Literal("observe"),
+    rois: Type.Optional(roisSchema),
+  }),
+  Type.Object({
+    kind: Type.Literal("sleep_seconds"),
+    seconds: Type.Number({ minimum: 0 }),
+  }),
+]);
+const planAndExecuteParameters = Type.Object({ steps: Type.Array(planAndExecuteStepSchema) });
 
 export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime): void {
   pi.registerTool({
@@ -172,7 +229,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "quailbot_plan_and_execute",
     label: "Quailbot Plan And Execute",
     description: "Execute a concrete serial Quailbot program and return one final result with per-step readbacks.",
-    parameters: Type.Object({ steps: Type.Array(Type.Record(Type.String(), Type.Any())) }),
+    parameters: planAndExecuteParameters,
     async execute(_toolCallId, params) {
       return piToolResult(await executeQuailbotPlanAndExecute(runtimeToolContext(runtime), params as never));
     },

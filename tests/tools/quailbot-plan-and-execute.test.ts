@@ -86,6 +86,96 @@ describe("quailbot_plan_and_execute", () => {
     );
   });
 
+  it("validates the full program before executing any real CLI side effects", async () => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [
+        { kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 },
+        { kind: "cli_get", cli_name: "nqctl", parameter: "missing" },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.primary_result).toMatchObject({
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: expect.stringContaining("unknown CLI parameter: nqctl:missing"),
+      steps: [],
+    });
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
+  it("reports unsupported step kinds as validation failures before execution", async () => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [
+        { kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 },
+        { kind: "not_supported" } as never,
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.primary_result).toMatchObject({
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: expect.stringContaining("unsupported step"),
+      steps: [],
+    });
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes real execution step failure from validation failure and stops later steps", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValueOnce({
+      ok: false,
+      exitCode: 1,
+      stdout: "",
+      stderr: "instrument refused read",
+      payload: undefined,
+      argv: ["nqctl", "get", "current"],
+    });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [
+        { kind: "cli_get", cli_name: "nqctl", parameter: "current" },
+        { kind: "sleep_seconds", seconds: 0 },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.primary_result).toMatchObject({ ok: false, stopped_reason: "step_failed" });
+    const primary = result.primary_result as { steps: Array<Record<string, unknown>> };
+    expect(primary.steps).toHaveLength(1);
+    expect(primary.steps[0]).toMatchObject({
+      index: 0,
+      kind: "cli_get",
+      primary_result: { ok: false, exit_code: 1, stderr: "instrument refused read" },
+    });
+    expect(runCli).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["observe", { kind: "observe", rois: ["status_roi"] }, "roi_backend_unavailable"],
+    ["click_anchor", { kind: "click_anchor", anchor: "active_anchor" }, "gui_backend_unavailable"],
+    ["set_field", { kind: "set_field", anchor: "active_anchor", typed_text: "42" }, "gui_backend_unavailable"],
+  ] as const)("accepts %s GUI steps as supported plan steps", async (_name, step, errorType) => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: workspaceWithGuiTargets(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, { steps: [step as never] });
+
+    expect(result.ok).toBe(false);
+    expect(result.primary_result).toMatchObject({ ok: false, stopped_reason: "step_failed" });
+    const primary = result.primary_result as { steps: Array<Record<string, unknown>> };
+    expect(primary.steps).toHaveLength(1);
+    expect(primary.steps[0]).toMatchObject({ kind: step.kind, primary_result: { error_type: errorType } });
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
   it("registers the tool and returns the JSON result envelope", async () => {
     const tools: Array<{
       name: string;
@@ -113,6 +203,20 @@ describe("quailbot_plan_and_execute", () => {
       "Execute a concrete serial Quailbot program and return one final result with per-step readbacks.",
     );
     expect(tool?.parameters.properties?.steps).toMatchObject({ type: "array" });
+    const schemaText = JSON.stringify(tool?.parameters.properties?.steps);
+    for (const kind of [
+      "cli_get",
+      "cli_set",
+      "cli_ramp",
+      "cli_action",
+      "click_anchor",
+      "set_field",
+      "observe",
+      "sleep_seconds",
+    ]) {
+      expect(schemaText).toContain(kind);
+    }
+    expect(schemaText).not.toContain("additionalProperties");
 
     const result = await tool?.execute("tool-call", { steps: [{ kind: "sleep_seconds", seconds: 0 }] });
 
@@ -131,4 +235,18 @@ describe("quailbot_plan_and_execute", () => {
 
 function fixtureWorkspace(): Workspace {
   return loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
+}
+
+function workspaceWithGuiTargets(): Workspace {
+  const workspace = fixtureWorkspace();
+  workspace.rois.push({ ref: "roi:status", name: "status_roi", active: true, linkedObservables: [], schema: {} });
+  workspace.anchors.push({
+    ref: "anchor:active",
+    name: "active_anchor",
+    active: true,
+    linkedObservables: [],
+    linkedRois: [],
+    schema: {},
+  });
+  return workspace;
 }

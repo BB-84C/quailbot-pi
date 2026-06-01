@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import type {
   CliAction,
@@ -12,26 +13,40 @@ import type {
 type JsonRecord = Record<string, unknown>;
 
 export function loadWorkspace(path: string): Workspace {
-  if (!existsSync(path)) {
-    throw new Error(`workspace file does not exist: ${path}`);
+  const sourcePath = resolve(path);
+  if (!existsSync(sourcePath)) {
+    throw new Error(`workspace file does not exist: ${sourcePath}`);
   }
 
-  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const parsed: unknown = JSON.parse(readFileSync(sourcePath, "utf8"));
   const root = unwrapGui(parsed);
-  const cliParams = record(root.cli_params);
-  const cliName = stringValue(cliParams.cli_name) ?? stringValue(cliParams.CLI_Name) ?? "default";
+  const cliParams = parseCliParams(root);
+  const cliParamsRecord = cliParams ?? {};
+  const cliName = stringValue(cliParamsRecord.cli_name) ?? stringValue(cliParamsRecord.CLI_Name) ?? "default";
 
   return {
-    sourcePath: path,
+    sourcePath,
     rois: records(root.rois).map(parseRoi),
     anchors: records(root.anchors).map(parseAnchor),
     cli: {
-      enabled: booleanValue(cliParams.enabled, true),
+      enabled: cliParams !== undefined ? booleanValue(cliParamsRecord.enabled, true) : false,
       defaultCliName: cliName,
-      parameters: parseParameters(cliParams, cliName),
-      actions: parseActions(cliParams, cliName),
+      parameters: parseParameters(cliParamsRecord, cliName),
+      actions: parseActions(cliParamsRecord, cliName),
     },
   };
+}
+
+function parseCliParams(root: JsonRecord): JsonRecord | undefined {
+  if (root.cli_params === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(root.cli_params)) {
+    throw new Error("workspace cli_params must be an object");
+  }
+
+  return root.cli_params;
 }
 
 function unwrapGui(value: unknown): JsonRecord {
@@ -117,7 +132,7 @@ function parseActions(cliParams: JsonRecord, cliName: string): Map<string, CliAc
       safetyMode: stringValue(action.safety_mode),
       actions: deriveActions(action),
       linkedObservables: linkedObservables(action),
-      actionCmd: action.action_cmd,
+      actionCmd: parseActionCmd(action, index),
       schema: action,
     });
   }
@@ -150,6 +165,18 @@ function itemCliName(item: JsonRecord, defaultCliName: string): string {
 
 function linkedObservables(item: JsonRecord): string[] {
   return strings(item.linked_observables ?? item.linked_ROIs);
+}
+
+function parseActionCmd(action: JsonRecord, index: number): JsonRecord | undefined {
+  if (action.action_cmd === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(action.action_cmd)) {
+    throw new Error(`workspace action at cli_params.action_commands.items[${index}] action_cmd must be an object`);
+  }
+
+  return action.action_cmd;
 }
 
 function strings(value: unknown): string[] {

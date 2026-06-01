@@ -47,6 +47,24 @@ describe("loadWorkspace", () => {
     );
   });
 
+  it("normalizes relative workspace paths into absolute source paths", () => {
+    const workspace = loadWorkspace("tests/workspaces/nanonis-minimal.workspace.json");
+
+    expect(workspace.sourcePath).toBe(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
+  });
+
+  it("disables CLI parsing when cli_params is absent", () => {
+    const workspace = loadWorkspace(writeWorkspace({ rois: [], anchors: [] }));
+
+    expect(workspace.cli.enabled).toBe(false);
+    expect(workspace.cli.parameters.size).toBe(0);
+    expect(workspace.cli.actions.size).toBe(0);
+  });
+
+  it("rejects malformed cli_params with a contextual error", () => {
+    expect(() => loadWorkspace(writeWorkspace({ cli_params: [] }))).toThrow(/workspace cli_params must be an object/);
+  });
+
   it("derives parameter action permissions conservatively unless explicit actions are present", () => {
     const workspace = loadWorkspace(
       writeWorkspace({
@@ -146,6 +164,19 @@ describe("loadWorkspace", () => {
     expect(workspace.cli.actions.get("nqctl:Guarded")?.safetyMode).toBe("guarded");
     expect(workspace.cli.actions.get("nqctl:Blocked")?.safetyMode).toBe("blocked");
     expect(workspace.cli.actions.get("nqctl:Blocked")?.actionCmd).toEqual({ command: "Blocked" });
+  });
+
+  it("rejects malformed action_cmd with a contextual error", () => {
+    expect(() =>
+      loadWorkspace(
+        writeWorkspace({
+          cli_params: {
+            cli_name: "nqctl",
+            action_commands: { items: [{ name: "BadAction", action_cmd: "BadAction" }] },
+          },
+        }),
+      ),
+    ).toThrow(/workspace action at cli_params\.action_commands\.items\[0\] action_cmd must be an object/);
   });
 
   it("rejects malformed parameter entries with contextual errors", () => {

@@ -44,7 +44,7 @@ export type CliAction = {
   safetyMode?: string;
   actions: CliActionPermissions;
   linkedObservables: string[];
-  actionCmd: unknown;
+  actionCmd?: WorkspaceSchema;
   schema: WorkspaceSchema;
 };
 

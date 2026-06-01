@@ -34,6 +34,24 @@ function textOf(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function expectPiSdkProvenance(artifact: SemanticE2EArtifact): void {
+  const provenance = record(record(artifact).provenance);
+  expect(provenance.runtimeMode).toBe("pi-sdk-agent-session");
+  expect(provenance.externalLlm).toBe(false);
+  expect(provenance.sessionId).toEqual(expect.any(String));
+  expect(provenance.sessionId).not.toBe("");
+  expect(provenance.sessionFile).toEqual(expect.any(String));
+  expect(provenance.sessionSnapshotPath).toEqual(expect.any(String));
+}
+
+function evidence(artifact: SemanticE2EArtifact): Record<string, unknown> {
+  return record(record(artifact).evidence);
+}
+
 describe("semantic E2E artifact contract", () => {
   it("preserves the fields required for OpenCode semantic acceptance", () => {
     const path = writeSemanticArtifact("contract-smoke", {
@@ -66,7 +84,9 @@ describe("semantic E2E scenarios", () => {
 
   it("surfaces the active workspace summary in context", () => {
     const artifact = readScenarioArtifact("workspace-to-context");
+    expectPiSdkProvenance(artifact);
     expectSemanticPass(artifact, "workspace-summary-visible");
+    expect(textOf(artifact.events)).toContain("emitBeforeAgentStart");
     const messages = textOf(artifact.messages);
     expect(messages).toContain("WORKSPACE (Quailbot active workspace)");
     expect(messages).toContain("nqctl:zctrl_setpnt");
@@ -74,12 +94,16 @@ describe("semantic E2E scenarios", () => {
 
   it("runs CLI tools through the driver-agnostic seam", () => {
     const artifact = readScenarioArtifact("driver-agnostic-cli");
+    expectPiSdkProvenance(artifact);
     expectSemanticPass(artifact, "driver-from-tool-args");
-    expect(textOf(artifact.finalToolResult)).toContain("nqctl");
+    expect(textOf(artifact.finalToolResult)).toContain("dummy_quailbot_pi_driver");
+    expect(textOf(evidence(artifact).driverInvocations)).toContain("dummy_quailbot_pi_driver");
+    expect(textOf(artifact.finalToolResult)).not.toContain("nqctl");
   });
 
   it("records linked observable readback with the primary result", () => {
     const artifact = readScenarioArtifact("linked-observable");
+    expectPiSdkProvenance(artifact);
     expectSemanticPass(artifact, "primary-result-present");
     expectSemanticPass(artifact, "linked-observation-present");
     expect(artifact.linkedObservations.length).toBeGreaterThan(0);
@@ -87,21 +111,31 @@ describe("semantic E2E scenarios", () => {
 
   it("blocks unsupported capability before invoking a driver", () => {
     const artifact = readScenarioArtifact("blocked-capability");
+    expectPiSdkProvenance(artifact);
     expectSemanticPass(artifact, "validation-failed-before-driver");
+    expectSemanticPass(artifact, "no-driver-invocations-before-block");
+    expectSemanticPass(artifact, "driver-state-unchanged-after-block");
     expect(textOf(artifact.finalToolResult)).toContain("unknown CLI parameter");
+    expect(textOf(artifact.finalToolResult)).toContain("validation_failed");
+    expect(evidence(artifact).driverInvocations).toEqual([]);
+    expect(evidence(artifact).stateAfter).toEqual(evidence(artifact).stateBefore);
   });
 
   it("persists and cleans system plans while excluding ephemeral plans", () => {
     const artifact = readScenarioArtifact("planwrite");
+    expectPiSdkProvenance(artifact);
     expectSemanticPass(artifact, "system-plan-persisted");
     expectSemanticPass(artifact, "ephemeral-plan-not-persisted");
     expectSemanticPass(artifact, "clean-removes-system-plan");
+    expect(textOf(evidence(artifact).contextSnapshots)).toContain("emitBeforeAgentStart");
   });
 
   it("plans ordered steps and records mutating observations", () => {
     const artifact = readScenarioArtifact("plan-and-execute");
+    expectPiSdkProvenance(artifact);
     expectSemanticPass(artifact, "single-final-tool-result");
     expectSemanticPass(artifact, "ordered-step-list-present");
     expectSemanticPass(artifact, "mutating-step-has-linked-observation");
+    expect(textOf(evidence(artifact).toolResults)).toContain("quailbot_plan_and_execute");
   });
 });

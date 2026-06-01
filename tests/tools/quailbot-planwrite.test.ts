@@ -77,7 +77,7 @@ describe("quailbot_planwrite", () => {
       }) => tools.push(tool),
     };
 
-    registerQuailbotTools(pi as never, { planContext: store } as never);
+    registerQuailbotTools(pi as never, { planStore: store } as never);
 
     const tool = tools.find((tool) => tool.name === "quailbot_planwrite");
     expect(tool).toBeDefined();

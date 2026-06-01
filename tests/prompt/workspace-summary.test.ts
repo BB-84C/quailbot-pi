@@ -66,6 +66,7 @@ describe("workspace prompt summary", () => {
       on: (event: string, handler: Handler) => {
         handlers.set(event, handler);
       },
+      registerTool: () => undefined,
     } as never);
 
     await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, { cwd, hasUI: false });
@@ -82,12 +83,60 @@ describe("workspace prompt summary", () => {
       }),
     });
   });
+
+  it("clears persisted plan context when a new session starts", async () => {
+    const cwd = makeTempDir();
+    const workspaceDir = join(cwd, ".quailbot-pi");
+    mkdirSync(workspaceDir, { recursive: true });
+    copyFileSync(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"), join(workspaceDir, "workspace.json"));
+    const handlers = new Map<string, Handler>();
+    const tools: Tool[] = [];
+
+    quailbotExtension({
+      on: (event: string, handler: Handler) => {
+        handlers.set(event, handler);
+      },
+      registerTool: (tool: Tool) => {
+        tools.push(tool);
+      },
+    } as never);
+
+    await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, { cwd, hasUI: false });
+    await tools.find((tool) => tool.name === "quailbot_planwrite")?.execute("tool-call", {
+      mode: "system",
+      text: "Session A plan must not leak",
+    });
+
+    const sessionAContext = await handlers.get("before_agent_start")?.(
+      { type: "before_agent_start", prompt: "", systemPrompt: "", systemPromptOptions: {} },
+      { cwd, hasUI: false },
+    );
+    expect(renderedContent(sessionAContext)).toContain("Session A plan must not leak");
+
+    await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, { cwd, hasUI: false });
+    const sessionBContext = await handlers.get("before_agent_start")?.(
+      { type: "before_agent_start", prompt: "", systemPrompt: "", systemPromptOptions: {} },
+      { cwd, hasUI: false },
+    );
+
+    expect(renderedContent(sessionBContext)).not.toContain("Session A plan must not leak");
+  });
 });
 
 type Handler = (event: unknown, ctx: { cwd: string; hasUI: boolean }) => unknown | Promise<unknown>;
+type Tool = { name: string; execute: (id: string, params: unknown) => Promise<unknown> };
 
 function makeTempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "quailbot-context-"));
   tempDirs.push(dir);
   return dir;
+}
+
+function renderedContent(result: unknown): string {
+  if (!result || typeof result !== "object" || !("message" in result)) {
+    return "";
+  }
+
+  const message = (result as { message?: { content?: unknown } }).message;
+  return typeof message?.content === "string" ? message.content : "";
 }

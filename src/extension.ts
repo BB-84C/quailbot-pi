@@ -9,17 +9,19 @@ import type { Workspace } from "./workspace/types.js";
 
 export type QuailbotRuntime = {
   workspace?: Workspace;
-  planContext: PlanContextStore;
+  planStore: PlanContextStore;
 };
 
 export default function quailbotExtension(pi: ExtensionAPI): void {
   const runtime: QuailbotRuntime = {
-    planContext: new PlanContextStore(),
+    planStore: new PlanContextStore(),
   };
 
   registerQuailbotTools(pi, runtime);
 
   pi.on("session_start", (_event, ctx) => {
+    runtime.planStore.clear();
+
     try {
       const selection = resolveWorkspaceSelection({ cwd: ctx.cwd });
       runtime.workspace = loadWorkspace(selection.path);
@@ -32,7 +34,7 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   pi.on("before_agent_start", () => {
     const content = [
       runtime.workspace ? buildWorkspaceContextText(runtime.workspace) : undefined,
-      runtime.planContext.render(),
+      runtime.planStore.render(),
     ].filter((item): item is string => item !== undefined);
 
     if (content.length === 0) {

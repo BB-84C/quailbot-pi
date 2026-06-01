@@ -39,7 +39,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       clean: Type.Optional(Type.Boolean({ description: "Clear the persistent plan before processing this input." })),
     }),
     async execute(_toolCallId, params) {
-      return piToolResult(await executeQuailbotPlanwrite(runtime.planContext, params));
+      return piToolResult(await executeQuailbotPlanwrite(runtime.planStore, params));
     },
   });
 

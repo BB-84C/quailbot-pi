@@ -6,7 +6,7 @@ import type { RunCli } from "../../src/cli/cli-driver.js";
 import { executeQuailbotPlanAndExecute } from "../../src/tools/quailbot_plan_and_execute.js";
 import { registerQuailbotTools } from "../../src/tools/register-tools.js";
 import { createToolContext } from "../../src/tools/tool-context.js";
-import { enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
+import { disabledMutationPolicy, enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 import type { Workspace } from "../../src/workspace/types.js";
 
@@ -20,7 +20,7 @@ describe("quailbot_plan_and_execute", () => {
       payload: { current: 1.2 },
       argv: ["nqctl", "get", "current"],
     });
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [{ kind: "cli_get", cli_name: "nqctl", parameter: "current" }],
@@ -36,7 +36,7 @@ describe("quailbot_plan_and_execute", () => {
 
   it("rejects mutating cli_set plans during preflight under the default disabled mutation policy", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [{ kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 }],
@@ -67,7 +67,7 @@ describe("quailbot_plan_and_execute", () => {
         "../../src/tools/quailbot_plan_and_execute.js"
       );
       const runCli = vi.fn<RunCli>();
-      const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+      const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });
 
       const result = await executePlan(ctx, {
         steps: [

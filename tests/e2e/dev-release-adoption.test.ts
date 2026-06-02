@@ -5,6 +5,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type {
   BeforeAgentStartEvent,
+  BuildSystemPromptOptions,
   ExtensionContext,
   ExtensionHandler,
   SessionStartEvent,
@@ -69,11 +70,12 @@ describe("local Pi dev release adoption", () => {
 
     const extensionContext = createExtensionContextStub(root);
     const sessionStartEvent = { type: "session_start", reason: "startup" } satisfies SessionStartEvent;
+    const systemPromptOptions = { cwd: root } satisfies BuildSystemPromptOptions;
     const beforeAgentStartEvent = {
       type: "before_agent_start",
       prompt: "load the active Quailbot workspace",
       systemPrompt: "base Pi system prompt",
-      systemPromptOptions: {} as BeforeAgentStartEvent["systemPromptOptions"],
+      systemPromptOptions,
     } satisfies BeforeAgentStartEvent;
 
     handlers.get("session_start")?.(sessionStartEvent, extensionContext);
@@ -114,14 +116,43 @@ function cleanupQuailbotState(): void {
 }
 
 function createExtensionContextStub(cwd: string): ExtensionContext {
-  const context: Partial<ExtensionContext> = {
+  const ui: ExtensionContext["ui"] = {
+    select: async () => undefined,
+    confirm: async () => false,
+    input: async () => undefined,
+    notify() {},
+    onTerminalInput: () => () => {},
+    setStatus() {},
+    setWorkingMessage() {},
+    setWorkingVisible() {},
+    setWorkingIndicator() {},
+    setHiddenThinkingLabel() {},
+    setWidget() {},
+    setFooter() {},
+    setHeader() {},
+    setTitle() {},
+    custom: async () => undefined as never,
+    pasteToEditor() {},
+    setEditorText() {},
+    getEditorText: () => "",
+    editor: async () => undefined,
+    addAutocompleteProvider() {},
+    setEditorComponent() {},
+    getEditorComponent: () => undefined,
+    theme: {} as ExtensionContext["ui"]["theme"],
+    getAllThemes: () => [],
+    getTheme: () => undefined,
+    setTheme: () => ({ success: false, error: "UI unavailable in test stub" }),
+    getToolsExpanded: () => false,
+    setToolsExpanded() {},
+  };
+
+  const context: ExtensionContext = {
     cwd,
     hasUI: false,
-    ui: {
-      notify() {},
-    } as Partial<ExtensionContext["ui"]> as ExtensionContext["ui"],
-    sessionManager: undefined,
-    modelRegistry: undefined,
+    ui,
+    sessionManager: {} as ExtensionContext["sessionManager"],
+    modelRegistry: {} as ExtensionContext["modelRegistry"],
     model: undefined,
     isIdle: () => true,
     signal: undefined,
@@ -133,7 +164,7 @@ function createExtensionContextStub(cwd: string): ExtensionContext {
     getSystemPrompt: () => "",
   };
 
-  return context as ExtensionContext;
+  return context;
 }
 
 function compareNames(left: string, right: string): number {

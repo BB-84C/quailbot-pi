@@ -29,6 +29,10 @@ describe("product boundary", () => {
 
   it("wires scripts.pi to the dev release + npm exec pi invocation", () => {
     const pkg = readJson("package.json");
+    expect(pkg.scripts["dev:release"]).toBe("npm run build");
+    expect(pkg.scripts["dev:check"]).toBe(
+      "npm run dev:release && vitest --run tests/e2e/dev-release-adoption.test.ts",
+    );
     expect(pkg.scripts.pi).toBe(
       "npm run dev:release && npm exec -- pi --session-dir .pi-state/sessions",
     );
@@ -44,6 +48,9 @@ describe("product boundary", () => {
     const pkg = readJson("package.json");
     expect(pkg.scripts["pi:mutating"]).toBeDefined();
     expect(pkg.scripts["pi:mutating"]).toContain("QUAILBOT_ALLOW_MUTATING_TOOLS");
+    expect(pkg.scripts["pi:mutating"]).toContain(
+      "npm exec -- pi --session-dir .pi-state/sessions",
+    );
   });
 
   it("tracks .pi/settings.json with the parent workspace package", () => {

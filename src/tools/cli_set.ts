@@ -1,6 +1,7 @@
 import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
+import { mutationPolicyDisabledResult } from "./mutation-policy.js";
 import type { CliParameter } from "../workspace/types.js";
 import { readLinkedObservables } from "../linked-observables/read-linked-observables.js";
 import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
@@ -15,6 +16,10 @@ export type CliSetInput = {
 };
 
 export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promise<QuailbotToolResult> {
+  if (!ctx.mutationPolicy.mutatingToolsEnabled) {
+    return mutationPolicyDisabledResult("cli_set", input);
+  }
+
   const target = cliTarget(input.parameter, input.cli_name ?? ctx.workspace.cli.defaultCliName);
   const parameter = requireParameter(ctx, target);
 

@@ -1,6 +1,8 @@
 import type { Workspace, WorkspaceAnchor } from "../workspace/types.js";
 import { validateActiveRois } from "./observe.js";
+import { mutationPolicyDisabledResult } from "./mutation-policy.js";
 import type { QuailbotToolResult } from "./tool-result.js";
+import type { ToolContext } from "./tool-context.js";
 
 export type SetFieldInput = {
   anchor: string;
@@ -9,7 +11,14 @@ export type SetFieldInput = {
   rois?: string[];
 };
 
-export async function executeSetField(ctx: { workspace: Workspace }, input: SetFieldInput): Promise<QuailbotToolResult> {
+export async function executeSetField(
+  ctx: Pick<ToolContext, "workspace" | "mutationPolicy">,
+  input: SetFieldInput,
+): Promise<QuailbotToolResult> {
+  if (!ctx.mutationPolicy.mutatingToolsEnabled) {
+    return mutationPolicyDisabledResult("set_field", input);
+  }
+
   const anchor = validateSetFieldInput(ctx.workspace, input);
 
   return {

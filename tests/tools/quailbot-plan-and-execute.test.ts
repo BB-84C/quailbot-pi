@@ -6,6 +6,7 @@ import type { RunCli } from "../../src/cli/cli-driver.js";
 import { executeQuailbotPlanAndExecute } from "../../src/tools/quailbot_plan_and_execute.js";
 import { registerQuailbotTools } from "../../src/tools/register-tools.js";
 import { createToolContext } from "../../src/tools/tool-context.js";
+import { enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 import type { Workspace } from "../../src/workspace/types.js";
 
@@ -45,7 +46,7 @@ describe("quailbot_plan_and_execute", () => {
         payload: { current: 1.2 },
         argv: ["nqctl", "get", "current"],
       });
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [
@@ -79,7 +80,7 @@ describe("quailbot_plan_and_execute", () => {
   });
 
   it("rejects an empty step list", async () => {
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli: vi.fn<RunCli>() });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli: vi.fn<RunCli>(), mutationPolicy: enabledMutationPolicy() });
 
     await expect(executeQuailbotPlanAndExecute(ctx, { steps: [] })).rejects.toThrow(
       /quailbot_plan_and_execute requires at least one step/,
@@ -88,7 +89,7 @@ describe("quailbot_plan_and_execute", () => {
 
   it("validates the full program before executing any real CLI side effects", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [
@@ -109,7 +110,7 @@ describe("quailbot_plan_and_execute", () => {
 
   it("preflight-validates CLI timeout options before any real mutating side effects", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [
@@ -130,7 +131,7 @@ describe("quailbot_plan_and_execute", () => {
 
   it("preflight-validates GUI ROI arguments before any real mutating CLI side effects", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: workspaceWithGuiTargets(), runCli });
+    const ctx = createToolContext({ workspace: workspaceWithGuiTargets(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [
@@ -151,7 +152,7 @@ describe("quailbot_plan_and_execute", () => {
 
   it("reports unsupported step kinds as validation failures before execution", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [
@@ -179,7 +180,7 @@ describe("quailbot_plan_and_execute", () => {
       payload: undefined,
       argv: ["nqctl", "get", "current"],
     });
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [
@@ -206,7 +207,7 @@ describe("quailbot_plan_and_execute", () => {
     ["set_field", { kind: "set_field", anchor: "active_anchor", typed_text: "42" }, "gui_backend_unavailable"],
   ] as const)("accepts %s GUI steps as supported plan steps", async (_name, step, errorType) => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: workspaceWithGuiTargets(), runCli });
+    const ctx = createToolContext({ workspace: workspaceWithGuiTargets(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeQuailbotPlanAndExecute(ctx, { steps: [step as never] });
 
@@ -243,7 +244,7 @@ describe("quailbot_plan_and_execute", () => {
       );
       const runCli = vi.fn<RunCli>();
 
-      const result = await executePlan(createToolContext({ workspace: workspaceWithGuiTargets(), runCli }), {
+      const result = await executePlan(createToolContext({ workspace: workspaceWithGuiTargets(), runCli, mutationPolicy: enabledMutationPolicy() }), {
         steps: [{ kind: "click_anchor", anchor: "active_anchor" }, { kind: "not_supported" }] as never,
       });
 

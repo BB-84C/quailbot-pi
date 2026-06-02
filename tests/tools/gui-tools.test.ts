@@ -6,7 +6,9 @@ import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 import type { Workspace } from "../../src/workspace/types.js";
 import { executeClickAnchor } from "../../src/tools/click_anchor.js";
 import { executeObserve } from "../../src/tools/observe.js";
+import { enabledMutationPolicy, mutationPolicyDisabledResult, MUTATION_POLICY_ENV_VAR } from "../../src/tools/mutation-policy.js";
 import { registerQuailbotTools } from "../../src/tools/register-tools.js";
+import { createToolContext } from "../../src/tools/tool-context.js";
 import { executeSetField } from "../../src/tools/set_field.js";
 
 describe("GUI backup tool boundaries", () => {
@@ -47,17 +49,32 @@ describe("GUI backup tool boundaries", () => {
     expect(result.primary_result).toMatchObject({ requested_rois: ["first", "roi:third"] });
   });
 
+  it("blocks click_anchor and set_field before validation or backend execution when mutation policy is disabled", async () => {
+    const workspace = workspaceWithAnchors();
+    const ctx = createToolContext({ workspace });
+
+    await expect(executeClickAnchor(ctx, { anchor: "missing" })).resolves.toEqual(
+      mutationPolicyDisabledResult("click_anchor", { anchor: "missing" }),
+    );
+    await expect(executeSetField(ctx, { anchor: "missing", typed_text: "" })).resolves.toEqual(
+      mutationPolicyDisabledResult("set_field", { anchor: "missing", typed_text: "" }),
+    );
+  });
+
   it("executeClickAnchor throws for unknown or inactive anchors and reports unavailable for active anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    await expect(executeClickAnchor({ workspace }, { anchor: "missing" })).rejects.toThrow(
+    await expect(executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "missing" })).rejects.toThrow(
       /unknown or inactive anchor: missing/,
     );
-    await expect(executeClickAnchor({ workspace }, { anchor: "inactive_anchor" })).rejects.toThrow(
+    await expect(executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "inactive_anchor" })).rejects.toThrow(
       /unknown or inactive anchor: inactive_anchor/,
     );
 
-    const result = await executeClickAnchor({ workspace }, { anchor: "active_anchor", rois: ["status_roi"] });
+    const result = await executeClickAnchor(
+      { workspace, mutationPolicy: enabledMutationPolicy() },
+      { anchor: "active_anchor", rois: ["status_roi"] },
+    );
 
     expect(result).toMatchObject({
       ok: false,
@@ -74,10 +91,14 @@ describe("GUI backup tool boundaries", () => {
   it("executeClickAnchor rejects unknown or inactive ROI readbacks", async () => {
     const workspace = workspaceWithAnchors();
 
-    await expect(executeClickAnchor({ workspace }, { anchor: "active_anchor", rois: ["missing_roi"] })).rejects.toThrow(
+    await expect(
+      executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", rois: ["missing_roi"] }),
+    ).rejects.toThrow(
       /unknown or inactive ROI: missing_roi/,
     );
-    await expect(executeClickAnchor({ workspace }, { anchor: "active_anchor", rois: ["inactive_roi"] })).rejects.toThrow(
+    await expect(
+      executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", rois: ["inactive_roi"] }),
+    ).rejects.toThrow(
       /unknown or inactive ROI: inactive_roi/,
     );
   });
@@ -85,7 +106,7 @@ describe("GUI backup tool boundaries", () => {
   it("executeClickAnchor accepts active anchor refs including ref-only anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    const result = await executeClickAnchor({ workspace }, { anchor: "anchor:ref-only" });
+    const result = await executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "anchor:ref-only" });
 
     expect(result).toMatchObject({
       ok: false,
@@ -101,15 +122,15 @@ describe("GUI backup tool boundaries", () => {
   it("executeSetField throws for unknown or inactive anchors and reports unavailable for active anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    await expect(executeSetField({ workspace }, { anchor: "missing", typed_text: "42" })).rejects.toThrow(
+    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "missing", typed_text: "42" })).rejects.toThrow(
       /unknown or inactive anchor: missing/,
     );
-    await expect(executeSetField({ workspace }, { anchor: "inactive_anchor", typed_text: "42" })).rejects.toThrow(
+    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "inactive_anchor", typed_text: "42" })).rejects.toThrow(
       /unknown or inactive anchor: inactive_anchor/,
     );
 
     const result = await executeSetField(
-      { workspace },
+      { workspace, mutationPolicy: enabledMutationPolicy() },
       { anchor: "active_anchor", typed_text: "42", submit: "enter", rois: ["status_roi"] },
     );
 
@@ -129,31 +150,37 @@ describe("GUI backup tool boundaries", () => {
     const workspace = workspaceWithAnchors();
 
     await expect(
-      executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "42", rois: ["missing_roi"] }),
+      executeSetField(
+        { workspace, mutationPolicy: enabledMutationPolicy() },
+        { anchor: "active_anchor", typed_text: "42", rois: ["missing_roi"] },
+      ),
     ).rejects.toThrow(/unknown or inactive ROI: missing_roi/);
     await expect(
-      executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "42", rois: ["inactive_roi"] }),
+      executeSetField(
+        { workspace, mutationPolicy: enabledMutationPolicy() },
+        { anchor: "active_anchor", typed_text: "42", rois: ["inactive_roi"] },
+      ),
     ).rejects.toThrow(/unknown or inactive ROI: inactive_roi/);
   });
 
   it("executeSetField rejects invalid text-entry arguments", async () => {
     const workspace = workspaceWithAnchors();
 
-    await expect(executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "" })).rejects.toThrow(
+    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", typed_text: "" })).rejects.toThrow(
       /set_field requires non-empty typed_text/,
     );
-    await expect(executeSetField({ workspace }, { anchor: "active_anchor", typed_text: 42 } as never)).rejects.toThrow(
+    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", typed_text: 42 } as never)).rejects.toThrow(
       /set_field requires non-empty typed_text/,
     );
     await expect(
-      executeSetField({ workspace }, { anchor: "active_anchor", typed_text: "42", submit: "escape" } as never),
+      executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", typed_text: "42", submit: "escape" } as never),
     ).rejects.toThrow(/set_field submit must be enter or tab/);
   });
 
   it("executeSetField accepts active anchor refs including ref-only anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    const result = await executeSetField({ workspace }, { anchor: "anchor:ref-only", typed_text: "42" });
+    const result = await executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "anchor:ref-only", typed_text: "42" });
 
     expect(result).toMatchObject({
       ok: false,
@@ -174,20 +201,31 @@ describe("GUI backup tool boundaries", () => {
         tools.push(tool),
     };
 
-    registerQuailbotTools(pi as never, { workspace } as never);
+    const previous = process.env[MUTATION_POLICY_ENV_VAR];
+    process.env[MUTATION_POLICY_ENV_VAR] = "1";
 
-    for (const name of ["observe", "click_anchor", "set_field"]) {
-      expect(tools.find((tool) => tool.name === name)).toBeDefined();
+    try {
+      registerQuailbotTools(pi as never, { workspace } as never);
+
+      for (const name of ["observe", "click_anchor", "set_field"]) {
+        expect(tools.find((tool) => tool.name === name)).toBeDefined();
+      }
+      expect(tools.find((tool) => tool.name === "click_anchor")?.parameters.properties?.anchor).toMatchObject({ minLength: 1 });
+      expect(tools.find((tool) => tool.name === "set_field")?.parameters.properties?.typed_text).toMatchObject({ minLength: 1 });
+
+      const clickResult = await tools.find((tool) => tool.name === "click_anchor")?.execute("tool-call", { anchor: "active_anchor" });
+
+      expect(clickResult).toMatchObject({
+        details: { ok: false, action: "click_anchor", primary_result: { error_type: "gui_backend_unavailable" } },
+        content: [{ type: "text" }],
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env[MUTATION_POLICY_ENV_VAR];
+      } else {
+        process.env[MUTATION_POLICY_ENV_VAR] = previous;
+      }
     }
-    expect(tools.find((tool) => tool.name === "click_anchor")?.parameters.properties?.anchor).toMatchObject({ minLength: 1 });
-    expect(tools.find((tool) => tool.name === "set_field")?.parameters.properties?.typed_text).toMatchObject({ minLength: 1 });
-
-    const clickResult = await tools.find((tool) => tool.name === "click_anchor")?.execute("tool-call", { anchor: "active_anchor" });
-
-    expect(clickResult).toMatchObject({
-      details: { ok: false, action: "click_anchor", primary_result: { error_type: "gui_backend_unavailable" } },
-      content: [{ type: "text" }],
-    });
   });
 });
 

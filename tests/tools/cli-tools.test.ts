@@ -10,6 +10,7 @@ import { executeCliAction } from "../../src/tools/cli_action.js";
 import { executeCliGet } from "../../src/tools/cli_get.js";
 import { executeCliRamp } from "../../src/tools/cli_ramp.js";
 import { executeCliSet } from "../../src/tools/cli_set.js";
+import { enabledMutationPolicy, mutationPolicyDisabledResult } from "../../src/tools/mutation-policy.js";
 import { registerQuailbotTools, sleepSecondsParameters } from "../../src/tools/register-tools.js";
 import { executeSleepSeconds } from "../../src/tools/sleep_seconds.js";
 
@@ -46,7 +47,7 @@ describe("CLI-backed tools", () => {
 
   it("executeCliSet rejects an unknown parameter before driver execution", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     await expect(executeCliSet(ctx, { cli_name: "nqctl", parameter: "missing", value: 1 })).rejects.toThrow(
       /unknown CLI parameter: nqctl:missing/,
@@ -56,7 +57,7 @@ describe("CLI-backed tools", () => {
 
   it("executeCliSet requires exactly one input mode before driver execution", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     await expect(
       executeCliSet(ctx, { cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1, args: { setpoint: 1 } }),
@@ -97,7 +98,7 @@ describe("CLI-backed tools", () => {
         payload: { current: 1.2 },
         argv: ["nqctl", "get", "current"],
       });
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     await expect(
       executeCliSet(ctx, { cli_name: "nqctl", parameter: "zctrl_setpnt", args: { other: 1.5 } }),
@@ -166,7 +167,7 @@ describe("CLI-backed tools", () => {
       });
     const workspace = fixtureWorkspace();
     workspace.cli.parameters.set("nqctl:aux", readableParameter("nqctl", "aux"));
-    const ctx = createToolContext({ workspace, runCli });
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeCliSet(ctx, {
       cli_name: "nqctl",
@@ -201,7 +202,7 @@ describe("CLI-backed tools", () => {
     });
     const workspace = fixtureWorkspace();
     workspace.cli.parameters.set("nqctl:legacy", writableParameter("nqctl", "legacy", { set_cmd: { command: "LegacySet" } }));
-    const ctx = createToolContext({ workspace, runCli });
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
 
     await executeCliSet(ctx, { cli_name: "nqctl", parameter: "legacy", value: 7 });
 
@@ -223,7 +224,7 @@ describe("CLI-backed tools", () => {
         },
       }),
     );
-    const ctx = createToolContext({ workspace, runCli });
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
 
     await expect(executeCliSet(ctx, { cli_name: "nqctl", parameter: "window", args: { start: 0 } })).rejects.toThrow(
       /missing required args for CLI parameter nqctl:window: end/,
@@ -243,7 +244,7 @@ describe("CLI-backed tools", () => {
     disabledWorkspace.cli.enabled = false;
 
     await expect(
-      executeCliSet(createToolContext({ workspace: disabledWorkspace, runCli }), {
+      executeCliSet(createToolContext({ workspace: disabledWorkspace, runCli, mutationPolicy: enabledMutationPolicy() }), {
         cli_name: "nqctl",
         parameter: "zctrl_setpnt",
         value: 1,
@@ -258,7 +259,7 @@ describe("CLI-backed tools", () => {
     parameter.enabled = false;
 
     await expect(
-      executeCliSet(createToolContext({ workspace: disabledParamWorkspace, runCli }), {
+      executeCliSet(createToolContext({ workspace: disabledParamWorkspace, runCli, mutationPolicy: enabledMutationPolicy() }), {
         cli_name: "nqctl",
         parameter: "zctrl_setpnt",
         value: 1,
@@ -288,7 +289,7 @@ describe("CLI-backed tools", () => {
       });
     const workspace = fixtureWorkspace();
     workspace.cli.parameters.set("nqctl:bias", rampParameter("nqctl", "bias"));
-    const ctx = createToolContext({ workspace, runCli });
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeCliRamp(ctx, {
       cli_name: "nqctl",
@@ -319,7 +320,7 @@ describe("CLI-backed tools", () => {
 
   it("executeCliRamp rejects a parameter whose ramp action is not allowed before driver execution", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     await expect(
       executeCliRamp(ctx, { cli_name: "nqctl", parameter: "zctrl_setpnt", start: 0, end: 1, step: 0.1, interval_s: 1 }),
@@ -338,7 +339,7 @@ describe("CLI-backed tools", () => {
     });
     const workspace = fixtureWorkspace();
     workspace.cli.actions.set("nqctl:Danger", blockedAction("nqctl", "Danger"));
-    const ctx = createToolContext({ workspace, runCli });
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeCliAction(ctx, {
       cli_name: "nqctl",
@@ -380,7 +381,7 @@ describe("CLI-backed tools", () => {
         payload: { current: 1.2 },
         argv: ["nqctl", "get", "current"],
       });
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     const result = await executeCliAction(ctx, {
       cli_name: "nqctl",
@@ -397,7 +398,7 @@ describe("CLI-backed tools", () => {
 
   it("executeCliAction enforces required and known declared arg fields before driver execution", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
 
     await expect(executeCliAction(ctx, { cli_name: "nqctl", action_name: "Scan_Action" })).rejects.toThrow(
       /missing required args for CLI action nqctl:Scan_Action: action/,
@@ -471,6 +472,44 @@ describe("registered CLI tool schemas", () => {
       const tool = tools.find((item) => item.name === name);
       expect(tool?.parameters.properties).toHaveProperty("linked_observables");
     }
+  });
+
+  it("blocks cli_set, cli_ramp, and cli_action before validation or driver execution when mutation policy is disabled", async () => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    await expect(executeCliSet(ctx, { cli_name: "nqctl", parameter: "missing", value: 1 })).resolves.toEqual(
+      mutationPolicyDisabledResult("cli_set", { cli_name: "nqctl", parameter: "missing", value: 1 }),
+    );
+    await expect(
+      executeCliRamp(ctx, {
+        cli_name: "nqctl",
+        parameter: "missing",
+        start: 0,
+        end: 1,
+        step: 0.5,
+        interval_s: 1,
+      }),
+    ).resolves.toEqual(
+      mutationPolicyDisabledResult("cli_ramp", {
+        cli_name: "nqctl",
+        parameter: "missing",
+        start: 0,
+        end: 1,
+        step: 0.5,
+        interval_s: 1,
+      }),
+    );
+    await expect(
+      executeCliAction(ctx, { cli_name: "nqctl", action_name: "Missing_Action", args: { action: "start" } }),
+    ).resolves.toEqual(
+      mutationPolicyDisabledResult("cli_action", {
+        cli_name: "nqctl",
+        action_name: "Missing_Action",
+        args: { action: "start" },
+      }),
+    );
+    expect(runCli).not.toHaveBeenCalled();
   });
 });
 

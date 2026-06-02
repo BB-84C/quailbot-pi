@@ -1,6 +1,7 @@
 import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
+import { mutationPolicyDisabledResult } from "./mutation-policy.js";
 import type { CliAction } from "../workspace/types.js";
 import { readLinkedObservables } from "../linked-observables/read-linked-observables.js";
 import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
@@ -14,6 +15,10 @@ export type CliActionInput = {
 };
 
 export async function executeCliAction(ctx: ToolContext, input: CliActionInput): Promise<QuailbotToolResult> {
+  if (!ctx.mutationPolicy.mutatingToolsEnabled) {
+    return mutationPolicyDisabledResult("cli_action", input);
+  }
+
   const target = cliTarget(input.action_name, input.cli_name ?? ctx.workspace.cli.defaultCliName);
   const action = requireAction(ctx, target);
   const cliArgs = ["act", target.name, ...formatArgs(validateDeclaredArgs(action, input.args ?? {}))];

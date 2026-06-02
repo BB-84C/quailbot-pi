@@ -1,13 +1,22 @@
 import type { Workspace, WorkspaceAnchor } from "../workspace/types.js";
 import { validateActiveRois } from "./observe.js";
+import { mutationPolicyDisabledResult } from "./mutation-policy.js";
 import type { QuailbotToolResult } from "./tool-result.js";
+import type { ToolContext } from "./tool-context.js";
 
 export type ClickAnchorInput = {
   anchor: string;
   rois?: string[];
 };
 
-export async function executeClickAnchor(ctx: { workspace: Workspace }, input: ClickAnchorInput): Promise<QuailbotToolResult> {
+export async function executeClickAnchor(
+  ctx: Pick<ToolContext, "workspace" | "mutationPolicy">,
+  input: ClickAnchorInput,
+): Promise<QuailbotToolResult> {
+  if (!ctx.mutationPolicy.mutatingToolsEnabled) {
+    return mutationPolicyDisabledResult("click_anchor", input);
+  }
+
   const anchor = validateClickAnchorInput(ctx.workspace, input);
 
   return {

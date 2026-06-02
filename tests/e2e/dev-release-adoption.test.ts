@@ -3,6 +3,12 @@ import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
+import type {
+  BeforeAgentStartEvent,
+  ExtensionContext,
+  ExtensionHandler,
+  SessionStartEvent,
+} from "@earendil-works/pi-coding-agent";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const quailbotStateRoot = join(root, ".quailbot-pi");
@@ -20,7 +26,7 @@ const expectedToolNames = [
 ];
 
 type PiEventName = "session_start" | "before_agent_start" | string;
-type PiHandler = (...args: unknown[]) => unknown;
+type PiHandler = ExtensionHandler<any, any>;
 type RegisteredTool = { name: string };
 
 afterEach(() => {
@@ -61,8 +67,17 @@ describe("local Pi dev release adoption", () => {
 
     const { handlers } = await loadBuiltExtensionWithPiStub();
 
-    handlers.get("session_start")?.({}, { cwd: root, hasUI: false });
-    const context = handlers.get("before_agent_start")?.();
+    const extensionContext = createExtensionContextStub(root);
+    const sessionStartEvent = { type: "session_start", reason: "startup" } satisfies SessionStartEvent;
+    const beforeAgentStartEvent = {
+      type: "before_agent_start",
+      prompt: "load the active Quailbot workspace",
+      systemPrompt: "base Pi system prompt",
+      systemPromptOptions: {} as BeforeAgentStartEvent["systemPromptOptions"],
+    } satisfies BeforeAgentStartEvent;
+
+    handlers.get("session_start")?.(sessionStartEvent, extensionContext);
+    const context = handlers.get("before_agent_start")?.(beforeAgentStartEvent, extensionContext);
     const hiddenContext = JSON.stringify(context);
 
     expect(hiddenContext).toContain("WORKSPACE (Quailbot active workspace)");
@@ -96,6 +111,29 @@ function readJson(path: string): Record<string, any> {
 
 function cleanupQuailbotState(): void {
   rmSync(quailbotStateRoot, { recursive: true, force: true });
+}
+
+function createExtensionContextStub(cwd: string): ExtensionContext {
+  const context: Partial<ExtensionContext> = {
+    cwd,
+    hasUI: false,
+    ui: {
+      notify() {},
+    } as Partial<ExtensionContext["ui"]> as ExtensionContext["ui"],
+    sessionManager: undefined,
+    modelRegistry: undefined,
+    model: undefined,
+    isIdle: () => true,
+    signal: undefined,
+    abort() {},
+    hasPendingMessages: () => false,
+    shutdown() {},
+    getContextUsage: () => undefined,
+    compact() {},
+    getSystemPrompt: () => "",
+  };
+
+  return context as ExtensionContext;
 }
 
 function compareNames(left: string, right: string): number {

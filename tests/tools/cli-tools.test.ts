@@ -10,7 +10,7 @@ import { executeCliAction } from "../../src/tools/cli_action.js";
 import { executeCliGet } from "../../src/tools/cli_get.js";
 import { executeCliRamp } from "../../src/tools/cli_ramp.js";
 import { executeCliSet } from "../../src/tools/cli_set.js";
-import { enabledMutationPolicy, mutationPolicyDisabledResult } from "../../src/tools/mutation-policy.js";
+import { disabledMutationPolicy, enabledMutationPolicy, mutationPolicyDisabledResult } from "../../src/tools/mutation-policy.js";
 import { registerQuailbotTools, sleepSecondsParameters } from "../../src/tools/register-tools.js";
 import { executeSleepSeconds } from "../../src/tools/sleep_seconds.js";
 
@@ -476,7 +476,7 @@ describe("registered CLI tool schemas", () => {
 
   it("blocks cli_set, cli_ramp, and cli_action before validation or driver execution when mutation policy is disabled", async () => {
     const runCli = vi.fn<RunCli>();
-    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });
 
     await expect(executeCliSet(ctx, { cli_name: "nqctl", parameter: "missing", value: 1 })).resolves.toEqual(
       mutationPolicyDisabledResult("cli_set", { cli_name: "nqctl", parameter: "missing", value: 1 }),

@@ -6,7 +6,7 @@ import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 import type { Workspace } from "../../src/workspace/types.js";
 import { executeClickAnchor } from "../../src/tools/click_anchor.js";
 import { executeObserve } from "../../src/tools/observe.js";
-import { enabledMutationPolicy, mutationPolicyDisabledResult, MUTATION_POLICY_ENV_VAR } from "../../src/tools/mutation-policy.js";
+import { disabledMutationPolicy, enabledMutationPolicy, mutationPolicyDisabledResult, MUTATION_POLICY_ENV_VAR } from "../../src/tools/mutation-policy.js";
 import { registerQuailbotTools } from "../../src/tools/register-tools.js";
 import { createToolContext } from "../../src/tools/tool-context.js";
 import { executeSetField } from "../../src/tools/set_field.js";
@@ -51,7 +51,7 @@ describe("GUI backup tool boundaries", () => {
 
   it("blocks click_anchor and set_field before validation or backend execution when mutation policy is disabled", async () => {
     const workspace = workspaceWithAnchors();
-    const ctx = createToolContext({ workspace });
+    const ctx = createToolContext({ workspace, mutationPolicy: disabledMutationPolicy() });
 
     await expect(executeClickAnchor(ctx, { anchor: "missing" })).resolves.toEqual(
       mutationPolicyDisabledResult("click_anchor", { anchor: "missing" }),

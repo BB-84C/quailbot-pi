@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 
 import { buildWorkspaceContextText } from "./prompt/workspace-summary.js";
 import { PlanContextStore } from "./prompt/plan-context.js";
+import { mutationPolicyFromEnvironment } from "./tools/mutation-policy.js";
 import { registerQuailbotTools } from "./tools/register-tools.js";
 import { loadWorkspace } from "./workspace/load-workspace.js";
 import { resolveWorkspaceSelection } from "./workspace/workspace-state.js";
@@ -32,8 +33,9 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("before_agent_start", () => {
+    const mutationPolicy = mutationPolicyFromEnvironment();
     const content = [
-      runtime.workspace ? buildWorkspaceContextText(runtime.workspace) : undefined,
+      runtime.workspace ? buildWorkspaceContextText(runtime.workspace, mutationPolicy) : undefined,
       runtime.planStore.render(),
     ].filter((item): item is string => item !== undefined);
 

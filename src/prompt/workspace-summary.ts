@@ -1,7 +1,14 @@
 import type { CliAction, CliActionPermissions, CliParameter, Workspace } from "../workspace/types.js";
+import {
+  MUTATING_TOOL_KINDS,
+  READ_ONLY_WITHOUT_MUTATION_ENABLE,
+  mutationPolicyFromEnvironment,
+  type MutationPolicy,
+} from "../tools/mutation-policy.js";
 
 export type WorkspaceSummary = {
   workspace_path: string;
+  mutation_policy: WorkspaceMutationPolicySummary;
   active_rois: WorkspaceRoiSummary[];
   active_anchors: WorkspaceAnchorSummary[];
   cli: {
@@ -11,6 +18,13 @@ export type WorkspaceSummary = {
     enabledActions: WorkspaceCliActionSummary[];
     actionsAvailable: WorkspaceActionsAvailableSummary;
   };
+};
+
+export type WorkspaceMutationPolicySummary = {
+  mutating_tools_enabled: boolean;
+  enable_env_var: MutationPolicy["enableEnvVar"];
+  blocked_without_enable: typeof MUTATING_TOOL_KINDS;
+  allowed_without_enable: typeof READ_ONLY_WITHOUT_MUTATION_ENABLE;
 };
 
 export type WorkspaceRoiSummary = {
@@ -58,7 +72,10 @@ export type WorkspaceActionsAvailableSummary = {
   cli_action: boolean;
 };
 
-export function buildWorkspaceSummary(workspace: Workspace): WorkspaceSummary {
+export function buildWorkspaceSummary(
+  workspace: Workspace,
+  policy: MutationPolicy = mutationPolicyFromEnvironment(),
+): WorkspaceSummary {
   const enabledParameters = [...workspace.cli.parameters.values()]
     .filter((parameter) => parameter.enabled)
     .map(summarizeParameter);
@@ -66,6 +83,7 @@ export function buildWorkspaceSummary(workspace: Workspace): WorkspaceSummary {
 
   return {
     workspace_path: workspace.sourcePath,
+    mutation_policy: summarizeMutationPolicy(policy),
     active_rois: workspace.rois
       .filter((roi) => roi.active)
       .map((roi) => ({
@@ -93,8 +111,20 @@ export function buildWorkspaceSummary(workspace: Workspace): WorkspaceSummary {
   };
 }
 
-export function buildWorkspaceContextText(workspace: Workspace): string {
-  return `WORKSPACE (Quailbot active workspace)\n${JSON.stringify(buildWorkspaceSummary(workspace), null, 2)}`;
+export function buildWorkspaceContextText(
+  workspace: Workspace,
+  policy: MutationPolicy = mutationPolicyFromEnvironment(),
+): string {
+  return `WORKSPACE (Quailbot active workspace)\n${JSON.stringify(buildWorkspaceSummary(workspace, policy), null, 2)}`;
+}
+
+function summarizeMutationPolicy(policy: MutationPolicy): WorkspaceMutationPolicySummary {
+  return {
+    mutating_tools_enabled: policy.mutatingToolsEnabled,
+    enable_env_var: policy.enableEnvVar,
+    blocked_without_enable: MUTATING_TOOL_KINDS,
+    allowed_without_enable: READ_ONLY_WITHOUT_MUTATION_ENABLE,
+  };
 }
 
 function summarizeParameter(parameter: CliParameter): WorkspaceCliParameterSummary {

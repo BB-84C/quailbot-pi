@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import quailbotExtension from "../../src/extension.js";
 import { buildWorkspaceContextText, buildWorkspaceSummary } from "../../src/prompt/workspace-summary.js";
+import { MUTATION_POLICY_ENV_VAR, disabledMutationPolicy, enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 
 const tempDirs: string[] = [];
@@ -20,7 +21,7 @@ describe("workspace prompt summary", () => {
   it("summarizes enabled CLI affordances for the active workspace", () => {
     const workspace = loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
 
-    const summary = buildWorkspaceSummary(workspace);
+    const summary = buildWorkspaceSummary(workspace, disabledMutationPolicy());
 
     expect(summary.cli.enabledParameters).toContainEqual(
       expect.objectContaining({
@@ -38,8 +39,20 @@ describe("workspace prompt summary", () => {
     );
     expect(summary.cli.actionsAvailable.cli_get).toBe(true);
     expect(summary.cli.actionsAvailable.cli_set).toBe(true);
+    expect(summary.mutation_policy).toEqual({
+      mutating_tools_enabled: false,
+      enable_env_var: MUTATION_POLICY_ENV_VAR,
+      blocked_without_enable: ["cli_set", "cli_ramp", "cli_action", "click_anchor", "set_field"],
+      allowed_without_enable: [
+        "cli_get",
+        "observe",
+        "sleep_seconds",
+        "quailbot_planwrite",
+        "quailbot_plan_and_execute_read_only",
+      ],
+    });
 
-    const contextText = buildWorkspaceContextText(workspace);
+    const contextText = buildWorkspaceContextText(workspace, disabledMutationPolicy());
     const contextSummary = JSON.parse(contextText.replace("WORKSPACE (Quailbot active workspace)\n", "")) as ReturnType<
       typeof buildWorkspaceSummary
     >;
@@ -52,6 +65,29 @@ describe("workspace prompt summary", () => {
       cli_set: true,
       cli_ramp: false,
       cli_action: true,
+    });
+  });
+
+  it("renders enabled mutation policy in workspace context text", () => {
+    const workspace = loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
+
+    const contextText = buildWorkspaceContextText(workspace, enabledMutationPolicy());
+    const contextSummary = JSON.parse(contextText.replace("WORKSPACE (Quailbot active workspace)\n", "")) as ReturnType<
+      typeof buildWorkspaceSummary
+    >;
+
+    expect(contextText).toContain(MUTATION_POLICY_ENV_VAR);
+    expect(contextSummary.mutation_policy).toEqual({
+      mutating_tools_enabled: true,
+      enable_env_var: MUTATION_POLICY_ENV_VAR,
+      blocked_without_enable: ["cli_set", "cli_ramp", "cli_action", "click_anchor", "set_field"],
+      allowed_without_enable: [
+        "cli_get",
+        "observe",
+        "sleep_seconds",
+        "quailbot_planwrite",
+        "quailbot_plan_and_execute_read_only",
+      ],
     });
   });
 

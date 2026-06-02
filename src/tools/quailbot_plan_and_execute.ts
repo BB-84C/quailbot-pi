@@ -78,6 +78,7 @@ async function validatePlan(ctx: ToolContext, steps: PlanAndExecuteStep[]): Prom
 function validationContext(ctx: ToolContext): ToolContext {
   return {
     workspace: ctx.workspace,
+    mutationPolicy: ctx.mutationPolicy,
     runCli: async (cliName, args, options) => {
       validateRunCliOptions(options);
       return {

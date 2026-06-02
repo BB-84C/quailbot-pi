@@ -11,6 +11,46 @@ import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 import type { Workspace } from "../../src/workspace/types.js";
 
 describe("quailbot_plan_and_execute", () => {
+  it("allows read-only cli_get plans under the default disabled mutation policy", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValueOnce({
+      ok: true,
+      exitCode: 0,
+      stdout: '{"current":1.2}',
+      stderr: "",
+      payload: { current: 1.2 },
+      argv: ["nqctl", "get", "current"],
+    });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [{ kind: "cli_get", cli_name: "nqctl", parameter: "current" }],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.primary_result).toMatchObject({ ok: true, stopped_reason: "completed" });
+    const primary = result.primary_result as { steps: Array<Record<string, unknown>> };
+    expect(primary.steps).toHaveLength(1);
+    expect(primary.steps[0]).toMatchObject({ kind: "cli_get", primary_result: { ok: true, parameter: "current" } });
+    expect(runCli).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects mutating cli_set plans during preflight under the default disabled mutation policy", async () => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [{ kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 }],
+    });
+
+    expect(result.primary_result).toMatchObject({
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: expect.stringContaining("mutation policy disabled"),
+      steps: [],
+    });
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
   it("runs a serial cli_set then cli_get program and preserves per-step linked observations", async () => {
     const runCli = vi
       .fn<RunCli>()

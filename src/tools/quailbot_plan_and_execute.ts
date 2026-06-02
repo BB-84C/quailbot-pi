@@ -4,6 +4,7 @@ import { executeCliAction, type CliActionInput } from "./cli_action.js";
 import { executeCliGet, type CliGetInput } from "./cli_get.js";
 import { executeCliRamp, type CliRampInput } from "./cli_ramp.js";
 import { executeCliSet, type CliSetInput } from "./cli_set.js";
+import { isMutatingToolKind, mutationPolicyValidationError } from "./mutation-policy.js";
 import { executeObserve, validateObserveInput, type ObserveInput } from "./observe.js";
 import { executeSetField, validateSetFieldInput, type SetFieldInput } from "./set_field.js";
 import { executeSleepSeconds, type SleepSecondsInput } from "./sleep_seconds.js";
@@ -67,6 +68,9 @@ async function validateStep(ctx: ToolContext, step: unknown): Promise<void> {
 async function validatePlan(ctx: ToolContext, steps: PlanAndExecuteStep[]): Promise<string | undefined> {
   try {
     for (const step of steps) {
+      if (isMutatingPlanStep(step) && !ctx.mutationPolicy.mutatingToolsEnabled) {
+        throw new Error(mutationPolicyValidationError());
+      }
       await validateStep(ctx, step);
     }
     return undefined;
@@ -102,6 +106,10 @@ function validateSleepSeconds(input: Partial<SleepSecondsInput>): void {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMutatingPlanStep(step: unknown): boolean {
+  return isRecord(step) && isMutatingToolKind(step.kind);
 }
 
 export async function executeQuailbotPlanAndExecute(

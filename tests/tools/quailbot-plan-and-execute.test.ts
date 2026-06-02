@@ -51,6 +51,45 @@ describe("quailbot_plan_and_execute", () => {
     expect(runCli).not.toHaveBeenCalled();
   });
 
+  it("rejects disabled mutating plans before validating earlier read-only CLI steps", async () => {
+    const executeCliGet = vi.fn().mockResolvedValue({
+      ok: true,
+      action: "cli_get",
+      action_input: { kind: "cli_get", cli_name: "nqctl", parameter: "current" },
+      primary_result: { ok: true, parameter: "current" },
+    });
+
+    vi.resetModules();
+    vi.doMock("../../src/tools/cli_get.js", () => ({ executeCliGet }));
+
+    try {
+      const { executeQuailbotPlanAndExecute: executePlan } = await import(
+        "../../src/tools/quailbot_plan_and_execute.js"
+      );
+      const runCli = vi.fn<RunCli>();
+      const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+      const result = await executePlan(ctx, {
+        steps: [
+          { kind: "cli_get", cli_name: "nqctl", parameter: "current" },
+          { kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 1.5 },
+        ],
+      });
+
+      expect(result.primary_result).toMatchObject({
+        ok: false,
+        stopped_reason: "validation_failed",
+        validation_error: expect.stringContaining("mutation policy disabled"),
+        steps: [],
+      });
+      expect(executeCliGet).not.toHaveBeenCalled();
+      expect(runCli).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("../../src/tools/cli_get.js");
+      vi.resetModules();
+    }
+  });
+
   it("runs a serial cli_set then cli_get program and preserves per-step linked observations", async () => {
     const runCli = vi
       .fn<RunCli>()

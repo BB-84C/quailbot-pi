@@ -71,6 +71,9 @@ async function validatePlan(ctx: ToolContext, steps: PlanAndExecuteStep[]): Prom
       if (isMutatingPlanStep(step) && !ctx.mutationPolicy.mutatingToolsEnabled) {
         throw new Error(mutationPolicyValidationError());
       }
+    }
+
+    for (const step of steps) {
       await validateStep(ctx, step);
     }
     return undefined;

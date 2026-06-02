@@ -59,3 +59,27 @@ Date: 2026-06-01
 - Keep GUI backend expansion behind the existing `observe`, `click_anchor`, and `set_field` boundaries; extend validators first, then attach real backends.
 - If semantic E2E needs to become CI-reproducible, promote a generator/bridge entry point into tracked test tooling or add an explicit pre-test generation step instead of relying on ignored local artifacts.
 - Preserve the product/scaffold boundary: do not commit `.opencode/artifacts/...`, generated session snapshots, or dummy driver files to the plugin package.
+
+## Implementation round: Local dev release and golden RPC workflow
+
+Date: 2026-06-02
+
+### Delivered
+
+- Repo-local Pi package dev release now uses the package manifest entry `./dist/src/extension.js`, tracked `.pi/settings.json`, and `npm run dev:check` to verify the built extension is adopted.
+- Generic mutation policy is surfaced in Quailbot context and enforced before direct mutating CLI/GUI tools and before planned mutating steps in `quailbot_plan_and_execute`.
+- Deterministic dev-release adoption coverage imports the built extension, verifies registered tools/hooks, and exercises hidden workspace context without touching repo-local `.quailbot-pi` state.
+- Golden Nanonis Simulator RPC artifacts are preserved locally under `.opencode/artifacts/nanonis-simulator-golden/20260602-173257/`; the bridge runner remains ignored construction-only scaffolding, not product CI.
+
+### Now known
+
+- Pi loaded the local dev release from `dist/src/extension.js` through the package manifest and repo-local `.pi/settings.json` package discovery.
+- Pi RPC works with `node node_modules/@earendil-works/pi-coding-agent/dist/cli.js --mode rpc --session-dir D:\quailbot-pi\.pi-state\sessions`, with repo-local session files and empty tracked git diffs for the golden runs.
+- Mutation-enabled golden runs used `D:\quailbot\workspaces\workspace.json` with workspace SHA-256 `f71800f06590228d59fd14e2160c9ce18258d4fc07a9fbe39e3d510ed23bd74f` and final `nqctl:bias_v` readback `1.0` V.
+- The final golden artifacts prove both tool-call shapes: individual `cli_get`/`cli_ramp` calls without `quailbot_plan_and_execute`, and exactly one `quailbot_plan_and_execute` returning an ordered step list.
+
+### Later phases must do differently
+
+- Decide whether the golden RPC runner and shaper should remain ignored construction scaffolding or graduate into tracked test tooling before adding more simulator tasks.
+- Preserve trajectory-level semantic assertions for future golden tasks; final-state-only readback is not enough when the intended path matters.
+- Keep Nanonis-specific task packets and raw RPC evidence out of product code unless a later phase explicitly scopes simulator CI fixtures.

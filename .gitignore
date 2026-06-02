@@ -2,6 +2,7 @@
 node_modules/
 .npm/
 .pi-state/
+.worktrees/
 
 # Build and test output
 dist/

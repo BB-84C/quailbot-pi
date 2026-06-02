@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, copyFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 
@@ -12,7 +13,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const quailbotStateRoot = join(root, ".quailbot-pi");
+const tempDirs: string[] = [];
 const expectedToolNames = [
   "click_anchor",
   "cli_action",
@@ -31,7 +32,9 @@ type PiHandler = ExtensionHandler<any, any>;
 type RegisteredTool = { name: string };
 
 afterEach(() => {
-  cleanupQuailbotState();
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 describe("local Pi dev release adoption", () => {
@@ -59,18 +62,21 @@ describe("local Pi dev release adoption", () => {
   });
 
   it("loads the generic starter workspace into hidden context on Pi lifecycle events", async () => {
-    cleanupQuailbotState();
+    const tempCwd = makeTempDir();
+    const quailbotStateRoot = join(tempCwd, ".quailbot-pi");
+    const workspacePath = join(quailbotStateRoot, "workspace.json");
+
     mkdirSync(quailbotStateRoot, { recursive: true });
     copyFileSync(
       join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"),
-      join(quailbotStateRoot, "workspace.json"),
+      workspacePath,
     );
 
     const { handlers } = await loadBuiltExtensionWithPiStub();
 
-    const extensionContext = createExtensionContextStub(root);
+    const extensionContext = createExtensionContextStub(tempCwd);
     const sessionStartEvent = { type: "session_start", reason: "startup" } satisfies SessionStartEvent;
-    const systemPromptOptions = { cwd: root } satisfies BuildSystemPromptOptions;
+    const systemPromptOptions = { cwd: tempCwd } satisfies BuildSystemPromptOptions;
     const beforeAgentStartEvent = {
       type: "before_agent_start",
       prompt: "load the active Quailbot workspace",
@@ -79,13 +85,37 @@ describe("local Pi dev release adoption", () => {
     } satisfies BeforeAgentStartEvent;
 
     handlers.get("session_start")?.(sessionStartEvent, extensionContext);
-    const context = handlers.get("before_agent_start")?.(beforeAgentStartEvent, extensionContext);
-    const hiddenContext = JSON.stringify(context);
+    const context = await handlers.get("before_agent_start")?.(beforeAgentStartEvent, extensionContext);
+    const message = context?.message;
 
-    expect(hiddenContext).toContain("WORKSPACE (Quailbot active workspace)");
-    expect(hiddenContext).toContain("nqctl:zctrl_setpnt");
-    expect(hiddenContext).toContain("mutation_policy");
-    expect(hiddenContext).toContain("QUAILBOT_ALLOW_MUTATING_TOOLS");
+    expect(message).toEqual(
+      expect.objectContaining({
+        customType: "quailbot-context",
+        display: false,
+      }),
+    );
+
+    const content = message?.content;
+    expect(typeof content).toBe("string");
+    if (typeof content !== "string") {
+      throw new Error("before_agent_start did not return string hidden context content");
+    }
+
+    const workspaceHeader = "WORKSPACE (Quailbot active workspace)";
+    expect(content.startsWith(`${workspaceHeader}\n`)).toBe(true);
+    expect(content).toContain(workspaceHeader);
+
+    const workspaceSummary = JSON.parse(content.slice(`${workspaceHeader}\n`.length)) as {
+      workspace_path: string;
+      mutation_policy: { enable_env_var: string };
+      cli: { enabledParameters: Array<{ ref: string }> };
+    };
+
+    expect(workspaceSummary.workspace_path).toBe(workspacePath);
+    expect(workspaceSummary.cli.enabledParameters).toContainEqual(
+      expect.objectContaining({ ref: "nqctl:zctrl_setpnt" }),
+    );
+    expect(workspaceSummary.mutation_policy.enable_env_var).toBe("QUAILBOT_ALLOW_MUTATING_TOOLS");
   });
 });
 
@@ -111,8 +141,10 @@ function readJson(path: string): Record<string, any> {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function cleanupQuailbotState(): void {
-  rmSync(quailbotStateRoot, { recursive: true, force: true });
+function makeTempDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "quailbot-pi-dev-release-"));
+  tempDirs.push(dir);
+  return dir;
 }
 
 function createExtensionContextStub(cwd: string): ExtensionContext {

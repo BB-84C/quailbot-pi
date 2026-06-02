@@ -5,7 +5,11 @@
     "test": "vitest --run",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
-    "test:e2e": "vitest --run tests/e2e/semantic-e2e.test.ts"
+    "test:e2e": "vitest --run tests/e2e/semantic-e2e.test.ts",
+    "dev:release": "npm run build",
+    "pi": "npm run dev:release && npm exec -- pi --session-dir .pi-state/sessions",
+    "pi:mutating": "npm run dev:release && powershell -NoProfile -Command \"$env:QUAILBOT_ALLOW_MUTATING_TOOLS='1'; npm exec -- pi --session-dir .pi-state/sessions\"",
+    "dev:check": "npm run dev:release && vitest --run tests/e2e/dev-release-adoption.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -13,6 +17,9 @@
   "description": "Quailbot successor on Pi agent substrate",
   "private": true,
   "type": "module",
+  "pi": {
+    "extensions": ["./dist/src/extension.js"]
+  },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.74.2",
     "typebox": "^1.1.39"

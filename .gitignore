@@ -4,6 +4,13 @@ node_modules/
 .pi-state/
 .worktrees/
 
+# Local Pi runtime caches and quailbot scratch
+.pi/git/
+.pi/npm/
+.pi/sessions/
+.pi/cache/
+.quailbot-pi/
+
 # Build and test output
 dist/
 coverage/

@@ -215,7 +215,7 @@ export const READ_ONLY_WITHOUT_MUTATION_ENABLE = [
   "observe",
   "sleep_seconds",
   "quailbot_planwrite",
-  "quailbot_plan_and_execute_read_only",
+  "quailbot_plan_and_execute (read-only plans only)",
 ] as const;
 
 export function mutationPolicyFromEnvironment(env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): MutationPolicy {
@@ -313,7 +313,7 @@ expect(summary.mutation_policy).toEqual({
   mutating_tools_enabled: false,
   enable_env_var: "QUAILBOT_ALLOW_MUTATING_TOOLS",
   blocked_without_enable: ["cli_set", "cli_ramp", "cli_action", "click_anchor", "set_field"],
-  allowed_without_enable: ["cli_get", "observe", "sleep_seconds", "quailbot_planwrite", "quailbot_plan_and_execute_read_only"],
+  allowed_without_enable: ["cli_get", "observe", "sleep_seconds", "quailbot_planwrite", "quailbot_plan_and_execute (read-only plans only)"],
 });
 ```
 

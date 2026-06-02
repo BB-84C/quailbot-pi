@@ -16,7 +16,7 @@ export const READ_ONLY_WITHOUT_MUTATION_ENABLE = [
   "observe",
   "sleep_seconds",
   "quailbot_planwrite",
-  "quailbot_plan_and_execute_read_only",
+  "quailbot_plan_and_execute (read-only plans only)",
 ] as const;
 
 export type MutatingToolKind = (typeof MUTATING_TOOL_KINDS)[number];
@@ -37,7 +37,7 @@ export function isMutatingToolKind(kind: unknown): kind is MutatingToolKind {
   return typeof kind === "string" && (MUTATING_TOOL_KINDS as readonly string[]).includes(kind);
 }
 
-export function mutationPolicyDisabledResult(action: string, actionInput: unknown): QuailbotToolResult {
+export function mutationPolicyDisabledResult(action: MutatingToolKind, actionInput: unknown): QuailbotToolResult {
   return {
     ok: false,
     action,

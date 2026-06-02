@@ -48,7 +48,7 @@ describe("workspace prompt summary", () => {
         "observe",
         "sleep_seconds",
         "quailbot_planwrite",
-        "quailbot_plan_and_execute_read_only",
+        "quailbot_plan_and_execute (read-only plans only)",
       ],
     });
 
@@ -86,7 +86,7 @@ describe("workspace prompt summary", () => {
         "observe",
         "sleep_seconds",
         "quailbot_planwrite",
-        "quailbot_plan_and_execute_read_only",
+        "quailbot_plan_and_execute (read-only plans only)",
       ],
     });
   });

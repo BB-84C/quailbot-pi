@@ -38,7 +38,7 @@ describe("mutation policy", () => {
       "observe",
       "sleep_seconds",
       "quailbot_planwrite",
-      "quailbot_plan_and_execute_read_only",
+      "quailbot_plan_and_execute (read-only plans only)",
     ]);
 
     for (const kind of MUTATING_TOOL_KINDS) {
@@ -53,6 +53,9 @@ describe("mutation policy", () => {
 
   it("returns a structured disabled result for blocked mutating actions", () => {
     const actionInput = { parameter: "zctrl_setpnt", value: 1.5 };
+
+    // @ts-expect-error disabled results are only produced for registered mutating tool kinds
+    mutationPolicyDisabledResult("quailbot_plan_and_execute", actionInput);
 
     expect(mutationPolicyDisabledResult("cli_set", actionInput)).toEqual({
       ok: false,

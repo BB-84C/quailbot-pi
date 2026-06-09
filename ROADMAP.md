@@ -83,3 +83,103 @@ Date: 2026-06-02
 - Decide whether the golden RPC runner and shaper should remain ignored construction scaffolding or graduate into tracked test tooling before adding more simulator tasks.
 - Preserve trajectory-level semantic assertions for future golden tasks; final-state-only readback is not enough when the intended path matters.
 - Keep Nanonis-specific task packets and raw RPC evidence out of product code unless a later phase explicitly scopes simulator CI fixtures.
+
+## Future investigation phases: Quailbot behavior still missing from Pi
+
+Date: 2026-06-03
+
+Status: planning guide only. These phases are not implemented yet; each needs a full implementation spec when work begins. The investigation below was re-grounded from source files, not from the previous compacted roadmap draft.
+
+### Phase A1: Quailbot instrument-operator system prompt
+
+**Concise spec:** Make the Pi agent with the Quailbot plugin identify as a scientific instrument operating agent, not as a general coding agent. Start from `D:\quailbot\src\quailbot\agent.py` `SYSTEM_PROMPT`, but rewrite stale parts: remove the legacy ReAct/Plan+Execute run-mode split, avoid MCP-tool wording for Pi-native tools, and do not mention deferred tools such as `wait_until` unless that phase has landed. Keep workspace facts in the existing `WORKSPACE` context block; this phase is prompt identity/policy, not available-tool transfer.
+
+**Feasibility:** High. Pi's `before_agent_start` event exposes the assembled `systemPrompt` and can return a replacement `systemPrompt`; current Quailbot Pi only returns a hidden `quailbot-context` message from `src/extension.ts`. This is a plugin-level change.
+
+**Options / trade-offs:**
+
+- Append Quailbot operator instructions to Pi's base system prompt: safest; preserves Pi's built-in guidance and tool management.
+- Replace the system prompt: strongest identity shift; riskier because it may discard useful Pi substrate instructions.
+- Hybrid: append fixed operator policy in `systemPrompt`, keep dynamic workspace summary and plan context as hidden messages.
+
+**Recommended default:** Hybrid append. Do not copy legacy tool inventories into the prompt; Pi already manages tool schemas.
+
+### Phase A2: Pi-native workspace load/switch/read/write commands
+
+**Concise spec:** Add in-Pi commands for workspace selection: load a workspace JSON file, switch the active workspace, show the current workspace, validate/read workspace content, and save/write supported workspace updates. Replace the old `D:\quailbot` CLI menu with Pi-native slash-command/TUI behavior. After a switch, persist the selected workspace and run Pi reload so `session_start` reloads the workspace from settings.
+
+**Feasibility:** High. Current `src/workspace/workspace-state.ts` already has settings/starter resolution and save/load helpers; `src/extension.ts` already loads the workspace on `session_start`. Pi exposes `registerCommand(...)` and command-context `ctx.reload()`. `D:\qdevBot` is useful as a reference for custom workspace-directory listing/reading behavior, but its "workspace" is a markdown knowledge directory, not Quailbot's instrument JSON schema.
+
+**Options / trade-offs:**
+
+- Slash commands such as `/quailbot-workspace load <path>` plus `saveLastWorkspace(...)` and `ctx.reload()`: cleanest first step; reload semantics are explicit.
+- In-memory hot switch without reload: faster, but easier to leave stale plan/context/tool state unless every runtime field is reset correctly.
+- TUI picker/list command: better UX; needs a fallback for RPC mode and should come after the command substrate.
+- External settings watcher like legacy Quailbot: useful for calibration-tool round trips, but more moving parts.
+
+**Recommended default:** Start with command + persisted setting + hard reload; add picker/watch behavior only after the basic switch is semantically proven.
+
+### Phase A3: Workspace edit/calibration UI
+
+**Concise spec:** Bring the legacy calibration tool's behavior into the Pi workflow so users can create/import/edit workspace files without leaving Pi if feasible. Required behavior includes ROI/anchor editing, CLI capability import, load/export workspace, set current agent workspace, validation, and save. Coordinate with A2 so edits update the same selected workspace and trigger the same reload path.
+
+**Feasibility:** Medium. Legacy `D:\quailbot\src\quailbot\calibration\gui.py` is a large standalone Tk/Python tool with its own load/export/set-agent-workspace/save logic. Pi has TUI custom components and commands, but pixel-oriented ROI/anchor drawing may be awkward inside the terminal. External GUI launch is already a proven legacy pattern.
+
+**Options / trade-offs:**
+
+- Native Pi TUI calibration commands/forms: best integrated workflow; likely good for JSON fields and CLI import, uncertain for screenshot/ROI drawing.
+- Direct external GUI import/launch: fastest way to preserve the existing visual calibration behavior; adds Python/Tk/Pillow runtime and a separate window.
+- Split approach: implement file selection, CLI import, validation, and save in Pi TUI; keep visual screenshot ROI/anchor picking as an external GUI helper.
+
+**Recommended default:** Probe the split approach. Use A2 as the state/reload contract so either TUI edits or external GUI writes converge on the same workspace selection path.
+
+### Phase A4: Remote instrument host, client, and MCP surface
+
+**Concise spec:** Rebuild the remote operation model around Pi: a human supervisor launches a host on the instrument server; the host connects to one or more instruments; remote users submit jobs/tasks from their laptops through a client; that client also exposes MCP so a user's agent can submit/status/cancel/fetch jobs through MCP.
+
+**Feasibility:** Medium. Legacy Quailbot has FastAPI host routes, a job manager, HTTP client, and FastMCP hub tools. Pi provides useful agent infrastructure through RPC mode and `AgentSession` SDK, but Pi explicitly does not include built-in MCP and does not provide a ready-made multi-user HTTP job server. This should be built on top of Pi, not embedded blindly into the extension.
+
+**Options / trade-offs:**
+
+- Separate supervised host service using Pi SDK or Pi RPC sessions per job: best long-term seam; clear host/client boundary; requires queueing, auth, cancellation, logs, and multi-instrument routing.
+- Adapt legacy FastAPI host + HTTP client + FastMCP hub around Pi RPC: fastest behavior transplant; carries Python service dependencies and legacy route assumptions.
+- New TypeScript/Node host around Pi SDK: closer to the Pi package ecosystem; more rewrite cost.
+- HTTP server inside the Pi extension: avoid unless SDK constraints force it; it couples session UI/plugin code to long-lived job serving.
+
+**Recommended default:** Design a separate host/supervisor service first, with the MCP client as a downstream wrapper over the host API. Treat legacy server-host-hub-client-MCP as behavior evidence, not code to paste wholesale.
+
+### Phase A5: Pi TUI tool-result rendering/truncation
+
+**Concise spec:** Stop large Quailbot tool results from flooding the Pi TUI. Render concise previews for tool calls/results, keep full structured evidence available through `details` or local artifacts, and make truncation explicit. The goal is TUI readability first; context-size reduction is a separate choice if we also truncate tool-result `content` sent back to the model.
+
+**Feasibility:** High for Quailbot-owned tools, medium for global Pi behavior. Current `src/tools/register-tools.ts` serializes the full `QuailbotToolResult` into `content[0].text`; Pi custom tools support `renderCall` and `renderResult`, and the `tool_result` event can modify returned content/details. OpenCode's bash/tool-output precedent uses line/byte caps, writes full output to disk, and returns a preview plus recovery hint.
+
+**Options / trade-offs:**
+
+- Display-only `renderResult` for Quailbot tools: best for TUI readability; does not reduce model context payload.
+- Content-level truncation service for Quailbot tool results: reduces TUI and model context pressure; must preserve full output in `details` or artifacts with a recovery path.
+- Pi core rendering/truncation patch: only needed for built-in/global tool rendering or if plugin renderers cannot cover the desired surface.
+
+**Recommended default:** First implement a Quailbot-owned truncation/preview service and per-tool renderers. Escalate to Pi core only if built-in rendering remains the blocker.
+
+### Phase A6: Context usage by component and hierarchy
+
+**Concise spec:** Add a context usage view that shows both aggregate usage and a component hierarchy for diagnosing prompt/cache pressure. It should resemble the Claude Code `/context` view in the screenshot: total tokens/free space, high-level buckets, and drill-down for Quailbot-introduced components such as operator system-prompt append, workspace summary, plan context, last action observation, and tool-result payloads.
+
+**Feasibility:** Medium. Pi exposes aggregate `getContextUsage()` and RPC `get_session_stats`, but the SDK surface currently reports tokens/window/percent rather than a full system/tools/skills/messages hierarchy. Quailbot can measure its own generated strings and emitted tool-result payloads; exact global attribution likely needs Pi core instrumentation.
+
+**Options / trade-offs:**
+
+- Plugin-estimated Quailbot hierarchy: feasible now; labels estimates honestly; cannot explain Pi-owned buckets exactly.
+- Hybrid view: exact Pi aggregate plus estimated Quailbot subcomponents inside the messages/context the plugin owns; best near-term diagnostic value.
+- Pi core component accounting: most accurate and closest to the screenshot; highest scope because it requires core message/system/tool accounting support.
+
+**Recommended default:** Start hybrid. Show Quailbot-owned component estimates clearly, and reserve Pi core work for exact system/tool/skills/message hierarchy.
+
+### Sequencing notes
+
+- A1 should land first so later behavior runs under the right instrument-operator identity.
+- A2 should land before A3 because calibration/editing must share one workspace selection and reload contract.
+- A4 is a separate architecture phase after local plugin workflow is stable.
+- A5 and A6 are operability phases and can run once real sessions produce enough tool/context volume to justify them.
+- Every future implementation phase still needs semantic Pi-session acceptance; the ROADMAP is only a guide, not the detailed spec.

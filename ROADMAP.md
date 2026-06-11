@@ -84,6 +84,30 @@ Date: 2026-06-02
 - Preserve trajectory-level semantic assertions for future golden tasks; final-state-only readback is not enough when the intended path matters.
 - Keep Nanonis-specific task packets and raw RPC evidence out of product code unless a later phase explicitly scopes simulator CI fixtures.
 
+## Implementation round: A1 Quailbot system prompt rewrite
+
+Date: 2026-06-09
+
+### Delivered
+
+- Replaced the default coding-agent identity with a Quailbot system prompt centered on quantum uncertain action-outcome instrument loops.
+- Corrected the prompt transport boundary: the system prompt no longer reconstructs `Available tools` or SDK-authored generic guideline sections, because active tools are sent through provider-native tool schemas; Quailbot-owned support-tool boundaries make CLI-driver priority explicit.
+- Kept workspace and plan facts in the hidden `quailbot-context` message while the static prompt explains WORKSPACE authority and the action -> measured outcome -> next allowed action loop.
+- Added tests proving the rewritten prompt contains Quailbot measurement/readback identity, excludes deprecated/internal wording, ignores unsafe dynamic prompt-construction metadata, and preserves hidden workspace context.
+
+### Now known
+
+- `before_agent_start` can return a full replacement `systemPrompt` and still return the hidden Quailbot context message.
+- The prompt can be reconstructed from `BuildSystemPromptOptions` without parsing or appending the assembled base prompt.
+- A1 must treat uncertainty primarily as measurement/action-outcome uncertainty: AWG pulses, STM tip pulses, and other interventions need follow-up measurement/readback to determine what actually happened. Transient instrument trouble is a secondary recovery case.
+- `BuildSystemPromptOptions` fields such as `toolSnippets` and `promptGuidelines` are construction metadata only. They should not be rendered into Quailbot's runtime system prompt; `selectedTools` is only an availability gate for Quailbot-owned support-tool bullets. Active tool schemas and hidden `quailbot-context` are the live model-visible dynamic channels.
+
+### Later phases must do differently
+
+- Future prompt/context work must avoid leaking Pi, coding-agent identity, qspmbot memory/soul/workspace scope, or internal engineering decisions into the runtime Quailbot identity.
+- If project context files or skills need to re-enter the rewritten prompt later, they need an explicit neutralization contract first.
+- A2 and later instrument-operation phases should use the prompt's action -> measured outcome -> next allowed action loop as the behavioral baseline.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03
@@ -92,17 +116,19 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 ### Phase A1: Quailbot instrument-operator system prompt
 
-**Concise spec:** Make the Pi agent with the Quailbot plugin identify as a scientific instrument operating agent, not as a general coding agent. Start from `D:\quailbot\src\quailbot\agent.py` `SYSTEM_PROMPT`, but rewrite stale parts: remove the legacy ReAct/Plan+Execute run-mode split, avoid MCP-tool wording for Pi-native tools, and do not mention deferred tools such as `wait_until` unless that phase has landed. Keep workspace facts in the existing `WORKSPACE` context block; this phase is prompt identity/policy, not available-tool transfer.
+**Status:** Implemented 2026-06-09. The earlier hybrid-append recommendation is superseded.
+
+**Concise spec:** Replace the default coding-agent system prompt with a Quailbot prompt that does not mention Pi or internal engineering decisions. Quailbot identifies as a quantum uncertain action-outcome instrument loop agent: actions are interventions, outcomes are established through measurement/readback, and the next action follows from that observed outcome. Keep workspace facts in the existing hidden `WORKSPACE` context block; do not reconstruct available-tool or SDK-authored generic guideline sections in the system prompt because the real tool surface is sent through provider-native tool schemas. Quailbot-owned support-tool boundaries may describe read/write/edit/bash as local support tools while keeping CLI-driver tools primary for instrument operations.
 
 **Feasibility:** High. Pi's `before_agent_start` event exposes the assembled `systemPrompt` and can return a replacement `systemPrompt`; current Quailbot Pi only returns a hidden `quailbot-context` message from `src/extension.ts`. This is a plugin-level change.
 
 **Options / trade-offs:**
 
-- Append Quailbot operator instructions to Pi's base system prompt: safest; preserves Pi's built-in guidance and tool management.
-- Replace the system prompt: strongest identity shift; riskier because it may discard useful Pi substrate instructions.
-- Hybrid: append fixed operator policy in `systemPrompt`, keep dynamic workspace summary and plan context as hidden messages.
+- Full rewrite with prompt/tool transport separation: implemented; strongest identity shift while leaving tool discovery to provider-native schemas and workspace facts to hidden context.
+- Append/hybrid overlay: rejected; it preserves the old coding-agent identity and internal substrate wording.
+- Copy qspmbot/qdevbot full prompt system: rejected; its memory/soul/workspace/subagent/MCP scope is broader than Quailbot Pi's extension scope.
 
-**Recommended default:** Hybrid append. Do not copy legacy tool inventories into the prompt; Pi already manages tool schemas.
+**Implemented default:** Full rewrite. Do not copy legacy tool inventories into the prompt; use tool schemas and the hidden `WORKSPACE` block as the live capability authorities.
 
 ### Phase A2: Pi-native workspace load/switch/read/write commands
 

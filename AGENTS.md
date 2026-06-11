@@ -8,3 +8,28 @@
 - Tools are fixed product surface under `src/tools/`; workspace data informs prompt/runtime contracts and driver/parameter selection, but does not generate tool names.
 - Linked-observable forced readback is separate from ordinary tool results: after mutating actions, resolve workspace-declared linked observables, perform readback, and inject/return those observations separately.
 - `quailbot_planwrite` and `quailbot_plan_and_execute` are product tools under `src/tools/`; `quailbot_plan_and_execute` runs programmatically and sequentially after submission, performs per-step linked-observable readback for mutating steps, and returns one final ordered tool result.
+
+## A1 System Prompt Recon (2026-06-08)
+- Start A1 from `ROADMAP`.
+- Before changing the quailbot-pi system prompt, inspect three sources: the current quailbot-pi prompt seam, the original `D:/quailbot` prompt, and `D:/qdevbot`'s approach.
+- Borrow mindset and structure selectively, but do not copy qdevbot or qspmbot scope assumptions about memory, soul, or workspace into quailbot-pi.
+- A1 is a full Quailbot system-prompt rewrite, not an append/overlay. The prompt should express Quailbot's identity as a quantum uncertain action-outcome instrument loop agent and should not mention Pi or internal engineering decisions.
+- Do not reconstruct generated support sections such as `Available tools` or generic coding/file-editing guidelines inside the rewritten prompt; active tools are model-visible through provider-native tool schemas, and dynamic workspace/plan facts belong in hidden Quailbot context. If support-tool guidance is needed, write Quailbot-owned wording that makes CLI-driver priority explicit.
+- Use "allowed quantum instrument CLI parameters" wording for WORKSPACE authority. Treat uncertainty as primarily measurement/action-outcome uncertainty: actions such as AWG pulses or STM tip pulses need follow-up measurement/readback to determine what actually happened. Temporary instrument problems are a secondary uncertainty case to diagnose and recover from, not the main Quailbot identity. Omit legacy narration/chain-of-thought constraints.
+## A1 Quailbot Prompt Correction
+- Latest correction supersedes earlier overlay guidance: A1 is a full Quailbot system-prompt rewrite, not a Pi append or overlay.
+- The final runtime prompt must not mention Pi, a general coding-assistant identity, or internal engineering rationale about why the team chose the design.
+- The WORKSPACE authority line should say `allowed quantum instrument CLI parameters`.
+- Frame uncertainty primarily as measurement and action-outcome uncertainty that requires follow-up measurement/readback; temporary instrument trouble is only one subset of the uncertainty model.
+- Do not turn transient instrument problems into an immediate stop rule. Quailbot is expected to work through temporary instrument issues instead of immediately reporting failure.
+- Do not reintroduce legacy narration-shortness or hidden-reasoning lines from older Quailbot prompts.
+- Do not render `BuildSystemPromptOptions.toolSnippets` or `promptGuidelines` into Quailbot's runtime system prompt; those are construction metadata, not the live tool context. `selectedTools` may be used only as an availability gate for Quailbot-owned guidance, not as wording to copy.
+- Once the load-bearing A1 prompt decisions are fixed, continue autonomously without additional approval gates.
+
+## Prompt Transport Boundary (2026-06-11)
+- Treat dynamically registered tool schemas as the authoritative tool surface. `systemPromptOptions.selectedTools`, `toolSnippets`, and `promptGuidelines` are construction metadata unless they are explicitly rendered into prompt text.
+- Do not reconstruct generic `Available tools` or SDK-authored `Guidelines` sections in the system prompt from those metadata fields. Keep the prompt focused on stable Quailbot identity/policy and Quailbot-owned support-tool boundaries that are not already carried by the real tool schema.
+
+## Quailbot Support-Tool Guidance (2026-06-11)
+- Keep provider-native tool schemas as the canonical tool surface. Do not copy raw SDK `Available tools`, `Guidelines`, `toolSnippets`, or `promptGuidelines` text into the runtime system prompt.
+- If file/shell guidance is still useful, render a Quailbot-authored support-tool boundary section, gated only by tool availability, and word it so CLI driver / WORKSPACE tools remain primary for instrument operations.

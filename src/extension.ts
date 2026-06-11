@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { buildQuailbotSystemPrompt } from "./prompt/quailbot-system-prompt.js";
 import { buildWorkspaceContextText } from "./prompt/workspace-summary.js";
 import { PlanContextStore } from "./prompt/plan-context.js";
 import { mutationPolicyFromEnvironment } from "./tools/mutation-policy.js";
@@ -32,18 +33,21 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("before_agent_start", () => {
+  pi.on("before_agent_start", (event) => {
     const mutationPolicy = mutationPolicyFromEnvironment();
     const content = [
       runtime.workspace ? buildWorkspaceContextText(runtime.workspace, mutationPolicy) : undefined,
       runtime.planStore.render(),
     ].filter((item): item is string => item !== undefined);
 
+    const systemPrompt = buildQuailbotSystemPrompt(event.systemPromptOptions);
+
     if (content.length === 0) {
-      return undefined;
+      return { systemPrompt };
     }
 
     return {
+      systemPrompt,
       message: {
         customType: "quailbot-context",
         content: content.join("\n\n"),

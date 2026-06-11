@@ -111,13 +111,46 @@ describe("workspace prompt summary", () => {
       { cwd, hasUI: false },
     );
 
-    expect(result).toEqual({
-      message: expect.objectContaining({
-        customType: "quailbot-context",
-        display: false,
-        content: expect.stringContaining("WORKSPACE (Quailbot active workspace)"),
+    expect(result).toEqual(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining("quantum uncertain action-outcome instrument loop agent"),
+        message: expect.objectContaining({
+          customType: "quailbot-context",
+          display: false,
+          content: expect.stringContaining("WORKSPACE (Quailbot active workspace)"),
+        }),
       }),
-    });
+    );
+  });
+
+  it("replaces the system prompt even when no workspace context is loaded", async () => {
+    const cwd = makeTempDir();
+    const handlers = new Map<string, Handler>();
+
+    quailbotExtension({
+      on: (event: string, handler: Handler) => {
+        handlers.set(event, handler);
+      },
+      registerTool: () => undefined,
+    } as never);
+
+    const result = await handlers.get("before_agent_start")?.(
+      {
+        type: "before_agent_start",
+        prompt: "",
+        systemPrompt: "base Pi coding assistant prompt",
+        systemPromptOptions: { cwd },
+      },
+      { cwd, hasUI: false },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining("You are Quailbot"),
+      }),
+    );
+    expect((result as { systemPrompt?: string }).systemPrompt).not.toContain("base Pi coding assistant prompt");
+    expect((result as { message?: unknown }).message).toBeUndefined();
   });
 
   it("clears persisted plan context when a new session starts", async () => {

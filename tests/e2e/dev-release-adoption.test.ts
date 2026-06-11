@@ -86,6 +86,21 @@ describe("local Pi dev release adoption", () => {
 
     handlers.get("session_start")?.(sessionStartEvent, extensionContext);
     const context = await handlers.get("before_agent_start")?.(beforeAgentStartEvent, extensionContext);
+    expect(context?.systemPrompt).toContain("quantum uncertain action-outcome instrument loop agent");
+    expect(context?.systemPrompt).toContain("allowed quantum instrument CLI parameters");
+    expect(context?.systemPrompt).toContain("current tool schema");
+    expect(context?.systemPrompt).toContain("linked-observable readback");
+    expect(context?.systemPrompt).toContain("Quailbot support-tool boundaries");
+    expect(context?.systemPrompt).toContain("File and shell tools are support tools");
+    expect(context?.systemPrompt).not.toContain("Available tools:");
+    expect(context?.systemPrompt).not.toContain("Guidelines:");
+    expect(context?.systemPrompt).not.toContain("Other runtime tools");
+    expect(context?.systemPrompt).not.toContain("base Pi system prompt");
+    expect(context?.systemPrompt).not.toContain("coding assistant");
+    expect(context?.systemPrompt).not.toContain("MCP tool");
+    expect(context?.systemPrompt).not.toContain("ReAct");
+    expect(context?.systemPrompt).not.toContain("Plan+Execute");
+    expect(context?.systemPrompt).not.toContain("wait_until");
     const message = context?.message;
 
     expect(message).toEqual(

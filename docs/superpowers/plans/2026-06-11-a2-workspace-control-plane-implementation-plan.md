@@ -888,25 +888,27 @@ git commit -m "feat: add workspace command adapter"
 
 ---
 
-### Task 5: Full verification and roadmap closeout
+### Task 5: Self-contained verification and roadmap closeout
 
 **Files:**
 - Modify: `ROADMAP.md`
-- Verify: full package checks
+- Verify: self-contained package checks
 
-- [ ] **Step 1: Run full verification**
+- [ ] **Step 1: Run self-contained verification**
+
+Fresh worktrees do not include ignored `.opencode/artifacts/quailbot-pi-e2e/*.json` semantic artifacts, so `npm test` is not a self-contained hard gate unless those artifacts have first been regenerated or mirrored into that worktree. Use the self-contained A2-relevant gate below during implementation; run the artifact-backed semantic suite only when the artifacts are present.
 
 Run:
 
 ```bash
-npm run typecheck && npm test && npm run dev:check && git diff --check
+npm run typecheck && npx vitest --run tests/workspace/workspace-service.test.ts tests/workspace/load-workspace.test.ts tests/prompt/workspace-summary.test.ts tests/e2e/dev-release-adoption.test.ts tests/tools/cli-tools.test.ts tests/tools/gui-tools.test.ts tests/tools/quailbot-planwrite.test.ts tests/tools/quailbot-plan-and-execute.test.ts && npm run dev:check && git diff --check
 ```
 
 Expected:
 
 ```text
 typecheck exits 0
-all Vitest files pass
+self-contained A2-adjacent Vitest files pass
 dev:check exits 0
 git diff --check exits 0
 ```
@@ -940,12 +942,12 @@ Date: 2026-06-11
 - A2A remains deferred as a possible peer-agent facade; it is not the core host/workspace API.
 ```
 
-- [ ] **Step 3: Run full verification again after roadmap update**
+- [ ] **Step 3: Run self-contained verification again after roadmap update**
 
 Run:
 
 ```bash
-npm run typecheck && npm test && npm run dev:check && git diff --check
+npm run typecheck && npx vitest --run tests/workspace/workspace-service.test.ts tests/workspace/load-workspace.test.ts tests/prompt/workspace-summary.test.ts tests/e2e/dev-release-adoption.test.ts tests/tools/cli-tools.test.ts tests/tools/gui-tools.test.ts tests/tools/quailbot-planwrite.test.ts tests/tools/quailbot-plan-and-execute.test.ts && npm run dev:check && git diff --check
 ```
 
 Expected: same successful result as Step 1.

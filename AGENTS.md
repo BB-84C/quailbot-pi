@@ -33,3 +33,10 @@
 ## Quailbot Support-Tool Guidance (2026-06-11)
 - Keep provider-native tool schemas as the canonical tool surface. Do not copy raw SDK `Available tools`, `Guidelines`, `toolSnippets`, or `promptGuidelines` text into the runtime system prompt.
 - If file/shell guidance is still useful, render a Quailbot-authored support-tool boundary section, gated only by tool availability, and word it so CLI driver / WORKSPACE tools remain primary for instrument operations.
+
+## System Prompt / Tool Context Notes (2026-06-12)
+- For quailbot-pi identity shifts, rewrite the system prompt instead of appending a small preface to the old Pi prompt.
+- The finished prompt should not frame the agent as "Pi"; `quail` means `quantum uncertain action-outcome instrument loop`.
+- Describe uncertainty primarily as measurement/readback uncertainty and experiment confirmation, not only transient instrument faults.
+- If tool/guideline context is dynamically injected, keep it authoritative; do not hardcode a generic `Available tools` block when the real tool context already comes from the runtime.
+- If custom guidance is still needed, keep CLI driver / quantum instrument tools primary and treat generic `read` / `write` / `edit` / `bash` guidance as secondary and constrained.

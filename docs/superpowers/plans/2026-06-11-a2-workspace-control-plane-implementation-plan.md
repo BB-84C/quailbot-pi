@@ -901,13 +901,14 @@ Fresh worktrees do not include ignored `.opencode/artifacts/quailbot-pi-e2e/*.js
 Run:
 
 ```bash
-npm run typecheck && npx vitest --run tests/workspace/workspace-service.test.ts tests/workspace/load-workspace.test.ts tests/prompt/workspace-summary.test.ts tests/e2e/dev-release-adoption.test.ts tests/tools/cli-tools.test.ts tests/tools/gui-tools.test.ts tests/tools/quailbot-planwrite.test.ts tests/tools/quailbot-plan-and-execute.test.ts && npm run dev:check && git diff --check
+npm run typecheck && npm run dev:release && npx vitest --run tests/workspace/workspace-service.test.ts tests/workspace/load-workspace.test.ts tests/prompt/workspace-summary.test.ts tests/e2e/dev-release-adoption.test.ts tests/tools/cli-tools.test.ts tests/tools/gui-tools.test.ts tests/tools/quailbot-planwrite.test.ts tests/tools/quailbot-plan-and-execute.test.ts && npm run dev:check && git diff --check
 ```
 
 Expected:
 
 ```text
 typecheck exits 0
+self-contained build creates `dist/src/extension.js`
 self-contained A2-adjacent Vitest files pass
 dev:check exits 0
 git diff --check exits 0
@@ -947,7 +948,7 @@ Date: 2026-06-11
 Run:
 
 ```bash
-npm run typecheck && npx vitest --run tests/workspace/workspace-service.test.ts tests/workspace/load-workspace.test.ts tests/prompt/workspace-summary.test.ts tests/e2e/dev-release-adoption.test.ts tests/tools/cli-tools.test.ts tests/tools/gui-tools.test.ts tests/tools/quailbot-planwrite.test.ts tests/tools/quailbot-plan-and-execute.test.ts && npm run dev:check && git diff --check
+npm run typecheck && npm run dev:release && npx vitest --run tests/workspace/workspace-service.test.ts tests/workspace/load-workspace.test.ts tests/prompt/workspace-summary.test.ts tests/e2e/dev-release-adoption.test.ts tests/tools/cli-tools.test.ts tests/tools/gui-tools.test.ts tests/tools/quailbot-planwrite.test.ts tests/tools/quailbot-plan-and-execute.test.ts && npm run dev:check && git diff --check
 ```
 
 Expected: same successful result as Step 1.

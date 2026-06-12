@@ -103,6 +103,7 @@ describe("workspace prompt summary", () => {
         handlers.set(event, handler);
       },
       registerTool: () => undefined,
+      registerCommand: () => undefined,
     } as never);
 
     await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, { cwd, hasUI: false });
@@ -132,6 +133,7 @@ describe("workspace prompt summary", () => {
         handlers.set(event, handler);
       },
       registerTool: () => undefined,
+      registerCommand: () => undefined,
     } as never);
 
     const result = await handlers.get("before_agent_start")?.(
@@ -168,6 +170,7 @@ describe("workspace prompt summary", () => {
       registerTool: (tool: Tool) => {
         tools.push(tool);
       },
+      registerCommand: () => undefined,
     } as never);
 
     await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, { cwd, hasUI: false });

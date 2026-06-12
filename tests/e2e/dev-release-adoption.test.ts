@@ -189,6 +189,86 @@ describe("local Pi dev release adoption", () => {
     );
   });
 
+  it("reports the active workspace selection source after session load", async () => {
+    const tempCwd = makeTempDir();
+    const selectedPath = join(tempCwd, "selected.workspace.json");
+    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), selectedPath);
+    mkdirSync(join(tempCwd, ".quailbot-pi"), { recursive: true });
+    writeFileSync(
+      join(tempCwd, ".quailbot-pi", "settings.json"),
+      `${JSON.stringify({ workspace: selectedPath }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const extensionContext = createExtensionContextStub(tempCwd);
+    handlers.get("session_start")?.(
+      { type: "session_start", reason: "startup" } satisfies SessionStartEvent,
+      extensionContext,
+    );
+
+    const commandContext = createCommandContextStub(tempCwd);
+    await workspaceCommand.handler("show", commandContext);
+
+    const summary = notificationJson(commandContext.notifications, "Quailbot active workspace") as {
+      path: string;
+      source: string;
+    };
+    expect(summary.path).toBe(selectedPath);
+    expect(summary.source).toBe("settings");
+  });
+
+  it("surfaces load reload failures without reporting activation success", async () => {
+    const tempCwd = makeTempDir();
+    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
+
+    const { commands } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const commandContext = createCommandContextStub(tempCwd, new Error("reload containment breach"));
+    await expect(workspaceCommand.handler(`load "${candidatePath}"`, commandContext)).resolves.toBeUndefined();
+
+    expect(commandContext.reloads).toBe(1);
+    expect(commandContext.notifications.join("\n")).toContain("workspace activation failed");
+    expect(commandContext.notifications.join("\n")).toContain("reload containment breach");
+    expect(commandContext.notifications.join("\n")).not.toContain("workspace selected");
+  });
+
+  it("surfaces write --activate reload failures without reporting activation success", async () => {
+    const tempCwd = makeTempDir();
+    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    const targetPath = join(tempCwd, ".quailbot-pi", "workspace.json");
+    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
+
+    const { commands } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const commandContext = createCommandContextStub(tempCwd, new Error("reload containment breach"));
+    await expect(
+      workspaceCommand.handler(`write "${candidatePath}" "${targetPath}" --activate`, commandContext),
+    ).resolves.toBeUndefined();
+
+    expect(commandContext.reloads).toBe(1);
+    expect(commandContext.notifications.join("\n")).toContain("workspace activation failed");
+    expect(commandContext.notifications.join("\n")).toContain("reload containment breach");
+    expect(commandContext.notifications.join("\n")).not.toContain("workspace written and selected");
+  });
+
   it("rejects invalid workspace command candidates without replacing the previous settings", async () => {
     const tempCwd = makeTempDir();
     const validPath = join(tempCwd, "valid.workspace.json");
@@ -250,6 +330,16 @@ function makeTempDir(): string {
   return dir;
 }
 
+function notificationJson(notifications: string[], title: string): unknown {
+  const prefix = `${title}\n`;
+  const notification = notifications.find((item) => item.startsWith(prefix));
+  if (!notification) {
+    throw new Error(`missing notification: ${title}`);
+  }
+
+  return JSON.parse(notification.slice(prefix.length));
+}
+
 function createExtensionContextStub(cwd: string): ExtensionContext {
   const ui: ExtensionContext["ui"] = {
     select: async () => undefined,
@@ -302,7 +392,7 @@ function createExtensionContextStub(cwd: string): ExtensionContext {
   return context;
 }
 
-function createCommandContextStub(cwd: string): ExtensionContext & {
+function createCommandContextStub(cwd: string, reloadError?: Error): ExtensionContext & {
   reload: () => Promise<void>;
   notifications: string[];
   reloads: number;
@@ -320,6 +410,9 @@ function createCommandContextStub(cwd: string): ExtensionContext & {
   };
   context.reload = async () => {
     reloads += 1;
+    if (reloadError) {
+      throw reloadError;
+    }
   };
   Object.defineProperty(context, "notifications", { get: () => notifications });
   Object.defineProperty(context, "reloads", { get: () => reloads });

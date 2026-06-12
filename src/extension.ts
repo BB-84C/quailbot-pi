@@ -7,10 +7,12 @@ import { mutationPolicyFromEnvironment } from "./tools/mutation-policy.js";
 import { registerQuailbotTools } from "./tools/register-tools.js";
 import { registerWorkspaceCommands } from "./workspace/register-workspace-commands.js";
 import { loadActiveWorkspace } from "./workspace/workspace-service.js";
+import type { LoadedWorkspace } from "./workspace/workspace-service.js";
 import type { Workspace } from "./workspace/types.js";
 
 export type QuailbotRuntime = {
   workspace?: Workspace;
+  activeWorkspace?: LoadedWorkspace;
   planStore: PlanContextStore;
 };
 
@@ -26,8 +28,11 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
     runtime.planStore.clear();
 
     try {
-      runtime.workspace = loadActiveWorkspace({ cwd: ctx.cwd }).workspace;
+      const activeWorkspace = loadActiveWorkspace({ cwd: ctx.cwd });
+      runtime.activeWorkspace = activeWorkspace;
+      runtime.workspace = activeWorkspace.workspace;
     } catch (error) {
+      runtime.activeWorkspace = undefined;
       runtime.workspace = undefined;
       notifyWarning(ctx, `Quailbot workspace unavailable: ${errorMessage(error)}`);
     }

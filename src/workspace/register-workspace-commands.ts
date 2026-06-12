@@ -33,8 +33,8 @@ async function handleWorkspaceCommand(
   switch (command) {
     case "show":
     case "read": {
-      if (runtime.workspace) {
-        notifyJson(ctx, "Quailbot active workspace", summarizeWorkspace(runtime.workspace));
+      if (runtime.activeWorkspace) {
+        notifyJson(ctx, "Quailbot active workspace", runtime.activeWorkspace.summary);
         return;
       }
 
@@ -73,11 +73,16 @@ async function handleWorkspaceCommand(
         ctx.ui.notify(`workspace validation failed: ${selection.error}`, "warning");
         return;
       }
-      ctx.ui.notify(
-        `workspace selected: ${selection.summary.path}\nsha256: ${selection.hash}\nreloading Quailbot context`,
-        "info",
-      );
-      await ctx.reload();
+      try {
+        await ctx.reload();
+      } catch (error) {
+        ctx.ui.notify(
+          `workspace activation failed after selection was saved: ${errorMessage(error)}`,
+          "warning",
+        );
+        return;
+      }
+      ctx.ui.notify(`workspace selected: ${selection.summary.path}\nsha256: ${selection.hash}`, "info");
       return;
     }
 
@@ -101,11 +106,16 @@ async function handleWorkspaceCommand(
           ctx.ui.notify(`workspace write succeeded but activation failed: ${selected.error}`, "warning");
           return;
         }
-        ctx.ui.notify(
-          `workspace written and selected: ${result.targetPath}\nsha256: ${result.hash}\nreloading Quailbot context`,
-          "info",
-        );
-        await ctx.reload();
+        try {
+          await ctx.reload();
+        } catch (error) {
+          ctx.ui.notify(
+            `workspace activation failed after write and selection were saved: ${errorMessage(error)}`,
+            "warning",
+          );
+          return;
+        }
+        ctx.ui.notify(`workspace written and selected: ${result.targetPath}\nsha256: ${result.hash}`, "info");
         return;
       }
       notifyJson(ctx, "workspace written", result.summary);

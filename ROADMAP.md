@@ -117,18 +117,20 @@ Date: 2026-06-11
 - Added a transport-neutral workspace service for validation, selection, readback summary, SHA-256 revision metadata, and atomic candidate writes.
 - Added the `/quailbot-workspace` Pi command adapter for show/read, validate, load, and write operations.
 - Kept local activation reload-driven: workspace selection persists to settings and then requests Pi reload so `session_start` and hidden `quailbot-context` refresh from the selected workspace.
-- Added service and built-extension tests proving invalid candidates do not replace the selected workspace and command-driven selection refreshes hidden workspace context.
+- Added service and built-extension tests proving invalid candidates do not replace the selected workspace, command-driven selection refreshes hidden workspace context, active show/read preserves the selected source/hash, reload failures do not report false activation success, and workspace writes return before/after hash readback.
 
 ### Now known
 
 - Workspace selection can be represented as a reusable control-plane service instead of a TUI-only picker.
 - Pi command handlers can call `ctx.reload()`, while tool handlers cannot; reload-triggering workspace activation belongs in the command adapter.
 - Workspace revision metadata can be computed from workspace file bytes and carried forward into A4 job-binding design.
+- Runtime must keep the loaded workspace metadata as well as the parsed workspace object; otherwise command readback can lose whether the active workspace came from settings, starter state, or an explicit candidate.
+- The A2 write service is intentionally path-policy neutral for local operator commands. Remote exposure must add an approved-destination/auth policy around it rather than reusing the raw write primitive directly.
 
 ### Later phases must do differently
 
 - A3 calibration/editing must call the A2 workspace service rather than writing its own workspace activation path.
-- A4 remote host must reuse the A2 validation/hash/activation semantics and add host-side auth, job queue, cancellation, supervisor policy, and durable experiment evidence around them.
+- A4 remote host must reuse the A2 validation/hash/activation semantics and add host-side approved-destination policy, auth, job queue, cancellation, supervisor policy, and durable experiment evidence around them.
 - A2A remains deferred as a possible peer-agent facade; it is not the core host/workspace API.
 
 ## Future investigation phases: Quailbot behavior still missing from Pi

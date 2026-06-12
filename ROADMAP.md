@@ -114,9 +114,9 @@ Date: 2026-06-03
 
 Status: planning guide only. These phases are not implemented yet; each needs a full implementation spec when work begins. The investigation below was re-grounded from source files, not from the previous compacted roadmap draft.
 
-### Phase A1: Quailbot instrument-operator system prompt
+### Phase A1: Quailbot instrument-operator system prompt [DONE]
 
-**Status:** Implemented 2026-06-09. The earlier hybrid-append recommendation is superseded.
+**Status:** Done. Implemented, verified, merged to `main`, and pushed 2026-06-11. The earlier hybrid-append recommendation is superseded.
 
 **Concise spec:** Replace the default coding-agent system prompt with a Quailbot prompt that does not mention Pi or internal engineering decisions. Quailbot identifies as a quantum uncertain action-outcome instrument loop agent: actions are interventions, outcomes are established through measurement/readback, and the next action follows from that observed outcome. Keep workspace facts in the existing hidden `WORKSPACE` context block; do not reconstruct available-tool or SDK-authored generic guideline sections in the system prompt because the real tool surface is sent through provider-native tool schemas. Quailbot-owned support-tool boundaries may describe read/write/edit/bash as local support tools while keeping CLI-driver tools primary for instrument operations.
 
@@ -130,20 +130,21 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 **Implemented default:** Full rewrite. Do not copy legacy tool inventories into the prompt; use tool schemas and the hidden `WORKSPACE` block as the live capability authorities.
 
-### Phase A2: Pi-native workspace load/switch/read/write commands
+### Phase A2: Workspace control-plane substrate and Pi command adapter
 
-**Concise spec:** Add in-Pi commands for workspace selection: load a workspace JSON file, switch the active workspace, show the current workspace, validate/read workspace content, and save/write supported workspace updates. Replace the old `D:\quailbot` CLI menu with Pi-native slash-command/TUI behavior. After a switch, persist the selected workspace and run Pi reload so `session_start` reloads the workspace from settings.
+**Concise spec:** Build a transport-neutral workspace control-plane substrate first, then expose it through Pi-native commands. The substrate owns workspace selection, validation, read/show summaries, supported atomic writes, persistence, workspace hash/revision metadata, and reload handoff semantics. Pi slash commands and any later TUI picker are adapters over this substrate, not the source of workspace truth. After a local switch, persist the selected workspace and run Pi reload so `session_start` reloads the workspace from settings.
 
-**Feasibility:** High. Current `src/workspace/workspace-state.ts` already has settings/starter resolution and save/load helpers; `src/extension.ts` already loads the workspace on `session_start`. Pi exposes `registerCommand(...)` and command-context `ctx.reload()`. `D:\qdevBot` is useful as a reference for custom workspace-directory listing/reading behavior, but its "workspace" is a markdown knowledge directory, not Quailbot's instrument JSON schema.
+**Feasibility:** High. Current `src/workspace/workspace-state.ts` already has settings/starter resolution and save/load helpers; `src/workspace/load-workspace.ts` already provides the real workspace loader; `src/extension.ts` already loads the workspace on `session_start`. Pi exposes `registerCommand(...)` and command-context `ctx.reload()`. The missing seam is a small reusable workspace service that Pi commands, future TUI picker/editing, and later remote host code can all call.
 
 **Options / trade-offs:**
 
-- Slash commands such as `/quailbot-workspace load <path>` plus `saveLastWorkspace(...)` and `ctx.reload()`: cleanest first step; reload semantics are explicit.
+- Transport-neutral workspace service plus Pi command adapter: recommended. Slightly more design than inline commands, but prevents A4 remote host from reimplementing workspace semantics later.
+- Inline Pi slash commands only: fastest local A2, but too TUI/session-local and likely to create a second workspace contract for A4.
 - In-memory hot switch without reload: faster, but easier to leave stale plan/context/tool state unless every runtime field is reset correctly.
-- TUI picker/list command: better UX; needs a fallback for RPC mode and should come after the command substrate.
-- External settings watcher like legacy Quailbot: useful for calibration-tool round trips, but more moving parts.
+- TUI picker/list command: useful UX adapter; needs a fallback for RPC/remote mode and should come after the service/command substrate.
+- A2A-first remote workspace protocol: deferred. A2A is a possible later agent-to-agent facade, but the current core need is host-owned workspace/job control with explicit authorization, revisions, and durable evidence.
 
-**Recommended default:** Start with command + persisted setting + hard reload; add picker/watch behavior only after the basic switch is semantically proven.
+**Recommended default:** Build A2 as a workspace control-plane service with Pi commands as the first adapter: validate/load/show/select/write supported updates, persist selection, compute workspace hash/revision, and hard-reload after local switches. Add picker/watch behavior after the service is semantically proven. Let A4 reuse the service from a separate supervised host rather than putting the remote protocol inside the Pi extension.
 
 ### Phase A3: Workspace edit/calibration UI
 
@@ -172,7 +173,7 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 - New TypeScript/Node host around Pi SDK: closer to the Pi package ecosystem; more rewrite cost.
 - HTTP server inside the Pi extension: avoid unless SDK constraints force it; it couples session UI/plugin code to long-lived job serving.
 
-**Recommended default:** Design a separate host/supervisor service first, with the MCP client as a downstream wrapper over the host API. Treat legacy server-host-hub-client-MCP as behavior evidence, not code to paste wholesale.
+**Recommended default:** Design a separate host/supervisor service first, with the MCP client as a downstream wrapper over the host API. Reuse A2's workspace control-plane substrate for host-side workspace validation/revision/activation instead of inventing a second remote workspace contract. Treat A2A as an optional future facade only when Quailbot needs peer agent-to-agent delegation; do not use A2A as the core host API now. Treat legacy server-host-hub-client-MCP as behavior evidence, not code to paste wholesale.
 
 ### Phase A5: Pi TUI tool-result rendering/truncation
 
@@ -205,7 +206,7 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 ### Sequencing notes
 
 - A1 should land first so later behavior runs under the right instrument-operator identity.
-- A2 should land before A3 because calibration/editing must share one workspace selection and reload contract.
-- A4 is a separate architecture phase after local plugin workflow is stable.
+- A2 should land before A3 because calibration/editing must share one workspace selection, validation, write, revision, and reload contract.
+- A4 is a separate architecture phase after local plugin workflow is stable, but A2 must be designed as the substrate A4 will reuse for workspace validation and activation.
 - A5 and A6 are operability phases and can run once real sessions produce enough tool/context volume to justify them.
 - Every future implementation phase still needs semantic Pi-session acceptance; the ROADMAP is only a guide, not the detailed spec.

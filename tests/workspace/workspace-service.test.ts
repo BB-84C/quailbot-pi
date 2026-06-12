@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -133,6 +133,22 @@ describe("workspace service", () => {
 
     expect(result.ok).toBe(false);
     expect(readFileSync(targetPath, "utf8")).toBe(before);
+  });
+
+  it("returns a write failure instead of throwing when an existing target cannot be hashed", () => {
+    const cwd = makeTempDir();
+    const candidatePath = writeWorkspace(cwd, "candidate.workspace.json", minimalWorkspace("qctl"));
+    const targetPath = join(cwd, "target-directory.workspace.json");
+    mkdirSync(targetPath);
+
+    const result = writeWorkspaceCandidate({ candidatePath, targetPath, cwd });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("target directory unexpectedly accepted as write target");
+    }
+    expect(result.targetPath).toBe(targetPath);
+    expect(result.error.length).toBeGreaterThan(0);
   });
 });
 

@@ -115,10 +115,10 @@ async function handleWorkspaceCommand(
           );
           return;
         }
-        ctx.ui.notify(`workspace written and selected: ${result.targetPath}\nsha256: ${result.hash}`, "info");
+        notifyJson(ctx, "workspace written and selected", workspaceWriteReadback(result));
         return;
       }
-      notifyJson(ctx, "workspace written", result.summary);
+      notifyJson(ctx, "workspace written", workspaceWriteReadback(result));
       return;
     }
 
@@ -132,6 +132,22 @@ async function handleWorkspaceCommand(
 
 function notifyJson(ctx: ExtensionCommandContext, title: string, value: unknown): void {
   ctx.ui.notify(`${title}\n${JSON.stringify(value, null, 2)}`, "info");
+}
+
+function workspaceWriteReadback(result: {
+  candidatePath: string;
+  targetPath: string;
+  previousHash?: string;
+  hash: string;
+  summary: unknown;
+}): Record<string, unknown> {
+  return {
+    candidatePath: result.candidatePath,
+    targetPath: result.targetPath,
+    previousHash: result.previousHash,
+    hash: result.hash,
+    summary: result.summary,
+  };
 }
 
 function splitCommandArgs(input: string): string[] {

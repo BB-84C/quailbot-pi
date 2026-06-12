@@ -132,10 +132,11 @@ export function writeWorkspaceCandidate(options: {
     };
   }
 
-  const previousHash = existsSync(targetPath) ? workspaceFileHash(targetPath) : undefined;
   const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
+  let previousHash: string | undefined;
 
   try {
+    previousHash = existsSync(targetPath) ? workspaceFileHash(targetPath) : undefined;
     mkdirSync(dirname(targetPath), { recursive: true });
     writeFileSync(tempPath, readFileSync(candidatePath, "utf8"), "utf8");
     loadWorkspace(tempPath);

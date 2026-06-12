@@ -269,6 +269,37 @@ describe("local Pi dev release adoption", () => {
     expect(commandContext.notifications.join("\n")).not.toContain("workspace written and selected");
   });
 
+  it("reports write command before and after hashes in readback", async () => {
+    const tempCwd = makeTempDir();
+    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    const targetPath = join(tempCwd, ".quailbot-pi", "workspace.json");
+    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
+    mkdirSync(dirname(targetPath), { recursive: true });
+    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), targetPath);
+
+    const { commands } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const commandContext = createCommandContextStub(tempCwd);
+    await workspaceCommand.handler(`write "${candidatePath}" "${targetPath}"`, commandContext);
+
+    const readback = notificationJson(commandContext.notifications, "workspace written") as {
+      targetPath: string;
+      previousHash: string;
+      hash: string;
+      summary: { path: string; source: string };
+    };
+    expect(readback.targetPath).toBe(targetPath);
+    expect(readback.previousHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(readback.hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(readback.summary.path).toBe(targetPath);
+    expect(readback.summary.source).toBe("written");
+  });
+
   it("rejects invalid workspace command candidates without replacing the previous settings", async () => {
     const tempCwd = makeTempDir();
     const validPath = join(tempCwd, "valid.workspace.json");

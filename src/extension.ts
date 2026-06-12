@@ -5,8 +5,8 @@ import { buildWorkspaceContextText } from "./prompt/workspace-summary.js";
 import { PlanContextStore } from "./prompt/plan-context.js";
 import { mutationPolicyFromEnvironment } from "./tools/mutation-policy.js";
 import { registerQuailbotTools } from "./tools/register-tools.js";
-import { loadWorkspace } from "./workspace/load-workspace.js";
-import { resolveWorkspaceSelection } from "./workspace/workspace-state.js";
+import { registerWorkspaceCommands } from "./workspace/register-workspace-commands.js";
+import { loadActiveWorkspace } from "./workspace/workspace-service.js";
 import type { Workspace } from "./workspace/types.js";
 
 export type QuailbotRuntime = {
@@ -20,13 +20,13 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   };
 
   registerQuailbotTools(pi, runtime);
+  registerWorkspaceCommands(pi, runtime);
 
   pi.on("session_start", (_event, ctx) => {
     runtime.planStore.clear();
 
     try {
-      const selection = resolveWorkspaceSelection({ cwd: ctx.cwd });
-      runtime.workspace = loadWorkspace(selection.path);
+      runtime.workspace = loadActiveWorkspace({ cwd: ctx.cwd }).workspace;
     } catch (error) {
       runtime.workspace = undefined;
       notifyWarning(ctx, `Quailbot workspace unavailable: ${errorMessage(error)}`);

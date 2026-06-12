@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -30,6 +30,11 @@ const expectedToolNames = [
 type PiEventName = "session_start" | "before_agent_start" | string;
 type PiHandler = ExtensionHandler<any, any>;
 type RegisteredTool = { name: string };
+type RegisteredCommand = {
+  name: string;
+  description?: string;
+  handler: (args: string, ctx: ExtensionContext & { reload: () => Promise<void> }) => Promise<void>;
+};
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
@@ -54,11 +59,12 @@ describe("local Pi dev release adoption", () => {
     expect(existsSync(join(root, "dist", "src", "extension.js"))).toBe(true);
   });
 
-  it("registers deterministic handlers and product-agnostic tools from the built extension", async () => {
-    const { handlers, tools } = await loadBuiltExtensionWithPiStub();
+  it("registers deterministic handlers, commands, and product-agnostic tools from the built extension", async () => {
+    const { handlers, tools, commands } = await loadBuiltExtensionWithPiStub();
 
     expect([...handlers.keys()].sort(compareNames)).toEqual(["before_agent_start", "session_start"]);
     expect(tools.map((tool) => tool.name).sort(compareExpectedToolNames)).toEqual(expectedToolNames);
+    expect(commands.map((command) => command.name)).toEqual(["quailbot-workspace"]);
   });
 
   it("loads the generic starter workspace into hidden context on Pi lifecycle events", async () => {
@@ -132,13 +138,92 @@ describe("local Pi dev release adoption", () => {
     );
     expect(workspaceSummary.mutation_policy.enable_env_var).toBe("QUAILBOT_ALLOW_MUTATING_TOOLS");
   });
+
+  it("switches workspace through the command adapter, persists settings, reloads, and refreshes hidden context", async () => {
+    const tempCwd = makeTempDir();
+    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
+
+    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const commandContext = createCommandContextStub(tempCwd);
+    await workspaceCommand.handler(`load "${candidatePath}"`, commandContext);
+
+    expect(commandContext.reloads).toBe(1);
+    expect(commandContext.notifications.join("\n")).toContain("workspace selected");
+
+    const savedSettings = readJson(join(tempCwd, ".quailbot-pi", "settings.json"));
+    expect(savedSettings.workspace).toBe(candidatePath);
+
+    const extensionContext = createExtensionContextStub(tempCwd);
+    const sessionStartEvent = { type: "session_start", reason: "startup" } satisfies SessionStartEvent;
+    const systemPromptOptions = { cwd: tempCwd } satisfies BuildSystemPromptOptions;
+    const beforeAgentStartEvent = {
+      type: "before_agent_start",
+      prompt: "read the switched Quailbot workspace",
+      systemPrompt: "base Pi system prompt",
+      systemPromptOptions,
+    } satisfies BeforeAgentStartEvent;
+
+    handlers.get("session_start")?.(sessionStartEvent, extensionContext);
+    const context = await handlers.get("before_agent_start")?.(beforeAgentStartEvent, extensionContext);
+    const content = context?.message?.content;
+    expect(typeof content).toBe("string");
+    if (typeof content !== "string") {
+      throw new Error("before_agent_start did not return string hidden context content");
+    }
+    const workspaceHeader = "WORKSPACE (Quailbot active workspace)";
+    expect(content.startsWith(`${workspaceHeader}\n`)).toBe(true);
+    const switchedSummary = JSON.parse(content.slice(`${workspaceHeader}\n`.length)) as {
+      workspace_path: string;
+      cli: { enabledParameters: Array<{ ref: string }> };
+    };
+    expect(switchedSummary.workspace_path).toBe(candidatePath);
+    expect(switchedSummary.cli.enabledParameters).toContainEqual(
+      expect.objectContaining({ ref: "nqctl:zctrl_setpnt" }),
+    );
+  });
+
+  it("rejects invalid workspace command candidates without replacing the previous settings", async () => {
+    const tempCwd = makeTempDir();
+    const validPath = join(tempCwd, "valid.workspace.json");
+    const invalidPath = join(tempCwd, "invalid.workspace.json");
+    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), validPath);
+    writeFileSync(invalidPath, JSON.stringify({ cli_params: [] }), "utf8");
+
+    const { commands } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const commandContext = createCommandContextStub(tempCwd);
+    await workspaceCommand.handler(`load "${validPath}"`, commandContext);
+    expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(validPath);
+
+    await workspaceCommand.handler(`load "${invalidPath}"`, commandContext);
+    expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(validPath);
+    expect(commandContext.reloads).toBe(1);
+    expect(commandContext.notifications.join("\n")).toContain("workspace validation failed");
+  });
 });
 
-async function loadBuiltExtensionWithPiStub(): Promise<{ handlers: Map<PiEventName, PiHandler>; tools: RegisteredTool[] }> {
+async function loadBuiltExtensionWithPiStub(): Promise<{
+  handlers: Map<PiEventName, PiHandler>;
+  tools: RegisteredTool[];
+  commands: RegisteredCommand[];
+}> {
   const extensionPath = join(root, "dist", "src", "extension.js");
   const extensionModule = await import(`${pathToFileURL(extensionPath).href}?cacheBust=${Date.now()}`);
   const handlers = new Map<PiEventName, PiHandler>();
   const tools: RegisteredTool[] = [];
+  const commands: RegisteredCommand[] = [];
 
   extensionModule.default({
     on(event: PiEventName, handler: PiHandler) {
@@ -147,9 +232,12 @@ async function loadBuiltExtensionWithPiStub(): Promise<{ handlers: Map<PiEventNa
     registerTool(tool: RegisteredTool) {
       tools.push(tool);
     },
+    registerCommand(name: string, options: Omit<RegisteredCommand, "name">) {
+      commands.push({ name, ...options });
+    },
   });
 
-  return { handlers, tools };
+  return { handlers, tools, commands };
 }
 
 function readJson(path: string): Record<string, any> {
@@ -210,6 +298,31 @@ function createExtensionContextStub(cwd: string): ExtensionContext {
     compact() {},
     getSystemPrompt: () => "",
   };
+
+  return context;
+}
+
+function createCommandContextStub(cwd: string): ExtensionContext & {
+  reload: () => Promise<void>;
+  notifications: string[];
+  reloads: number;
+} {
+  const notifications: string[] = [];
+  let reloads = 0;
+  const context = createExtensionContextStub(cwd) as ExtensionContext & {
+    reload: () => Promise<void>;
+    notifications: string[];
+    reloads: number;
+  };
+
+  context.ui.notify = (message: string) => {
+    notifications.push(message);
+  };
+  context.reload = async () => {
+    reloads += 1;
+  };
+  Object.defineProperty(context, "notifications", { get: () => notifications });
+  Object.defineProperty(context, "reloads", { get: () => reloads });
 
   return context;
 }

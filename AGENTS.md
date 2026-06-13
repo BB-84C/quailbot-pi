@@ -45,3 +45,9 @@
 - For Pi TUI acceptance work, interact with the real TUI surface rather than substituting shell or PowerShell automation.
 - On this machine, when the user asks for real TUI interaction, use the opened terminal via Windows MCP snapshot/vision instead of bash-driven simulation.
 - If the acceptance path is long or context may compact, land the test spec early under `docs/superpowers/specs/` before running the live interaction.
+
+## A3 Visual Helper Direction (2026-06-13)
+- A3's first slice must include a visual helper, and the full legacy group-tree UI is required because this surface is for humans.
+- Evaluate the visual helper as a browser/web UI rather than Tk so it can stay in the Pi workflow and later support host/client preview and workspace editing.
+- The web UI must use relative/responsive layout sizing instead of fixed pixel boundaries.
+- Panels must track the browser window bounds, avoid overflow, and each panel must provide its own scrollbar.

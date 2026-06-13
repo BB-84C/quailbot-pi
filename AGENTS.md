@@ -40,3 +40,8 @@
 - Describe uncertainty primarily as measurement/readback uncertainty and experiment confirmation, not only transient instrument faults.
 - If tool/guideline context is dynamically injected, keep it authoritative; do not hardcode a generic `Available tools` block when the real tool context already comes from the runtime.
 - If custom guidance is still needed, keep CLI driver / quantum instrument tools primary and treat generic `read` / `write` / `edit` / `bash` guidance as secondary and constrained.
+
+## Real TUI Acceptance (2026-06-12)
+- For Pi TUI acceptance work, interact with the real TUI surface rather than substituting shell or PowerShell automation.
+- On this machine, when the user asks for real TUI interaction, use the opened terminal via Windows MCP snapshot/vision instead of bash-driven simulation.
+- If the acceptance path is long or context may compact, land the test spec early under `docs/superpowers/specs/` before running the live interaction.

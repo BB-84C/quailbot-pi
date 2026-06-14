@@ -51,3 +51,8 @@
 - Evaluate the visual helper as a browser/web UI rather than Tk so it can stay in the Pi workflow and later support host/client preview and workspace editing.
 - The web UI must use relative/responsive layout sizing instead of fixed pixel boundaries.
 - Panels must track the browser window bounds, avoid overflow, and each panel must provide its own scrollbar.
+
+## A3 Workflow And Visual Acceptance (2026-06-14)
+- For the A3 web-workspace / visual-helper workstream, use subagent-driven implementation, best-of-N sampling for nontrivial slices, and multiple small commits with push-backed continuity when the workstream is being advanced across sessions.
+- Keep A3 work on dedicated feature branches or worktrees rather than mixing it into unrelated branch state.
+- Because there is no real instrument UI available yet, visual semantic acceptance for the web UI should focus on ROI and anchor fidelity: capture the actual image, compare the saved or observed image region against the ROI or anchor drawn in the web UI, and treat offset or alignment mismatch as a real failure.

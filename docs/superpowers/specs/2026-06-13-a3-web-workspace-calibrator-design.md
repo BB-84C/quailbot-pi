@@ -43,6 +43,7 @@ The web UI is not a second runtime. It is an adapter over the same workspace ser
 - A4 host/client supervisor service lifecycle.
 - Experiment logs.
 - Real instrument CLI mutation during workspace editing.
+- Dependence on a live real instrument GUI for A3 acceptance; current acceptance uses deterministic screenshot/image fixtures because no real instrument UI is available.
 - Implementing a production GUI operation backend for `observe`, `click_anchor`, or `set_field`; A3 edits the workspace that those future backends will use.
 - Recreating the legacy Tk application or adding a Python runtime requirement.
 
@@ -329,6 +330,8 @@ Required behavior:
 
 The first implementation may use a deterministic screenshot fixture for automated tests and a browser/user-provided capture frame for live use. If native screen capture is added, it must report coordinate origin and scale metadata; otherwise saved coordinates must be labeled as image-relative.
 
+A3 acceptance must not require a live instrument window. The visual semantic loop uses fixture screenshots/images with known dimensions and known target regions. The test draws ROI rectangles and anchor points in the browser UI, captures the rendered UI/canvas, and compares the saved workspace coordinates against the actual image region selected in the rendered screenshot. ROI pass/fail means the saved `x`, `y`, `w`, and `h` describe the same image region the operator drew, with no systematic offset from layout scaling, canvas fit, scroll position, zoom, pan, device pixel ratio, or browser resize. Anchor pass/fail means the saved `x` and `y` land on the same image pixel/feature the operator clicked, with the same no-offset guarantee.
+
 ### Right panel: selected item inspector
 
 Inspector changes by item type.
@@ -447,6 +450,24 @@ Acceptance criteria:
 - canvas overlays remain aligned with the screenshot after resize, zoom, and pan;
 - the narrow layout switches to tabs/stacking instead of squeezing panels into unusable overflow.
 
+### Visual geometry acceptance without a real instrument UI
+
+Because no real instrument interface is available for this phase, the browser visual loop is proven against deterministic screenshot/image fixtures. This is still semantic acceptance: it verifies that the web calibrator's displayed rectangle/point and the workspace coordinates agree.
+
+Required fixture tests:
+
+1. Load a screenshot fixture with known natural dimensions and visible landmarks.
+2. Draw an ROI rectangle over a known region in the web UI.
+3. Capture/read the rendered canvas overlay and saved draft JSON.
+4. Assert saved `x`, `y`, `w`, and `h` map back to the same natural-image region the overlay covers.
+5. Click an anchor on a known landmark.
+6. Capture/read the rendered marker and saved draft JSON.
+7. Assert saved `x` and `y` map back to the same natural-image point the marker covers.
+8. Repeat after browser resize, panel scroll, canvas fit-to-panel, zoom, and pan.
+9. Assert that layout changes alter only the display transform, not the saved natural-image coordinates.
+
+Preserved artifacts should include the source fixture image, rendered UI screenshots before/after resize, workspace JSON before/after, and a coordinate comparison table showing expected image-space coordinates, saved workspace coordinates, and deltas.
+
 ### Real TUI + browser acceptance
 
 The end-to-end A3 acceptance should use both the browser and the real Pi TUI:
@@ -455,15 +476,17 @@ The end-to-end A3 acceptance should use both the browser and the real Pi TUI:
 2. Run `/quailbot-workspace open`.
 3. Browser opens local calibrator.
 4. Browser loads active workspace summary.
-5. Add/edit group, ROI, and anchor.
-6. Resize browser and verify panel bounds/scrollbars and coordinate stability.
-7. Import fake non-`nqctl` CLI capabilities and resolve at least one conflict.
-8. Validate draft; invalid state should block save.
-9. Save valid draft through A2; preserve before/after hash.
-10. Request activation from browser.
-11. Run `/quailbot-workspace activate-pending` in Pi.
-12. Verify reload/readback: `/quailbot-workspace show` reports selected path/source/hash.
-13. Ask the agent a normal prompt that should answer from hidden `WORKSPACE` without tool calls, proving context refresh.
+5. Load a deterministic screenshot/image fixture in the canvas.
+6. Add/edit group, draw an ROI over a known image region, and pick an anchor on a known image landmark.
+7. Capture rendered UI/canvas screenshots and verify saved ROI/anchor coordinates match the actual image region/point with no offset.
+8. Resize browser and verify panel bounds/scrollbars and coordinate stability.
+9. Import fake non-`nqctl` CLI capabilities and resolve at least one conflict.
+10. Validate draft; invalid state should block save.
+11. Save valid draft through A2; preserve before/after hash.
+12. Request activation from browser.
+13. Run `/quailbot-workspace activate-pending` in Pi.
+14. Verify reload/readback: `/quailbot-workspace show` reports selected path/source/hash.
+15. Ask the agent a normal prompt that should answer from hidden `WORKSPACE` without tool calls, proving context refresh.
 
 ## Future extraction seam for A4
 
@@ -492,4 +515,4 @@ These are checks, not approval gates:
 1. Confirm the exact Pi command context and whether any API besides command handlers can trigger reload. If not, keep `activate-pending` as specified.
 2. Inspect at least one real CLI capability payload, or create a documented fake payload if no driver is available, before locking import parser tests.
 3. Add/verify a legacy `GUI` wrapper fixture so loader compatibility is explicit.
-4. Decide whether first implementation uses deterministic fixture screenshots, browser-provided capture frames, or a native Node screenshot provider for live canvas use. The UI coordinate transform must support all three through `CaptureFrame` metadata.
+4. Use deterministic fixture screenshots/images for first-slice visual acceptance. Native capture can be added later, but the coordinate transform must already be expressed through `CaptureFrame` metadata so live capture can plug in without changing ROI/anchor semantics.

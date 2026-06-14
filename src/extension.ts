@@ -13,6 +13,8 @@ import type { Workspace } from "./workspace/types.js";
 export type QuailbotRuntime = {
   workspace?: Workspace;
   activeWorkspace?: LoadedWorkspace;
+  pendingWorkspaceActivation?: { targetPath: string; expectedHash: string };
+  workspaceUiServer?: { url: string; token: string; close: () => Promise<void> };
   planStore: PlanContextStore;
 };
 

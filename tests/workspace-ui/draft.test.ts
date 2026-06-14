@@ -43,6 +43,29 @@ describe("workspace draft editing", () => {
     expect(saved.anchors?.[0]).toMatchObject({ x: 50, y: 60 });
   });
 
+  it("preserves GUI-only non-visual fields while canonicalizing visual arrays to top-level fields", () => {
+    const draft = createWorkspaceDraft({
+      GUI: {
+        cli_params: { cli_name: "gui-cli", vendor_cli: "keep" },
+        tools: { vendor_tool: true },
+        vendor_gui_extension: { mode: "legacy" },
+        groups: [{ name: "spectroscopy" }],
+        rois: [{ name: "old-roi" }],
+        anchors: [{ name: "old-anchor" }],
+      },
+    });
+
+    const saved = serialize(draft);
+
+    expect(saved.GUI).toBeUndefined();
+    expect(saved.cli_params).toMatchObject({ cli_name: "gui-cli", vendor_cli: "keep" });
+    expect(saved.tools).toMatchObject({ vendor_tool: true });
+    expect(saved.vendor_gui_extension).toMatchObject({ mode: "legacy" });
+    expect(saved.groups?.map((group) => group.name)).toEqual(["spectroscopy"]);
+    expect(saved.rois?.map((roi) => roi.name)).toEqual(["old-roi"]);
+    expect(saved.anchors?.map((anchor) => anchor.name)).toEqual(["old-anchor"]);
+  });
+
   it("adds groups, ROIs, and anchors while rejecting duplicate names across all visual item kinds", () => {
     const draft = createWorkspaceDraft({});
 
@@ -56,6 +79,25 @@ describe("workspace draft editing", () => {
       anchors: [{ name: "bias", group: "spectroscopy", active: true, x: 5, y: 6, linked_ROIs: ["current"] }],
     });
     expect(() => addRoi(draft, { name: "bias" })).toThrow(/duplicate|name conflict/);
+  });
+
+  it("rejects empty and blank names for added visual records", () => {
+    const draft = createWorkspaceDraft({});
+
+    expect(() => addGroup(draft, { name: "" })).toThrow(/name/);
+    expect(() => addRoi(draft, { name: " " })).toThrow(/name/);
+    expect(() => addAnchor(draft, { name: "\t" })).toThrow(/name/);
+  });
+
+  it("rejects non-positive ROI dimensions on add", () => {
+    const draft = createWorkspaceDraft({});
+
+    expect(() => addRoi(draft, { name: "zero-width", w: 0, h: 1 })).toThrow(
+      "ROI width and height must be positive",
+    );
+    expect(() => addRoi(draft, { name: "negative-height", w: 1, h: -1 })).toThrow(
+      "ROI width and height must be positive",
+    );
   });
 
   it("cascades inactive state from a group to descendant groups, ROIs, and anchors", () => {

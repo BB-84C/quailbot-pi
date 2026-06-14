@@ -5,14 +5,23 @@ export type WorkspaceDraft = { root: JsonRecord; groups: JsonRecord[]; rois: Jso
 type VisualKind = "group" | "roi" | "anchor";
 
 export function createWorkspaceDraft(input: unknown): WorkspaceDraft {
-  const root = cloneJson(record(input));
-  const gui = record(root.GUI);
+  const parsedRoot = cloneJson(record(input));
+  const gui = record(parsedRoot.GUI);
+  const root = isRecord(parsedRoot.GUI)
+    ? {
+        ...gui,
+        ...parsedRoot,
+        groups: gui.groups ?? parsedRoot.groups,
+        rois: gui.rois ?? parsedRoot.rois,
+        anchors: gui.anchors ?? parsedRoot.anchors,
+      }
+    : parsedRoot;
 
   return {
     root,
-    groups: arrayOfRecords(isRecord(root.GUI) && gui.groups !== undefined ? gui.groups : root.groups),
-    rois: arrayOfRecords(isRecord(root.GUI) && gui.rois !== undefined ? gui.rois : root.rois),
-    anchors: arrayOfRecords(isRecord(root.GUI) && gui.anchors !== undefined ? gui.anchors : root.anchors),
+    groups: arrayOfRecords(root.groups),
+    rois: arrayOfRecords(root.rois),
+    anchors: arrayOfRecords(root.anchors),
   };
 }
 
@@ -26,6 +35,7 @@ export function serializeWorkspaceDraft(draft: WorkspaceDraft): JsonRecord {
 }
 
 export function addGroup(draft: WorkspaceDraft, input: { name: string; parent?: string; active?: boolean }): void {
+  validateName(input.name);
   ensureUniqueName(draft, input.name);
   if (input.parent !== undefined) {
     ensureGroupExists(draft, input.parent);
@@ -41,6 +51,8 @@ export function addRoi(
   draft: WorkspaceDraft,
   input: { name: string; group?: string; active?: boolean; x?: number; y?: number; w?: number; h?: number },
 ): void {
+  validateName(input.name);
+  validateRoiDimensions(input);
   ensureUniqueName(draft, input.name);
   if (input.group !== undefined) {
     ensureGroupExists(draft, input.group);
@@ -60,6 +72,7 @@ export function addAnchor(
   draft: WorkspaceDraft,
   input: { name: string; group?: string; active?: boolean; x?: number; y?: number; linked_ROIs?: string[] },
 ): void {
+  validateName(input.name);
   ensureUniqueName(draft, input.name);
   if (input.group !== undefined) {
     ensureGroupExists(draft, input.group);
@@ -79,9 +92,7 @@ export function updateRoiGeometry(
   name: string,
   geometry: { x: number; y: number; w: number; h: number },
 ): void {
-  if (geometry.w <= 0 || geometry.h <= 0) {
-    throw new Error("ROI width and height must be positive");
-  }
+  validateRoiDimensions(geometry);
 
   Object.assign(findNamedRecord(draft.rois, name, "ROI"), geometry);
 }
@@ -140,6 +151,18 @@ export function assignItemGroup(
 function ensureUniqueName(draft: WorkspaceDraft, name: string): void {
   if (allNamedItems(draft).some((item) => asString(item.name) === name)) {
     throw new Error(`duplicate name conflict: ${name}`);
+  }
+}
+
+function validateName(name: string): void {
+  if (name.trim().length === 0) {
+    throw new Error("name must be non-empty");
+  }
+}
+
+function validateRoiDimensions(geometry: { w?: number; h?: number }): void {
+  if ((geometry.w !== undefined && geometry.w <= 0) || (geometry.h !== undefined && geometry.h <= 0)) {
+    throw new Error("ROI width and height must be positive");
   }
 }
 

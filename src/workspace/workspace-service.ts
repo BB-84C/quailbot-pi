@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { loadWorkspace } from "./load-workspace.js";
 import type { Workspace } from "./types.js";
@@ -102,6 +102,27 @@ export function validateWorkspaceCandidate(
   }
 }
 
+export function validateWorkspaceJson(
+  workspaceJson: unknown,
+  options: WorkspaceServiceOptions = {},
+): WorkspaceValidationResult {
+  const cwd = options.cwd ?? process.cwd();
+  const candidatePath = temporaryWorkspaceJsonPath(cwd);
+
+  try {
+    writeRawWorkspaceJson(candidatePath, workspaceJson);
+    return validateWorkspaceCandidate(candidatePath, { cwd });
+  } catch (error) {
+    return {
+      ok: false,
+      path: candidatePath,
+      error: errorMessage(error),
+    };
+  } finally {
+    rmSync(candidatePath, { force: true });
+  }
+}
+
 export function selectWorkspace(path: string, options: WorkspaceServiceOptions = {}): WorkspaceValidationResult {
   const cwd = options.cwd ?? process.cwd();
   const validation = validateWorkspaceCandidate(path, { cwd });
@@ -164,6 +185,30 @@ export function writeWorkspaceCandidate(options: {
   }
 }
 
+export function writeWorkspaceJson(options: {
+  workspaceJson: unknown;
+  targetPath: string;
+  cwd?: string;
+}): WorkspaceWriteResult {
+  const cwd = options.cwd ?? process.cwd();
+  const candidatePath = temporaryWorkspaceJsonPath(cwd);
+  const targetPath = resolve(cwd, options.targetPath);
+
+  try {
+    writeRawWorkspaceJson(candidatePath, options.workspaceJson);
+    return writeWorkspaceCandidate({ candidatePath, targetPath, cwd });
+  } catch (error) {
+    return {
+      ok: false,
+      candidatePath,
+      targetPath,
+      error: errorMessage(error),
+    };
+  } finally {
+    rmSync(candidatePath, { force: true });
+  }
+}
+
 export function workspaceFileHash(path: string): string {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
@@ -192,4 +237,12 @@ export function summarizeWorkspace(
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function temporaryWorkspaceJsonPath(cwd: string): string {
+  return join(cwd, `.quailbot-workspace-candidate-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+}
+
+function writeRawWorkspaceJson(path: string, workspaceJson: unknown): void {
+  writeFileSync(path, `${JSON.stringify(workspaceJson, null, 2)}\n`, "utf8");
 }

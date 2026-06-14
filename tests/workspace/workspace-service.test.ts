@@ -7,8 +7,10 @@ import {
   loadActiveWorkspace,
   selectWorkspace,
   validateWorkspaceCandidate,
+  validateWorkspaceJson,
   workspaceFileHash,
   writeWorkspaceCandidate,
+  writeWorkspaceJson,
 } from "../../src/workspace/workspace-service.js";
 import { loadLastWorkspace, settingsPath } from "../../src/workspace/workspace-state.js";
 
@@ -38,6 +40,23 @@ describe("workspace service", () => {
     expect(result.summary.cli.default_cli_name).toBe("nqctl");
     expect(result.summary.cli.parameter_count).toBe(1);
     expect(existsSync(settingsPath(cwd))).toBe(false);
+  });
+
+  it("validates raw workspace JSON without mutating selected workspace settings", () => {
+    const cwd = makeTempDir();
+    const selectedPath = writeWorkspace(cwd, "selected.workspace.json", minimalWorkspace("nqctl"));
+    const selected = selectWorkspace(selectedPath, { cwd });
+    expect(selected.ok).toBe(true);
+
+    const result = validateWorkspaceJson(minimalWorkspace("qctl"), { cwd });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected raw workspace JSON to validate");
+    }
+    expect(result.summary.cli.default_cli_name).toBe("qctl");
+    expect(result.summary.cli.parameter_count).toBe(1);
+    expect(loadLastWorkspace(cwd)).toBe(selectedPath);
   });
 
   it("returns a non-throwing validation failure for missing or malformed candidates", () => {
@@ -123,6 +142,23 @@ describe("workspace service", () => {
     expect(loadLastWorkspace(cwd)).toBeUndefined();
   });
 
+  it("writes raw workspace JSON through atomic write/readback path", () => {
+    const cwd = makeTempDir();
+    const targetPath = join(cwd, ".quailbot-pi", "workspace.json");
+
+    const result = writeWorkspaceJson({ workspaceJson: minimalWorkspace("rawctl"), targetPath, cwd });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected raw workspace JSON write to pass");
+    }
+    expect(existsSync(targetPath)).toBe(true);
+    expect(JSON.parse(readFileSync(targetPath, "utf8"))).toEqual(minimalWorkspace("rawctl"));
+    expect(result.summary.path).toBe(targetPath);
+    expect(result.summary.cli.default_cli_name).toBe("rawctl");
+    expect(loadLastWorkspace(cwd)).toBeUndefined();
+  });
+
   it("does not overwrite the target when the candidate is invalid", () => {
     const cwd = makeTempDir();
     const targetPath = writeWorkspace(cwd, "target.workspace.json", minimalWorkspace("nqctl"));
@@ -130,6 +166,17 @@ describe("workspace service", () => {
     const candidatePath = writeRaw(cwd, "bad-candidate.workspace.json", JSON.stringify({ cli_params: [] }));
 
     const result = writeWorkspaceCandidate({ candidatePath, targetPath, cwd });
+
+    expect(result.ok).toBe(false);
+    expect(readFileSync(targetPath, "utf8")).toBe(before);
+  });
+
+  it("rejects invalid raw workspace JSON without overwriting target", () => {
+    const cwd = makeTempDir();
+    const targetPath = writeWorkspace(cwd, "target.workspace.json", minimalWorkspace("nqctl"));
+    const before = readFileSync(targetPath, "utf8");
+
+    const result = writeWorkspaceJson({ workspaceJson: { cli_params: [] }, targetPath, cwd });
 
     expect(result.ok).toBe(false);
     expect(readFileSync(targetPath, "utf8")).toBe(before);

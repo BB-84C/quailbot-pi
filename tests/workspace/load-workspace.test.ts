@@ -61,6 +61,29 @@ describe("loadWorkspace", () => {
     expect(workspace.cli.actions.size).toBe(0);
   });
 
+  it("loads GUI-wrapped visual fields while preserving top-level cli_params", () => {
+    const workspace = loadWorkspace(
+      writeWorkspace({
+        GUI: {
+          rois: [{ name: "tunnel-current", active: true }],
+          anchors: [{ name: "bias-knob", active: true }],
+          groups: [{ name: "operator-panel" }],
+        },
+        cli_params: {
+          cli_name: "qctl",
+          parameters: { items: [{ name: "bias", readable: true }] },
+          action_commands: { items: [{ name: "Approach", action_cmd: { command: "Approach" } }] },
+        },
+      }),
+    );
+
+    expect(workspace.rois.map((roi) => roi.name)).toEqual(["tunnel-current"]);
+    expect(workspace.anchors.map((anchor) => anchor.name)).toEqual(["bias-knob"]);
+    expect(workspace.cli.defaultCliName).toBe("qctl");
+    expect(workspace.cli.parameters.has("qctl:bias")).toBe(true);
+    expect(workspace.cli.actions.has("qctl:Approach")).toBe(true);
+  });
+
   it("rejects malformed cli_params with a contextual error", () => {
     expect(() => loadWorkspace(writeWorkspace({ cli_params: [] }))).toThrow(/workspace cli_params must be an object/);
   });

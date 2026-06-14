@@ -52,7 +52,16 @@ function parseCliParams(root: JsonRecord): JsonRecord | undefined {
 function unwrapGui(value: unknown): JsonRecord {
   const root = record(value);
   const gui = root.GUI;
-  return isRecord(gui) ? gui : root;
+  if (!isRecord(gui)) {
+    return root;
+  }
+
+  return {
+    ...root,
+    ...gui,
+    cli_params: gui.cli_params ?? root.cli_params,
+    tools: gui.tools ?? root.tools,
+  };
 }
 
 function parseRoi(roi: JsonRecord, index: number): WorkspaceRoi {

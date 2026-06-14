@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 
-import { arrayOfRecords, asString, cloneJson, isRecord, record, type JsonRecord } from "./json.js";
+import { asString, cloneJson, isRecord, record, type JsonRecord } from "./json.js";
 
 export type ConflictResolution = "existing" | "imported" | "skip";
 export type ImportConflict = { ref: string; existing: JsonRecord; imported: JsonRecord };
@@ -11,10 +11,39 @@ const DISCOVERY_TIMEOUT_MS = 90_000;
 
 export function parseCapabilityPayload(cliName: string, payload: unknown): ParsedCapabilityPayload {
   const root = record(payload);
-  const parameters = arrayOfRecords(record(root.parameters).items).map((item) => normalizeImportedItem(cliName, item));
-  const actions = arrayOfRecords(record(root.action_commands).items).map((item) => normalizeImportedItem(cliName, item));
+  const parameters = parseCapabilityItems(root.parameters, "parameters.items").map((item) =>
+    normalizeImportedItem(cliName, item),
+  );
+  const actions = parseCapabilityItems(root.action_commands, "action_commands.items").map((item) =>
+    normalizeImportedItem(cliName, item),
+  );
 
   return { cliName, parameters, actions };
+}
+
+function parseCapabilityItems(section: unknown, path: string): JsonRecord[] {
+  if (section === undefined) {
+    return [];
+  }
+
+  if (!isRecord(section)) {
+    throw new Error(`capability payload ${path.replace(/\.items$/, "")} must be an object`);
+  }
+
+  if (section.items === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(section.items)) {
+    throw new Error(`capability payload ${path} must be an array`);
+  }
+
+  return section.items.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new Error(`capability payload ${path}[${index}] must be an object`);
+    }
+    return cloneJson(item);
+  });
 }
 
 export function loadCliCapabilityPayload(cliName: string): ParsedCapabilityPayload {
@@ -44,26 +73,51 @@ export function mergeCliCapabilities(
   resolutions: Record<string, ConflictResolution>,
 ): { cliParams: JsonRecord; added: string[]; skipped: string[]; conflicts: ImportConflict[] } {
   const cliParams = cloneJson(record(existingCliParams));
-  const parametersContainer = cloneJson(record(cliParams.parameters));
-  const actionsContainer = cloneJson(record(cliParams.action_commands));
-  const parameters = arrayOfRecords(parametersContainer.items);
-  const actions = arrayOfRecords(actionsContainer.items);
+  const parametersSection = prepareExistingSection(cliParams.parameters);
+  const actionsSection = prepareExistingSection(cliParams.action_commands);
   const added: string[] = [];
   const skipped: string[] = [];
   const conflicts: ImportConflict[] = [];
   const defaultCliName = asString(cliParams.CLI_Name) ?? asString(cliParams.cli_name);
 
-  mergeItems(parameters, payload.parameters, resolutions, { added, skipped, conflicts }, defaultCliName);
-  mergeItems(actions, payload.actions, resolutions, { added, skipped, conflicts }, defaultCliName);
+  if (parametersSection.canMerge) {
+    mergeItems(parametersSection.items, payload.parameters, resolutions, { added, skipped, conflicts }, defaultCliName);
+    cliParams.parameters = { ...parametersSection.container, items: parametersSection.items };
+  }
 
-  cliParams.parameters = { ...parametersContainer, items: parameters };
-  cliParams.action_commands = { ...actionsContainer, items: actions };
+  if (actionsSection.canMerge) {
+    mergeItems(actionsSection.items, payload.actions, resolutions, { added, skipped, conflicts }, defaultCliName);
+    cliParams.action_commands = { ...actionsSection.container, items: actionsSection.items };
+  }
 
   return { cliParams, added, skipped, conflicts };
 }
 
+function prepareExistingSection(
+  section: unknown,
+): { canMerge: true; container: JsonRecord; items: unknown[] } | { canMerge: false } {
+  if (section === undefined) {
+    return { canMerge: true, container: {}, items: [] };
+  }
+
+  if (!isRecord(section)) {
+    return { canMerge: false };
+  }
+
+  const container = cloneJson(section);
+  if (container.items === undefined) {
+    return { canMerge: true, container, items: [] };
+  }
+
+  if (!Array.isArray(container.items)) {
+    return { canMerge: false };
+  }
+
+  return { canMerge: true, container, items: cloneJson(container.items) as unknown[] };
+}
+
 function mergeItems(
-  target: JsonRecord[],
+  target: unknown[],
   importedItems: JsonRecord[],
   resolutions: Record<string, ConflictResolution>,
   result: { added: string[]; skipped: string[]; conflicts: ImportConflict[] },
@@ -75,15 +129,17 @@ function mergeItems(
       continue;
     }
 
-    const existingIndex = target.findIndex((candidate) => itemRef(candidate, defaultCliName) === ref);
+    const existingIndex = target.findIndex(
+      (candidate) => isRecord(candidate) && itemRef(candidate, defaultCliName) === ref,
+    );
     if (existingIndex === -1) {
       target.push(cloneJson(imported));
       result.added.push(ref);
       continue;
     }
 
-    const existing = target[existingIndex];
-    if (recordsEqual(existing, imported)) {
+    const existing = target[existingIndex] as JsonRecord;
+    if (recordsEqual(existing, imported, defaultCliName)) {
       result.skipped.push(ref);
       continue;
     }
@@ -118,8 +174,20 @@ function itemRef(item: JsonRecord, defaultCliName?: string): string | undefined 
   return name !== undefined && cliName !== undefined ? `${cliName}:${name}` : undefined;
 }
 
-function recordsEqual(left: JsonRecord, right: JsonRecord): boolean {
-  return JSON.stringify(sortJson(left)) === JSON.stringify(sortJson(right));
+function recordsEqual(left: JsonRecord, right: JsonRecord, defaultCliName: string | undefined): boolean {
+  return (
+    JSON.stringify(sortJson(comparableCapability(left, defaultCliName))) ===
+    JSON.stringify(sortJson(comparableCapability(right)))
+  );
+}
+
+function comparableCapability(item: JsonRecord, defaultCliName?: string): { cliName?: string; schema: JsonRecord } {
+  const schema = cloneJson(item);
+  const cliName = asString(schema.CLI_Name) ?? asString(schema.cli_name) ?? defaultCliName;
+  delete schema.enabled;
+  delete schema.CLI_Name;
+  delete schema.cli_name;
+  return { cliName, schema };
 }
 
 function sortJson(value: unknown): unknown {

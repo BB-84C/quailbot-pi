@@ -2,9 +2,14 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const execFileSyncMock = vi.hoisted(() => vi.fn());
+
+vi.mock("node:child_process", () => ({ execFileSync: execFileSyncMock }));
 
 import {
+  loadCliCapabilityPayload,
   mergeCliCapabilities,
   parseCapabilityPayload,
   type ConflictResolution,
@@ -18,6 +23,10 @@ function fixture(name: string): unknown {
 }
 
 describe("CLI capability import", () => {
+  beforeEach(() => {
+    execFileSyncMock.mockReset();
+  });
+
   it("adds new parameters and actions as disabled entries", () => {
     const payload = parseCapabilityPayload("qctl", fixture("capabilities-qctl.json"));
 
@@ -75,5 +84,95 @@ describe("CLI capability import", () => {
     expect(resolved.skipped).toEqual([]);
     expect(resolved.cliParams.parameters.items[0]).toMatchObject({ label: "Bias Updated", enabled: false });
     expect((resolved.cliParams.parameters.items[0] as JsonRecord).set_cmd).toEqual({ command: "Bias_Set_Updated" });
+  });
+
+  it("skips semantically identical re-imports while preserving local enabled state", () => {
+    const payload = parseCapabilityPayload("qctl", fixture("capabilities-qctl.json"));
+    const first = mergeCliCapabilities({}, payload, {}).cliParams;
+    (first.parameters.items[0] as JsonRecord).enabled = true;
+
+    const result = mergeCliCapabilities(first, parseCapabilityPayload("qctl", fixture("capabilities-qctl.json")), {});
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.added).toEqual([]);
+    expect(result.skipped).toContain("qctl:bias_v");
+    expect(result.cliParams.parameters.items[0]).toMatchObject({ name: "bias_v", enabled: true });
+  });
+
+  it("uses top-level cli_name as the existing effective CLI without conflicting on normalized CLI_Name", () => {
+    const payload = parseCapabilityPayload("qctl", fixture("capabilities-qctl.json"));
+    const existing = {
+      cli_name: "qctl",
+      parameters: {
+        items: [
+          {
+            name: "bias_v",
+            label: "Bias",
+            description: "Sample bias voltage.",
+            readable: true,
+            writable: true,
+            enabled: false,
+            set_cmd: { command: "Bias_Set" },
+          },
+        ],
+      },
+      action_commands: { items: [] },
+    };
+
+    const result = mergeCliCapabilities(existing, { ...payload, parameters: [payload.parameters[0]], actions: [] }, {});
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.added).toEqual([]);
+    expect(result.skipped).toEqual(["qctl:bias_v"]);
+    expect(result.cliParams.parameters.items[0]).not.toHaveProperty("CLI_Name");
+  });
+
+  it("preserves malformed existing parameter containers instead of sanitizing draft data", () => {
+    const payload = parseCapabilityPayload("qctl", fixture("capabilities-qctl.json"));
+    const existing = {
+      parameters: { items: { vendor_raw: "not-an-array" }, vendor_parameters_field: true },
+      action_commands: { items: [] },
+    };
+
+    const result = mergeCliCapabilities(existing, payload, {});
+
+    expect(result.cliParams.parameters).toEqual({
+      items: { vendor_raw: "not-an-array" },
+      vendor_parameters_field: true,
+    });
+    expect(result.cliParams.action_commands.items).toContainEqual(
+      expect.objectContaining({ name: "Approach", CLI_Name: "qctl", enabled: false }),
+    );
+    expect(result.added).toEqual(["qctl:Approach"]);
+  });
+
+  it("fails loudly instead of silently dropping malformed imported items", () => {
+    expect(() =>
+      parseCapabilityPayload("qctl", {
+        parameters: { items: [{ name: "bias_v" }, "not-a-record"] },
+        action_commands: { items: [] },
+      }),
+    ).toThrow(/parameters\.items\[1\]/);
+  });
+
+  it("falls back from capabilities to capacities and reports both commands when discovery fails", () => {
+    execFileSyncMock
+      .mockImplementationOnce(() => {
+        throw new Error("missing capabilities");
+      })
+      .mockReturnValueOnce(JSON.stringify(fixture("capabilities-qctl.json")));
+
+    const payload = loadCliCapabilityPayload("qctl");
+
+    expect(execFileSyncMock).toHaveBeenNthCalledWith(1, "qctl", ["capabilities"], expect.any(Object));
+    expect(execFileSyncMock).toHaveBeenNthCalledWith(2, "qctl", ["capacities"], expect.any(Object));
+    expect(payload.parameters.map((item) => item.name)).toEqual(["bias_v", "current"]);
+
+    execFileSyncMock.mockReset();
+    execFileSyncMock.mockImplementation(() => {
+      throw new Error("no such command");
+    });
+
+    expect(() => loadCliCapabilityPayload("qctl")).toThrow(/qctl capabilities.*qctl capacities/s);
   });
 });

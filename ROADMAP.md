@@ -156,6 +156,29 @@ Date: 2026-06-14
 - If the browser editor grows more interaction-heavy, consider extracting shared draft/canonicalization logic into a frontend-safe seam instead of maintaining parallel helper logic inside the raw client string.
 - Keep host-side authorization/path policy in the server/control-plane layer; the browser client should remain a thin editor over the existing A2 substrate rather than inventing a second activation/write contract.
 
+## Implementation round: A3 web workspace calibrator
+
+Date: 2026-06-14
+
+### Delivered
+
+- Added the browser calibrator launched from Pi through `/quailbot-workspace open`, with localhost/token guarding, pending activation staging, and shutdown cleanup.
+- Added a full workspace tree editing surface for groups, ROIs, anchors, CLI parameters, and CLI actions, plus ROI/anchor fixture geometry editing and save/request-activation controls.
+- Added CLI capability import and conflict handling so non-`nqctl` payloads merge into workspace JSON with imported entries disabled by default.
+- Kept validation, atomic write/readback, selected-workspace persistence, and reload-mediated activation under the A2 workspace service and Pi command path.
+
+### Now known
+
+- Browser UI is the right A3 helper shape compared with Tk because it stays inside the Pi workflow now and can later support A4 host/client preview and workspace editing.
+- `ctx.reload()` remains command-bound; the web UI can stage pending activation but cannot independently refresh Quailbot hidden context.
+- Fixture images can prove coordinate correctness without a real instrument UI by comparing saved ROI/anchor coordinates against the rendered fixture targets after viewport changes.
+
+### Later phases must do differently
+
+- A4 must add auth, approved destination policy, host lifecycle, job supervision, cancellation, and durable experiment evidence around the A2/A3 workspace substrate rather than exposing the raw local write server remotely.
+- Live capture should enter through `CaptureFrame` metadata so browser display coordinates remain separate from saved image/instrument coordinates.
+- Experiment logs remain outside A3; they should record workspace path/hash, actions, linked-observable readback, driver payloads, and failure/abort records in a later phase.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

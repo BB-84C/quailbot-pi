@@ -9,12 +9,15 @@ import { registerWorkspaceCommands } from "./workspace/register-workspace-comman
 import { loadActiveWorkspace } from "./workspace/workspace-service.js";
 import type { LoadedWorkspace } from "./workspace/workspace-service.js";
 import type { Workspace } from "./workspace/types.js";
+import { stopWorkspaceUiServer, type WorkspaceUiServer } from "./workspace-ui/server.js";
+
+export type PendingWorkspaceActivation = { targetPath: string; expectedHash: string };
 
 export type QuailbotRuntime = {
   workspace?: Workspace;
   activeWorkspace?: LoadedWorkspace;
-  pendingWorkspaceActivation?: { targetPath: string; expectedHash: string };
-  workspaceUiServer?: { url: string; token: string; close: () => Promise<void> };
+  pendingWorkspaceActivation?: PendingWorkspaceActivation;
+  workspaceUiServer?: WorkspaceUiServer;
   planStore: PlanContextStore;
 };
 
@@ -38,6 +41,10 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
       runtime.workspace = undefined;
       notifyWarning(ctx, `Quailbot workspace unavailable: ${errorMessage(error)}`);
     }
+  });
+
+  pi.on("session_shutdown", async () => {
+    await stopWorkspaceUiServer(runtime);
   });
 
   pi.on("before_agent_start", (event) => {

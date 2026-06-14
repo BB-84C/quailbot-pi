@@ -27,7 +27,7 @@ const expectedToolNames = [
   "sleep_seconds",
 ];
 
-type PiEventName = "session_start" | "before_agent_start" | string;
+type PiEventName = "session_start" | "before_agent_start" | "session_shutdown" | string;
 type PiHandler = ExtensionHandler<any, any>;
 type RegisteredTool = { name: string };
 type RegisteredCommand = {
@@ -62,7 +62,7 @@ describe("local Pi dev release adoption", () => {
   it("registers deterministic handlers, commands, and product-agnostic tools from the built extension", async () => {
     const { handlers, tools, commands } = await loadBuiltExtensionWithPiStub();
 
-    expect([...handlers.keys()].sort(compareNames)).toEqual(["before_agent_start", "session_start"]);
+    expect([...handlers.keys()].sort(compareNames)).toEqual(["before_agent_start", "session_shutdown", "session_start"]);
     expect(tools.map((tool) => tool.name).sort(compareExpectedToolNames)).toEqual(expectedToolNames);
     expect(commands.map((command) => command.name)).toEqual(["quailbot-workspace"]);
   });
@@ -243,6 +243,40 @@ describe("local Pi dev release adoption", () => {
     expect(commandContext.notifications.join("\n")).toContain("workspace activation failed");
     expect(commandContext.notifications.join("\n")).toContain("reload containment breach");
     expect(commandContext.notifications.join("\n")).not.toContain("workspace selected");
+  });
+
+  it("opens the workspace calibrator and reports the recovery URL", async () => {
+    const tempCwd = makeTempDir();
+    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const commandContext = createCommandContextStub(tempCwd);
+    await workspaceCommand.handler("open", commandContext);
+
+    expect(commandContext.notifications.join("\n")).toContain("workspace calibrator open");
+    expect(commandContext.notifications.join("\n")).toMatch(/http:\/\/127\.0\.0\.1:\d+/);
+
+    await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, createExtensionContextStub(tempCwd));
+  });
+
+  it("warns when activating without a pending workspace activation", async () => {
+    const tempCwd = makeTempDir();
+    const { commands } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
+    expect(workspaceCommand).toBeDefined();
+    if (!workspaceCommand) {
+      throw new Error("workspace command was not registered");
+    }
+
+    const commandContext = createCommandContextStub(tempCwd);
+    await workspaceCommand.handler("activate-pending", commandContext);
+
+    expect(commandContext.reloads).toBe(0);
+    expect(commandContext.notifications.join("\n")).toContain("no pending workspace activation");
   });
 
   it("surfaces write --activate reload failures without reporting activation success", async () => {

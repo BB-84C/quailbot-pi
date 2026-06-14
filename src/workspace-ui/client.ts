@@ -20,6 +20,8 @@ const state = {
   importSkipped: [],
   importConflicts: [],
   importResolutions: {},
+  captureFrame: null,
+  collapsedGroups: [],
 };
 
 function isRecord(value) {
@@ -159,6 +161,31 @@ function selectedGroupName() {
   return item ? itemGroupName(item) : undefined;
 }
 
+function canvasFrame() {
+  const frame = record(state.captureFrame);
+  return {
+    width: Math.max(1, numberValue(frame.imageWidth, FIXTURE_WIDTH)),
+    height: Math.max(1, numberValue(frame.imageHeight, FIXTURE_HEIGHT)),
+    href: asString(frame.href),
+  };
+}
+
+function groupCollapsed(groupName) {
+  return Array.isArray(state.collapsedGroups) && state.collapsedGroups.includes(groupName);
+}
+
+function toggleGroupCollapse(groupName) {
+  const collapsed = new Set(Array.isArray(state.collapsedGroups) ? state.collapsedGroups : []);
+  if (collapsed.has(groupName)) {
+    collapsed.delete(groupName);
+  } else {
+    collapsed.add(groupName);
+  }
+  state.collapsedGroups = [...collapsed];
+  setStatus((collapsed.has(groupName) ? 'Collapsed ' : 'Expanded ') + 'group ' + groupName + '.');
+  renderShell();
+}
+
 function findNamed(items, name) {
   return items.find((item) => asString(item.name) === name);
 }
@@ -256,10 +283,15 @@ function renderGroupBranch(groupName) {
   const childGroups = groups().filter((candidate) => itemGroupName(candidate) === groupName).map((candidate) => asString(candidate.name)).filter(Boolean);
   const childRois = rois().filter((roi) => itemGroupName(roi) === groupName);
   const childAnchors = anchors().filter((anchor) => itemGroupName(anchor) === groupName);
+  const hasChildren = childGroups.length + childRois.length + childAnchors.length > 0;
+  const collapsed = groupCollapsed(groupName);
 
-  return '<li class="tree-node">'
+  return '<li class="tree-node group-branch ' + (collapsed ? 'is-collapsed' : '') + '">'
+    + '<div class="tree-group-row">'
+    + '<button class="tree-toggle" type="button" data-action="toggle-group-collapse" data-name="' + escapeAttr(groupName) + '" aria-expanded="' + String(!collapsed) + '" aria-label="' + (collapsed ? 'Expand ' : 'Collapse ') + 'group ' + escapeAttr(groupName) + '"' + (hasChildren ? '' : ' disabled') + '>' + (collapsed ? '+' : '-') + '</button>'
     + itemButton('group', groupName, groupName, booleanValue(group.active, true) ? 'group' : 'group | inactive', 'group-node')
-    + '<ul class="tree-children">'
+    + '</div>'
+    + '<ul class="tree-children" aria-hidden="' + String(collapsed) + '">'
     + childGroups.map((name) => renderGroupBranch(name)).join('')
     + childRois.map((roi) => renderVisualLeaf('roi', roi, 'roi')).join('')
     + childAnchors.map((anchor) => renderVisualLeaf('anchor', anchor, 'anchor')).join('')
@@ -300,6 +332,7 @@ function renderModeButton(mode, label) {
 }
 
 function renderCanvas() {
+  const frame = canvasFrame();
   const roiMarkup = rois().map((roi) => {
     const name = asString(roi.name) ?? 'roi';
     const selected = state.selected && state.selected.kind === 'roi' && state.selected.name === name;
@@ -325,12 +358,15 @@ function renderCanvas() {
   }).join('');
 
   const gridLines = [];
-  for (let x = 100; x < FIXTURE_WIDTH; x += 100) {
-    gridLines.push('<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + FIXTURE_HEIGHT + '"></line>');
+  for (let x = 100; x < frame.width; x += 100) {
+    gridLines.push('<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + frame.height + '"></line>');
   }
-  for (let y = 100; y < FIXTURE_HEIGHT; y += 100) {
-    gridLines.push('<line x1="0" y1="' + y + '" x2="' + FIXTURE_WIDTH + '" y2="' + y + '"></line>');
+  for (let y = 100; y < frame.height; y += 100) {
+    gridLines.push('<line x1="0" y1="' + y + '" x2="' + frame.width + '" y2="' + y + '"></line>');
   }
+  const imageMarkup = frame.href
+    ? '<image class="workspace-capture" href="' + escapeAttr(state.captureFrame.href) + '" x="0" y="0" width="' + frame.width + '" height="' + frame.height + '" preserveAspectRatio="none"></image>'
+    : '<text class="capture-missing" x="24" y="42">No .quailbot-pi/workspace-capture.png loaded</text>';
 
   return '<div class="mode-strip">'
     + renderModeButton('select', 'Select')
@@ -339,20 +375,17 @@ function renderCanvas() {
     + '</div>'
     + '<div class="canvas-scroller">'
     + '<div class="canvas-stage">'
-    + '<svg class="workspace-canvas" viewBox="0 0 ' + FIXTURE_WIDTH + ' ' + FIXTURE_HEIGHT + '" preserveAspectRatio="xMidYMid meet">'
-    + '<rect class="canvas-backdrop" x="0" y="0" width="' + FIXTURE_WIDTH + '" height="' + FIXTURE_HEIGHT + '" data-action="canvas-click"></rect>'
+    + '<svg class="workspace-canvas" viewBox="0 0 ' + frame.width + ' ' + frame.height + '" preserveAspectRatio="xMidYMid meet">'
+    + '<rect class="canvas-backdrop" x="0" y="0" width="' + frame.width + '" height="' + frame.height + '" data-action="canvas-click"></rect>'
+    + imageMarkup
     + '<g class="canvas-grid">' + gridLines.join('') + '</g>'
-    + '<g class="canvas-frame"><rect x="16" y="16" width="' + (FIXTURE_WIDTH - 32) + '" height="' + (FIXTURE_HEIGHT - 32) + '"></rect></g>'
-    + '<g class="fixture-targets" aria-label="deterministic calibration fixture">'
-    + '<rect class="fixture-target-roi" data-fixture-target="roi" x="120" y="80" width="240" height="160"></rect>'
-    + '<circle class="fixture-target-anchor" data-fixture-target="anchor" cx="520" cy="300" r="10"></circle>'
-    + '</g>'
+    + '<g class="canvas-frame"><rect x="16" y="16" width="' + Math.max(1, frame.width - 32) + '" height="' + Math.max(1, frame.height - 32) + '"></rect></g>'
     + roiMarkup
     + anchorMarkup
     + '</svg>'
     + '</div>'
     + '</div>'
-    + '<div class="canvas-hint">Mode ' + escapeHtml(state.mode) + '. In draw/pick modes, click the fixture to add a new ROI or anchor.</div>';
+    + '<div class="canvas-hint">Mode ' + escapeHtml(state.mode) + '. In draw/pick modes, click the capture image to add a new ROI or anchor.</div>';
 }
 
 function renderField(label, body) {
@@ -406,6 +439,7 @@ function renderInspector() {
       validationHash: state.validationHash,
       lastSavedHash: state.lastSavedHash,
       pendingActivation: state.pendingActivation,
+      captureFrame: state.captureFrame,
     }, null, 2)) + '</pre></section>';
 }
 
@@ -486,6 +520,8 @@ async function loadWorkspace() {
   state.importSkipped = [];
   state.importConflicts = [];
   state.importResolutions = {};
+  state.captureFrame = body.captureFrame ?? null;
+  state.collapsedGroups = [];
   setDirty(false);
   setStatus(body.summary.path + ' | sha256 ' + body.summary.hash.slice(0, 12));
   ensureSelection();
@@ -624,12 +660,27 @@ function addAnchor(x, y) {
 
 function canvasPoint(node, event) {
   const svg = node.ownerSVGElement || node.closest('svg');
-  const rect = svg.getBoundingClientRect();
-  const width = rect.width || FIXTURE_WIDTH;
-  const height = rect.height || FIXTURE_HEIGHT;
-  const x = Math.max(0, Math.min(FIXTURE_WIDTH, Math.round(((event.clientX - rect.left) / width) * FIXTURE_WIDTH)));
-  const y = Math.max(0, Math.min(FIXTURE_HEIGHT, Math.round(((event.clientY - rect.top) / height) * FIXTURE_HEIGHT)));
+  const frame = canvasFrame();
+  const viewport = canvasViewport(svg, frame);
+  const width = viewport.width || frame.width;
+  const height = viewport.height || frame.height;
+  const x = Math.max(0, Math.min(frame.width, Math.round(((event.clientX - viewport.left) / width) * frame.width)));
+  const y = Math.max(0, Math.min(frame.height, Math.round(((event.clientY - viewport.top) / height) * frame.height)));
   return { x, y };
+}
+
+function canvasViewport(svg, frame) {
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return { left: rect.left, top: rect.top, width: frame.width, height: frame.height };
+  }
+
+  const scale = Math.min(rect.width / frame.width, rect.height / frame.height);
+  const renderedWidth = frame.width * scale;
+  const renderedHeight = frame.height * scale;
+  const renderedLeft = rect.left + (rect.width - renderedWidth) / 2;
+  const renderedTop = rect.top + (rect.height - renderedHeight) / 2;
+  return { left: renderedLeft, top: renderedTop, width: renderedWidth, height: renderedHeight };
 }
 
 function updateNumericField(kind, name, field, rawValue) {
@@ -660,6 +711,9 @@ async function handleAction(actionNode, event) {
       state.mode = MODES.includes(actionNode.dataset.mode) ? actionNode.dataset.mode : MODES[0];
       setStatus('Mode set to ' + state.mode + '.');
       renderShell();
+      return;
+    case 'toggle-group-collapse':
+      toggleGroupCollapse(actionNode.dataset.name);
       return;
     case 'add-group':
       addGroup();

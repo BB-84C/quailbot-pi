@@ -206,6 +206,35 @@ body {
   margin-top: 0.375rem;
 }
 
+.tree-node.is-collapsed > .tree-children {
+  display: none;
+}
+
+.tree-group-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.375rem;
+}
+
+.tree-group-row .tree-item {
+  flex: 1 1 auto;
+}
+
+.tree-toggle {
+  flex: 0 0 2.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.68);
+  color: #bfdbfe;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tree-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .tree-item {
   width: 100%;
   display: flex;
@@ -298,20 +327,16 @@ body {
   fill: rgba(15, 23, 42, 0.82);
 }
 
-.fixture-targets {
+.workspace-capture {
+  opacity: 0.92;
   pointer-events: none;
 }
 
-.fixture-target-roi {
-  fill: rgba(38, 49, 58, 0.72);
-  stroke: rgba(110, 226, 122, 0.92);
-  stroke-width: 4;
-}
-
-.fixture-target-anchor {
-  fill: rgba(255, 208, 138, 0.92);
-  stroke: rgba(120, 78, 16, 0.88);
-  stroke-width: 2;
+.capture-missing {
+  fill: #93c5fd;
+  font-size: 20px;
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .roi-overlay rect {

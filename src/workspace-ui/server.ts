@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 
 import type { QuailbotRuntime } from "../extension.js";
+import { findWorkspaceCaptureFrame, readWorkspaceCaptureBytes } from "./capture-frame.js";
 import { workspaceUiClientJs } from "./client.js";
 import { renderWorkspacePage } from "./page.js";
 import { handleWorkspaceApi, type WorkspaceUiBackend } from "./routes.js";
@@ -20,11 +21,7 @@ export async function startWorkspaceUiServer(options: {
     void handleHttpRequest(request, response, backend);
   });
 
-  await listenOnLocalhost(nodeServer);
-  const address = nodeServer.address();
-  if (!isAddressInfo(address)) {
-    throw new Error("workspace UI server did not bind to a TCP address");
-  }
+  const address = await listenOnFetchSafeLocalhost(nodeServer);
 
   const uiServer: WorkspaceUiServer = {
     url: `http://127.0.0.1:${address.port}`,
@@ -65,6 +62,8 @@ async function handleHttpRequest(
       fetchResponse = textResponse(workspaceUiClientJs, "text/javascript; charset=utf-8", assetStatus(url, backend.token));
     } else if (request.method === "GET" && url.pathname === "/assets/styles.css") {
       fetchResponse = textResponse(workspaceUiCss, "text/css; charset=utf-8", assetStatus(url, backend.token));
+    } else if (request.method === "GET" && url.pathname === "/assets/workspace-capture") {
+      fetchResponse = captureImageResponse(url, backend);
     } else if (url.pathname.startsWith("/api/")) {
       fetchResponse = await handleWorkspaceApi(await toFetchRequest(request, url), backend);
     } else {
@@ -125,6 +124,25 @@ function textResponse(body: string, contentType: string, status: number): Respon
   return new Response(body, { status, headers: { "content-type": contentType } });
 }
 
+function binaryResponse(body: Uint8Array, contentType: string, status: number): Response {
+  const payload = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer;
+  return new Response(payload, { status, headers: { "content-type": contentType } });
+}
+
+function captureImageResponse(url: URL, backend: WorkspaceUiBackend): Response {
+  const status = assetStatus(url, backend.token);
+  if (status !== 200) {
+    return textResponse("forbidden\n", "text/plain; charset=utf-8", status);
+  }
+
+  const frame = findWorkspaceCaptureFrame(backend.cwd);
+  if (frame === undefined) {
+    return textResponse("workspace capture image not found\n", "text/plain; charset=utf-8", 404);
+  }
+
+  return binaryResponse(readWorkspaceCaptureBytes(frame), frame.contentType, 200);
+}
+
 function assetStatus(url: URL, token: string): number {
   return url.searchParams.get("token") === token ? 200 : 403;
 }
@@ -138,6 +156,113 @@ async function listenOnLocalhost(server: Server): Promise<void> {
     });
   });
 }
+
+async function listenOnFetchSafeLocalhost(server: Server): Promise<AddressInfo> {
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    await listenOnLocalhost(server);
+    const address = server.address();
+    if (!isAddressInfo(address)) {
+      await closeServer(server);
+      continue;
+    }
+
+    if (!isWorkspaceUiFetchBlockedPort(address.port)) {
+      return address;
+    }
+
+    await closeServer(server);
+  }
+
+  throw new Error("workspace UI server could not bind to a browser-fetch-safe TCP port");
+}
+
+export function isWorkspaceUiFetchBlockedPort(port: number): boolean {
+  return FETCH_BLOCKED_PORTS.has(port);
+}
+
+const FETCH_BLOCKED_PORTS = new Set([
+  1,
+  7,
+  9,
+  11,
+  13,
+  15,
+  17,
+  19,
+  20,
+  21,
+  22,
+  23,
+  25,
+  37,
+  42,
+  43,
+  53,
+  69,
+  77,
+  79,
+  87,
+  95,
+  101,
+  102,
+  103,
+  104,
+  109,
+  110,
+  111,
+  113,
+  115,
+  117,
+  119,
+  123,
+  135,
+  137,
+  139,
+  143,
+  161,
+  179,
+  389,
+  427,
+  465,
+  512,
+  513,
+  514,
+  515,
+  526,
+  530,
+  531,
+  532,
+  540,
+  548,
+  554,
+  556,
+  563,
+  587,
+  601,
+  636,
+  989,
+  990,
+  993,
+  995,
+  1719,
+  1720,
+  1723,
+  2049,
+  3659,
+  4045,
+  4190,
+  5060,
+  5061,
+  6000,
+  6566,
+  6665,
+  6666,
+  6667,
+  6668,
+  6669,
+  6697,
+  10080,
+]);
 
 async function closeServer(server: Server): Promise<void> {
   if (!server.listening) {

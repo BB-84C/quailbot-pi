@@ -1,7 +1,9 @@
-import { readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 
 import { loadActiveWorkspace, validateWorkspaceJson, writeWorkspaceJson } from "../workspace/workspace-service.js";
 import type { QuailbotRuntime } from "../extension.js";
+import { findWorkspaceCaptureFrame } from "./capture-frame.js";
 import { loadCliCapabilityPayload, mergeCliCapabilities, type ConflictResolution } from "./cli-import.js";
 import { createWorkspaceDraft, serializeWorkspaceDraft } from "./draft.js";
 
@@ -23,9 +25,20 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
   try {
     if (request.method === "GET" && url.pathname === "/api/workspace") {
       const active = loadActiveWorkspace({ cwd: backend.cwd });
+      const captureFrame = findWorkspaceCaptureFrame(backend.cwd);
       return jsonResponse({
         ok: true,
         summary: active.summary,
+        ...(captureFrame !== undefined
+          ? {
+              captureFrame: {
+                href: `/assets/workspace-capture?token=${encodeURIComponent(backend.token)}`,
+                imageWidth: captureFrame.imageWidth,
+                imageHeight: captureFrame.imageHeight,
+                contentType: captureFrame.contentType,
+              },
+            }
+          : {}),
         workspaceJson: serializeWorkspaceDraft(createWorkspaceDraft(JSON.parse(readFileSync(active.selection.path, "utf8")) as unknown)),
       });
     }
@@ -49,8 +62,13 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
       if (targetPath === undefined) {
         return jsonResponse({ ok: false, error: "targetPath must be a non-empty string" }, 400);
       }
+      const target = resolve(backend.cwd, targetPath);
+      const targetAuth = authorizeWorkspaceTarget(target, backend);
+      if (targetAuth !== undefined) {
+        return targetAuth;
+      }
 
-      const result = writeWorkspaceJson({ workspaceJson: body.workspaceJson, targetPath, cwd: backend.cwd });
+      const result = writeWorkspaceJson({ workspaceJson: body.workspaceJson, targetPath: target, cwd: backend.cwd });
       if (!result.ok) {
         return jsonResponse(result, 422);
       }
@@ -74,8 +92,13 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
       if (targetPath === undefined || expectedHash === undefined) {
         return jsonResponse({ ok: false, error: "targetPath and expectedHash must be non-empty strings" }, 400);
       }
+      const target = resolve(backend.cwd, targetPath);
+      const targetAuth = authorizeWorkspaceTarget(target, backend);
+      if (targetAuth !== undefined) {
+        return targetAuth;
+      }
 
-      backend.runtime.pendingWorkspaceActivation = { targetPath, expectedHash };
+      backend.runtime.pendingWorkspaceActivation = { targetPath: target, expectedHash };
       return jsonResponse({ ok: true, pendingWorkspaceActivation: backend.runtime.pendingWorkspaceActivation });
     }
 
@@ -124,6 +147,60 @@ function authorizeHeaderToken(request: Request, backend: WorkspaceUiBackend): Re
   return undefined;
 }
 
+function authorizeWorkspaceTarget(targetPath: string, backend: WorkspaceUiBackend): Response | undefined {
+  const target = resolve(backend.cwd, targetPath);
+  const stateRoot = resolve(backend.cwd, ".quailbot-pi");
+  if (isSubpathOrSame(target, stateRoot) && !hasSymlinkedPathSegment(target, stateRoot)) {
+    return undefined;
+  }
+
+  try {
+    const active = loadActiveWorkspace({ cwd: backend.cwd });
+    if (samePath(target, active.selection.path)) {
+      return undefined;
+    }
+  } catch {
+    // No active workspace is available yet; only the Quailbot state directory is writable from the browser UI.
+  }
+
+  return jsonResponse(
+    { ok: false, error: "targetPath is outside the active workspace and Quailbot state directory" },
+    403,
+  );
+}
+
+function samePath(left: string, right: string): boolean {
+  return normalizePath(resolve(left)) === normalizePath(resolve(right));
+}
+
+function isSubpathOrSame(child: string, parent: string): boolean {
+  const normalizedChild = normalizePath(resolve(child));
+  const normalizedParent = normalizePath(resolve(parent));
+  const childRelativeToParent = relative(normalizedParent, normalizedChild);
+  return childRelativeToParent === "" || (!childRelativeToParent.startsWith("..") && !isAbsolute(childRelativeToParent));
+}
+
+function hasSymlinkedPathSegment(target: string, root: string): boolean {
+  const pathFromRoot = relative(resolve(root), resolve(target));
+  if (pathFromRoot === "" || pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) {
+    return false;
+  }
+
+  let current = resolve(root);
+  for (const segment of pathFromRoot.split(/[\\/]+/).filter((part) => part.length > 0)) {
+    current = resolve(current, segment);
+    if (existsSync(current) && lstatSync(current).isSymbolicLink()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function normalizePath(path: string): string {
+  return process.platform === "win32" ? path.toLowerCase() : path;
+}
+
 async function readJsonBody(request: Request): Promise<unknown> {
   const text = await request.text();
   return text.trim().length === 0 ? {} : (JSON.parse(text) as unknown);
@@ -164,6 +241,7 @@ function collectItemCliNames(names: Set<string>, items: unknown): void {
   }
   for (const item of items) {
     if (isRecord(item)) {
+      addCliName(names, item.cli_name);
       addCliName(names, item.CLI_Name);
     }
   }

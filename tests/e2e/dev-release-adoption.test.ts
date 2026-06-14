@@ -283,7 +283,8 @@ describe("local Pi dev release adoption", () => {
 
   it("activates a pending workspace after validating its expected hash, reloads, then clears the pending activation", async () => {
     const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
+    mkdirSync(dirname(candidatePath), { recursive: true });
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
     const expectedHash = workspaceFileHash(candidatePath);
 
@@ -308,11 +309,91 @@ describe("local Pi dev release adoption", () => {
     await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, createExtensionContextStub(tempCwd));
   });
 
+  it("round-trips a web-edited workspace into the active hidden WORKSPACE context", async () => {
+    const tempCwd = makeTempDir();
+    const workspacePath = join(tempCwd, ".quailbot-pi", "workspace.json");
+    mkdirSync(dirname(workspacePath), { recursive: true });
+    const workspaceJson = readJson(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"));
+    workspaceJson.groups = [{ name: "spectroscopy", active: true }];
+    workspaceJson.rois = [{ name: "current", group: "spectroscopy", active: true, x: 120, y: 80, w: 240, h: 160 }];
+    workspaceJson.anchors = [
+      { name: "bias-field", group: "spectroscopy", active: true, linked_ROIs: ["current"], x: 520, y: 300 },
+    ];
+    workspaceJson.tools = representativeRealWorkspaceTools();
+    writeFileSync(workspacePath, `${JSON.stringify(workspaceJson, null, 2)}\n`, "utf8");
+
+    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
+    const workspaceCommand = requireWorkspaceCommand(commands);
+    const commandContext = createCommandContextStub(tempCwd);
+
+    await workspaceCommand.handler("open", commandContext);
+    const { url, token } = await workspaceUiSession(commandContext.notifications);
+
+    const loadedResponse = await fetch(`${url}/api/workspace?token=${encodeURIComponent(token)}`);
+    const loaded = (await loadedResponse.json()) as { ok: true; workspaceJson: any };
+    expect(loadedResponse.status).toBe(200);
+    expect(loaded.workspaceJson.tools).toEqual(representativeRealWorkspaceTools());
+
+    loaded.workspaceJson.rois[0].x = 321;
+    loaded.workspaceJson.rois[0].y = 222;
+    loaded.workspaceJson.anchors[0].x = 444;
+
+    const writeResponse = await fetch(`${url}/api/write?token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-quailbot-workspace-ui-token": token,
+      },
+      body: JSON.stringify({ workspaceJson: loaded.workspaceJson, targetPath: workspacePath }),
+    });
+    const written = (await writeResponse.json()) as { ok: true; hash: string };
+    expect(writeResponse.status).toBe(200);
+    expect(readJson(workspacePath).tools).toEqual(representativeRealWorkspaceTools());
+
+    await requestPendingActivation(url, token, workspacePath, written.hash);
+    await workspaceCommand.handler("activate-pending", commandContext);
+
+    expect(commandContext.reloads).toBe(1);
+    expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(workspacePath);
+
+    const extensionContext = createExtensionContextStub(tempCwd);
+    handlers.get("session_start")?.({ type: "session_start", reason: "startup" } satisfies SessionStartEvent, extensionContext);
+    const context = await handlers.get("before_agent_start")?.(
+      {
+        type: "before_agent_start",
+        prompt: "read the web-edited workspace",
+        systemPrompt: "base Pi system prompt",
+        systemPromptOptions: { cwd: tempCwd },
+      } satisfies BeforeAgentStartEvent,
+      extensionContext,
+    );
+    const content = context?.message?.content;
+    expect(typeof content).toBe("string");
+    if (typeof content !== "string") {
+      throw new Error("before_agent_start did not return string hidden context content");
+    }
+    const workspaceHeader = "WORKSPACE (Quailbot active workspace)";
+    const summary = JSON.parse(content.slice(`${workspaceHeader}\n`.length)) as {
+      workspace_path: string;
+      active_rois: Array<{ name?: string; schema: { x?: number; y?: number } }>;
+      active_anchors: Array<{ name?: string; schema: { x?: number } }>;
+    };
+
+    expect(summary.workspace_path).toBe(workspacePath);
+    expect(summary.active_rois).toContainEqual(
+      expect.objectContaining({ name: "current", schema: expect.objectContaining({ x: 321, y: 222 }) }),
+    );
+    expect(summary.active_anchors).toContainEqual(
+      expect.objectContaining({ name: "bias-field", schema: expect.objectContaining({ x: 444 }) }),
+    );
+  });
+
   it("rejects pending activation hash mismatches and keeps the pending activation for a later retry", async () => {
     const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
     const workspaceFixturePath = join(root, "tests", "workspaces", "nanonis-minimal.workspace.json");
     const originalWorkspaceJson = readFileSync(workspaceFixturePath, "utf8");
+    mkdirSync(dirname(candidatePath), { recursive: true });
     copyFileSync(workspaceFixturePath, candidatePath);
     const expectedHash = workspaceFileHash(candidatePath);
 
@@ -341,7 +422,8 @@ describe("local Pi dev release adoption", () => {
 
   it("retains pending activation when reload fails so the activation can be retried", async () => {
     const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
+    mkdirSync(dirname(candidatePath), { recursive: true });
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
     const expectedHash = workspaceFileHash(candidatePath);
 
@@ -369,7 +451,8 @@ describe("local Pi dev release adoption", () => {
 
   it("clears pending workspace activation during session shutdown", async () => {
     const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, "candidate.workspace.json");
+    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
+    mkdirSync(dirname(candidatePath), { recursive: true });
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
     const expectedHash = workspaceFileHash(candidatePath);
 
@@ -492,6 +575,35 @@ async function loadBuiltExtensionWithPiStub(): Promise<{
   });
 
   return { handlers, tools, commands };
+}
+
+function representativeRealWorkspaceTools(): Record<string, unknown> {
+  return {
+    SetBias: {
+      requires_rois: ["bias_readout"],
+      requires_anchors: ["bias_input"],
+      input_unit: "V",
+      safety: { min_mV: -5000, max_mV: 5000, tolerance_mV: 2 },
+    },
+    StartScan: {
+      requires_rois: ["scan_status"],
+      requires_anchors: ["scan_start_from_top_button", "scan_start_from_bottom_button"],
+    },
+    nqctl: { enabled: false, parameters: {} },
+    cli: {
+      enabled: true,
+      parameters: {
+        aprfgen_freq: {
+          label: "Aprfgen Freq",
+          name: "aprfgen_freq",
+          readable: true,
+          writable: true,
+          has_ramp: true,
+          CLI_Name: "nqctl",
+        },
+      },
+    },
+  };
 }
 
 function readJson(path: string): Record<string, any> {

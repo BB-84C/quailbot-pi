@@ -29,17 +29,28 @@ describe("workspace calibrator layout contract", () => {
     expect(workspaceUiClientJs).toContain("<svg");
   });
 
-  it("renders deterministic fixture targets behind ROI and anchor overlays", () => {
-    expect(workspaceUiClientJs).toContain('data-fixture-target="roi"');
-    expect(workspaceUiClientJs).toContain('x="120" y="80" width="240" height="160"');
-    expect(workspaceUiClientJs).toContain('data-fixture-target="anchor"');
-    expect(workspaceUiClientJs).toContain('cx="520" cy="300"');
-    expect(workspaceUiClientJs.indexOf('data-fixture-target="roi"')).toBeLessThan(
-      workspaceUiClientJs.indexOf("+ roiMarkup"),
-    );
-    expect(workspaceUiClientJs.indexOf('data-fixture-target="anchor"')).toBeLessThan(
-      workspaceUiClientJs.indexOf("+ anchorMarkup"),
-    );
+  it("renders a real capture image substrate instead of hardcoded fixture targets", () => {
+    expect(workspaceUiClientJs).toContain("captureFrame");
+    expect(workspaceUiClientJs).toContain('<image class="workspace-capture"');
+    expect(workspaceUiClientJs).toContain("escapeAttr(state.captureFrame.href)");
+    expect(workspaceUiClientJs).not.toContain('data-fixture-target="roi"');
+    expect(workspaceUiClientJs).not.toContain('data-fixture-target="anchor"');
+    expect(workspaceUiClientJs).not.toContain('x="120" y="80" width="240" height="160"');
+  });
+
+  it("ships accessible group collapse and expand controls", () => {
+    expect(workspaceUiClientJs).toContain("collapsedGroups");
+    expect(workspaceUiClientJs).toContain('data-action="toggle-group-collapse"');
+    expect(workspaceUiClientJs).toContain("aria-expanded");
+    expect(workspaceUiCss).toMatch(/\.tree-node\.is-collapsed\s*>\s*\.tree-children\s*\{[^}]*display:\s*none;?/s);
+  });
+
+  it("maps canvas clicks through the rendered capture viewport instead of the full letterboxed SVG box", () => {
+    expect(workspaceUiClientJs).toContain("function canvasViewport");
+    expect(workspaceUiClientJs).toContain("Math.min(rect.width / frame.width, rect.height / frame.height)");
+    expect(workspaceUiClientJs).toContain("renderedLeft");
+    expect(workspaceUiClientJs).toContain("event.clientX - viewport.left");
+    expect(workspaceUiClientJs).toContain("event.clientY - viewport.top");
   });
 
   it("only requests activation from a clean saved workspace hash", () => {

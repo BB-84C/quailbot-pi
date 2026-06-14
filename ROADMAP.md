@@ -139,7 +139,7 @@ Date: 2026-06-14
 
 ### Delivered
 
-- Expanded the browser workspace calibrator client from a summary placeholder into a responsive three-panel editor with a full workspace tree, SVG fixture canvas overlays, ROI/anchor geometry editing, add-group/add-ROI/add-anchor actions, validate/save/request-activation controls, and a CLI import conflict table.
+- Expanded the browser workspace calibrator client from a summary placeholder into a responsive three-panel editor with a full workspace tree, real PNG capture-image canvas substrate, ROI/anchor geometry editing, add-group/add-ROI/add-anchor actions, group collapse/expand controls, validate/save/request-activation controls, and a CLI import conflict table.
 - Kept the browser layout viewport-bound with hidden outer overflow and internally scrolling panels/bounded regions, so the UI tracks the window instead of relying on fixed outer pixel boxes.
 - Extended `GET /api/workspace` to return canonical editable workspace JSON alongside the existing active-workspace summary so the browser editor can load the real draft substrate instead of reconstructing it from summary-only metadata.
 - Added layout/server tests proving the responsive CSS contract and the browser-control surface, plus server coverage for editable workspace JSON readback.
@@ -152,7 +152,7 @@ Date: 2026-06-14
 
 ### Later phases must do differently
 
-- Add semantic browser acceptance beyond string-contract tests: exercise the rendered client in a DOM/browser harness and prove ROI/anchor placement and edit readback against actual overlay coordinates.
+- Keep semantic browser acceptance image-backed: exercise the rendered client in a DOM/browser harness and prove ROI/anchor placement against an actual `.quailbot-pi/workspace-capture.png` image bbox and pixel samples, not against DOM/SVG target constants.
 - If the browser editor grows more interaction-heavy, consider extracting shared draft/canonicalization logic into a frontend-safe seam instead of maintaining parallel helper logic inside the raw client string.
 - Keep host-side authorization/path policy in the server/control-plane layer; the browser client should remain a thin editor over the existing A2 substrate rather than inventing a second activation/write contract.
 
@@ -163,16 +163,20 @@ Date: 2026-06-14
 ### Delivered
 
 - Added the browser calibrator launched from Pi through `/quailbot-workspace open`, with localhost/token guarding, pending activation staging, and shutdown cleanup.
-- Added a full workspace tree editing surface for groups, ROIs, anchors, CLI parameters, and CLI actions, plus ROI/anchor fixture geometry editing and save/request-activation controls.
+- Added a full workspace tree editing surface for groups, ROIs, anchors, CLI parameters, and CLI actions, plus group collapse/expand, real capture-image-backed ROI/anchor geometry editing, and save/request-activation controls.
 - Added CLI capability import and conflict handling so non-`nqctl` payloads merge into workspace JSON with imported entries disabled by default.
 - Tightened CLI import so the browser route only probes CLI names already declared by the draft workspace; arbitrary command names are rejected before subprocess discovery.
+- Hardened browser write/request-activation targets so the UI can only write the active workspace or `.quailbot-pi` state paths, rejects symlink/junction escapes, stores pending activation as an absolute authorized path, and avoids browser-blocked localhost ports.
 - Kept validation, atomic write/readback, selected-workspace persistence, and reload-mediated activation under the A2 workspace service and Pi command path.
 
 ### Now known
 
 - Browser UI is the right A3 helper shape compared with Tk because it stays inside the Pi workflow now and can later support A4 host/client preview and workspace editing.
 - `ctx.reload()` remains command-bound; the web UI can stage pending activation but cannot independently refresh Quailbot hidden context.
-- Fixture targets can prove coordinate correctness without a real instrument UI by comparing overlay geometry against rendered target geometry and saved ROI/anchor coordinates after viewport changes.
+- The earlier fixture-target acceptance was a false-positive pattern: hardcoded SVG target DOM nodes can only prove the page writes the same constants twice. A3 visual acceptance now requires an actual PNG capture substrate, overlay-to-image bbox deltas, pixel samples, and absence of `[data-fixture-target]` nodes.
+- SVG letterboxing can offset saved click coordinates if browser client coordinates are mapped through the full SVG box; click acceptance now maps through the rendered PNG viewport and preserves `click-coordinate-evidence.json` as proof.
+- `D:\quailbot\workspaces\workspace.json` uses root keys `anchors`, `cli_params`, `groups`, `rois`, and `tools`; the previous tiny `fixturectl` workspace was not representative because it omitted `tools` and rich CLI metadata. The web draft path preserves unknown root fields when present, but future acceptance should model the real-shaped workspace.
+- Handler-level `activation-proof/*.json` artifacts prove browser write, pending activation, command activation, settings persistence, and hidden `WORKSPACE` refresh, but they remain support evidence; visible Pi TUI acceptance still requires a real terminal run when this spec is used as the final operator gate.
 
 ### Later phases must do differently
 

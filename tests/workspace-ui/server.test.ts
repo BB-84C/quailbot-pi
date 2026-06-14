@@ -29,17 +29,30 @@ describe("workspace UI server", () => {
     expect(html).toContain("Quailbot Workspace Calibrator");
   });
 
-  it("returns the active workspace summary from GET /api/workspace with the server token", async () => {
+  it("returns the active workspace summary and editable workspace JSON from GET /api/workspace with the server token", async () => {
     const { server, workspacePath } = await startServerWithWorkspace("nqctl");
 
     const response = await fetch(`${server.url}/api/workspace?token=${server.token}`);
-    const body = (await response.json()) as { ok: true; summary: { path: string; hash: string; cli: { default_cli_name: string } } };
+    const body = (await response.json()) as {
+      ok: true;
+      summary: { path: string; hash: string; cli: { default_cli_name: string } };
+      workspaceJson: {
+        groups: Array<{ name: string }>;
+        rois: Array<{ name: string; x: number; y: number; w: number; h: number }>;
+        anchors: Array<{ name: string; x: number; y: number }>;
+        cli_params: { action_commands: { items: Array<{ name: string }> } };
+      };
+    };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.summary.path).toBe(workspacePath);
     expect(body.summary.hash).toMatch(/^[a-f0-9]{64}$/);
     expect(body.summary.cli.default_cli_name).toBe("nqctl");
+    expect(body.workspaceJson.groups.map((group) => group.name)).toEqual(["spectroscopy"]);
+    expect(body.workspaceJson.rois[0]).toMatchObject({ name: "current", x: 120, y: 80, w: 240, h: 160 });
+    expect(body.workspaceJson.anchors[0]).toMatchObject({ name: "bias-field", x: 520, y: 300 });
+    expect(body.workspaceJson.cli_params.action_commands.items.map((action) => action.name)).toEqual(["Approach"]);
   });
 
   it("rejects validation requests that omit the query token", async () => {
@@ -121,15 +134,16 @@ function makeTempDir(): string {
 
 function minimalWorkspace(cliName: string): Record<string, unknown> {
   return {
-    rois: [{ name: "current", active: true }],
-    anchors: [{ name: "bias-field", active: true, linked_ROIs: ["current"] }],
+    groups: [{ name: "spectroscopy", active: true }],
+    rois: [{ name: "current", group: "spectroscopy", active: true, x: 120, y: 80, w: 240, h: 160 }],
+    anchors: [{ name: "bias-field", group: "spectroscopy", active: true, linked_ROIs: ["current"], x: 520, y: 300 }],
     cli_params: {
       cli_name: cliName,
       enabled: true,
       parameters: {
         items: [{ name: "bias_v", readable: true, writable: true, set_cmd: { command: "set" } }],
       },
-      action_commands: { items: [] },
+      action_commands: { items: [{ name: "Approach", action_cmd: { command: "approach" } }] },
     },
   };
 }

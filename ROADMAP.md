@@ -133,6 +133,29 @@ Date: 2026-06-11
 - A4 remote host must reuse the A2 validation/hash/activation semantics and add host-side approved-destination policy, auth, job queue, cancellation, supervisor policy, and durable experiment evidence around them.
 - A2A remains deferred as a possible peer-agent facade; it is not the core host/workspace API.
 
+## Implementation round: A3 browser workspace calibrator responsive shell
+
+Date: 2026-06-14
+
+### Delivered
+
+- Expanded the browser workspace calibrator client from a summary placeholder into a responsive three-panel editor with a full workspace tree, SVG fixture canvas overlays, ROI/anchor geometry editing, add-group/add-ROI/add-anchor actions, validate/save/request-activation controls, and a CLI import conflict table.
+- Kept the browser layout viewport-bound with hidden outer overflow and internally scrolling panels/bounded regions, so the UI tracks the window instead of relying on fixed outer pixel boxes.
+- Extended `GET /api/workspace` to return canonical editable workspace JSON alongside the existing active-workspace summary so the browser editor can load the real draft substrate instead of reconstructing it from summary-only metadata.
+- Added layout/server tests proving the responsive CSS contract and the browser-control surface, plus server coverage for editable workspace JSON readback.
+
+### Now known
+
+- The A3 browser shell can stay dependency-light for now by serving raw module strings and canonical JSON through the existing local workspace UI server; it does not need a bundler or a separate frontend build step for this slice.
+- Returning canonicalized workspace JSON from the server avoids the stale-`GUI` shadow-data problem that would otherwise make browser edits validate against old visual arrays.
+- The existing A2 write/validate/request-activation routes are sufficient for the first browser editing loop once the client keeps its own draft state and target path/hash bookkeeping.
+
+### Later phases must do differently
+
+- Add semantic browser acceptance beyond string-contract tests: exercise the rendered client in a DOM/browser harness and prove ROI/anchor placement and edit readback against actual overlay coordinates.
+- If the browser editor grows more interaction-heavy, consider extracting shared draft/canonicalization logic into a frontend-safe seam instead of maintaining parallel helper logic inside the raw client string.
+- Keep host-side authorization/path policy in the server/control-plane layer; the browser client should remain a thin editor over the existing A2 substrate rather than inventing a second activation/write contract.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

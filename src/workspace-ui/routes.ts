@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+
 import { loadActiveWorkspace, validateWorkspaceJson, writeWorkspaceJson } from "../workspace/workspace-service.js";
 import type { QuailbotRuntime } from "../extension.js";
 import { loadCliCapabilityPayload, mergeCliCapabilities, type ConflictResolution } from "./cli-import.js";
+import { createWorkspaceDraft, serializeWorkspaceDraft } from "./draft.js";
 
 export type WorkspaceUiBackend = {
   cwd: string;
@@ -22,7 +25,11 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
       const active = loadActiveWorkspace({ cwd: backend.cwd });
       backend.runtime.activeWorkspace = active;
       backend.runtime.workspace = active.workspace;
-      return jsonResponse({ ok: true, summary: active.summary });
+      return jsonResponse({
+        ok: true,
+        summary: active.summary,
+        workspaceJson: serializeWorkspaceDraft(createWorkspaceDraft(JSON.parse(readFileSync(active.selection.path, "utf8")) as unknown)),
+      });
     }
 
     if (request.method === "POST" && url.pathname === "/api/validate") {

@@ -155,6 +155,42 @@ describe("CLI capability import", () => {
     ).toThrow(/parameters\.items\[1\]/);
   });
 
+  it("rejects non-object top-level capability payloads", () => {
+    expect(() => parseCapabilityPayload("qctl", null)).toThrow(/payload root/);
+    expect(() => parseCapabilityPayload("qctl", "not-an-object")).toThrow(/payload root/);
+  });
+
+  it("rejects parameter items missing a name with an exact path", () => {
+    expect(() =>
+      parseCapabilityPayload("qctl", {
+        parameters: { items: [{ label: "Missing Name" }] },
+        action_commands: { items: [] },
+      }),
+    ).toThrow(/parameters\.items\[0\]\.name/);
+  });
+
+  it("rejects parameter items with empty, blank, or non-string names", () => {
+    for (const name of ["", "   ", 42]) {
+      expect(() =>
+        parseCapabilityPayload("qctl", {
+          parameters: { items: [{ name }] },
+          action_commands: { items: [] },
+        }),
+      ).toThrow(/parameters\.items\[0\]\.name/);
+    }
+  });
+
+  it("rejects action items missing or using invalid names with an exact path", () => {
+    for (const action of [{ action_cmd: { command: "Approach" } }, { name: "\t" }]) {
+      expect(() =>
+        parseCapabilityPayload("qctl", {
+          parameters: { items: [] },
+          action_commands: { items: [action] },
+        }),
+      ).toThrow(/action_commands\.items\[0\]\.name/);
+    }
+  });
+
   it("falls back from capabilities to capacities and reports both commands when discovery fails", () => {
     execFileSyncMock
       .mockImplementationOnce(() => {

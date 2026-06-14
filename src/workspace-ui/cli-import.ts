@@ -10,7 +10,11 @@ type ParsedCapabilityPayload = { cliName: string; parameters: JsonRecord[]; acti
 const DISCOVERY_TIMEOUT_MS = 90_000;
 
 export function parseCapabilityPayload(cliName: string, payload: unknown): ParsedCapabilityPayload {
-  const root = record(payload);
+  if (!isRecord(payload)) {
+    throw new Error("capability payload root must be an object");
+  }
+
+  const root = payload;
   const parameters = parseCapabilityItems(root.parameters, "parameters.items").map((item) =>
     normalizeImportedItem(cliName, item),
   );
@@ -42,8 +46,15 @@ function parseCapabilityItems(section: unknown, path: string): JsonRecord[] {
     if (!isRecord(item)) {
       throw new Error(`capability payload ${path}[${index}] must be an object`);
     }
+    validateCapabilityName(item, `${path}[${index}].name`);
     return cloneJson(item);
   });
+}
+
+function validateCapabilityName(item: JsonRecord, path: string): void {
+  if (typeof item.name !== "string" || item.name.trim().length === 0) {
+    throw new Error(`capability payload ${path} must be a non-empty string`);
+  }
 }
 
 export function loadCliCapabilityPayload(cliName: string): ParsedCapabilityPayload {
@@ -126,7 +137,7 @@ function mergeItems(
   for (const imported of importedItems) {
     const ref = itemRef(imported);
     if (ref === undefined) {
-      continue;
+      throw new Error("imported CLI capability item is missing name or CLI_Name");
     }
 
     const existingIndex = target.findIndex(

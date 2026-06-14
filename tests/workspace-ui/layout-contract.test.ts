@@ -28,4 +28,17 @@ describe("workspace calibrator layout contract", () => {
     expect(workspaceUiClientJs).toContain('data-action="apply-import-resolutions"');
     expect(workspaceUiClientJs).toContain("<svg");
   });
+
+  it("only requests activation from a clean saved workspace hash", () => {
+    expect(workspaceUiClientJs).toContain("const activationHash = !state.dirty ? state.lastSavedHash : ''");
+    expect(workspaceUiClientJs).toContain("const expectedHash = state.lastSavedHash");
+    expect(workspaceUiClientJs).toContain("if (state.dirty || !expectedHash)");
+    expect(workspaceUiClientJs).not.toContain("validationHash || state.lastSavedHash");
+  });
+
+  it("clears stale validation and pending activation state whenever edits make the workspace dirty", () => {
+    expect(workspaceUiClientJs).toContain("state.validationHash = ''");
+    expect(workspaceUiClientJs).toContain("state.pendingActivation = null");
+    expect(workspaceUiClientJs).toContain("state.lastSavedHash = ''");
+  });
 });

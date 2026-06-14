@@ -226,6 +226,11 @@ function nextUniqueName(prefix) {
 
 function setDirty(value) {
   state.dirty = value;
+  if (value) {
+    state.validationHash = '';
+    state.lastSavedHash = '';
+    state.pendingActivation = null;
+  }
 }
 
 function panel(title, className, tools, body) {
@@ -381,7 +386,7 @@ function renderSelectionEditor() {
 }
 
 function renderInspector() {
-  const activationHash = state.validationHash || state.lastSavedHash;
+  const activationHash = !state.dirty ? state.lastSavedHash : '';
   return '<section class="editor-block"><h3>Workspace Actions</h3><div class="field-grid single-column">'
     + renderField('target path', '<input type="text" value="' + escapeAttr(state.workspacePath) + '" data-action="set-target-path">')
     + '</div><div class="button-row">'
@@ -520,9 +525,9 @@ async function saveWorkspace() {
 }
 
 async function requestActivation() {
-  const expectedHash = state.validationHash || state.lastSavedHash;
-  if (!expectedHash) {
-    throw new Error('validate or save before requesting activation');
+  const expectedHash = state.lastSavedHash;
+  if (state.dirty || !expectedHash) {
+    throw new Error('save a clean workspace before requesting activation');
   }
   setStatus('Staging pending activation...');
   renderShell();
@@ -719,6 +724,7 @@ function bindEvents() {
         return;
       case 'set-target-path':
         state.workspacePath = String(target.value || '').trim();
+        setDirty(true);
         setStatus('Updated target path.');
         renderShell();
         return;

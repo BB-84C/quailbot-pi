@@ -31,6 +31,7 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
 
   pi.on("session_start", (_event, ctx) => {
     runtime.planStore.clear();
+    runtime.pendingWorkspaceActivation = undefined;
 
     try {
       const activeWorkspace = loadActiveWorkspace({ cwd: ctx.cwd });
@@ -44,7 +45,11 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async () => {
-    await stopWorkspaceUiServer(runtime);
+    try {
+      await stopWorkspaceUiServer(runtime);
+    } finally {
+      runtime.pendingWorkspaceActivation = undefined;
+    }
   });
 
   pi.on("before_agent_start", (event) => {

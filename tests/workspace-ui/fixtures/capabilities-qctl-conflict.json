@@ -1,0 +1,15 @@
+{
+  "parameters": {
+    "items": [
+      {
+        "name": "bias_v",
+        "label": "Bias Updated",
+        "description": "Sample bias voltage.",
+        "readable": true,
+        "writable": true,
+        "set_cmd": { "command": "Bias_Set_Updated" }
+      }
+    ]
+  },
+  "action_commands": { "items": [] }
+}

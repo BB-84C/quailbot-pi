@@ -1,0 +1,31 @@
+{
+  "parameters": {
+    "items": [
+      {
+        "name": "bias_v",
+        "label": "Bias",
+        "description": "Sample bias voltage.",
+        "readable": true,
+        "writable": true,
+        "set_cmd": { "command": "Bias_Set" }
+      },
+      {
+        "name": "current",
+        "label": "Current",
+        "description": "Measured tunneling current.",
+        "readable": true,
+        "writable": false,
+        "get_cmd": { "command": "Current_Get" }
+      }
+    ]
+  },
+  "action_commands": {
+    "items": [
+      {
+        "name": "Approach",
+        "description": "Run approach action.",
+        "action_cmd": { "command": "Approach" }
+      }
+    ]
+  }
+}

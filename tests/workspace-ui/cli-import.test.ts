@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -210,5 +211,29 @@ describe("CLI capability import", () => {
     });
 
     expect(() => loadCliCapabilityPayload("qctl")).toThrow(/qctl capabilities.*qctl capacities/s);
+  });
+
+  it("does not fall back when capabilities returns malformed JSON shape", async () => {
+    vi.doUnmock("node:child_process");
+    vi.resetModules();
+    const { loadCliCapabilityPayload: loadWithRealExec } = await import("../../src/workspace-ui/cli-import.js");
+    const tempDir = mkdtempSync(join(tmpdir(), "qctl-capabilities-"));
+    const originalCwd = process.cwd();
+    const capabilitiesPath = join(tempDir, "capabilities");
+    const capacitiesPath = join(tempDir, "capacities");
+    const malformed = JSON.stringify({ parameters: { items: [{ label: "Missing Name" }] }, action_commands: { items: [] } });
+    const valid = JSON.stringify({ parameters: { items: [{ name: "current" }] }, action_commands: { items: [] } });
+    writeFileSync(capabilitiesPath, `console.log(${JSON.stringify(malformed)});\n`, "utf8");
+    writeFileSync(capacitiesPath, `console.log(${JSON.stringify(valid)});\n`, "utf8");
+
+    try {
+      process.chdir(tempDir);
+      expect(() => loadWithRealExec(process.execPath)).toThrow(/capabilities.*parameters\.items\[0\]\.name/s);
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(tempDir, { recursive: true, force: true });
+      vi.doMock("node:child_process", () => ({ execFileSync: execFileSyncMock }));
+      vi.resetModules();
+    }
   });
 });

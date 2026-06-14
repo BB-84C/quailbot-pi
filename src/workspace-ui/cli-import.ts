@@ -63,15 +63,22 @@ export function loadCliCapabilityPayload(cliName: string): ParsedCapabilityPaylo
 
   for (const subcommand of attempts) {
     const commandLabel = `${cliName} ${subcommand}`;
+    let stdout: string;
     try {
-      const stdout = execFileSync(cliName, [subcommand], {
+      stdout = execFileSync(cliName, [subcommand], {
         encoding: "utf8",
         timeout: DISCOVERY_TIMEOUT_MS,
         windowsHide: true,
       });
-      return parseCapabilityPayload(cliName, JSON.parse(stdout) as unknown);
     } catch (error) {
       failures.push(`${commandLabel}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+
+    try {
+      return parseCapabilityPayload(cliName, JSON.parse(stdout) as unknown);
+    } catch (error) {
+      throw new Error(`${commandLabel}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

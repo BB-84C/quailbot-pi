@@ -165,13 +165,14 @@ Date: 2026-06-14
 - Added the browser calibrator launched from Pi through `/quailbot-workspace open`, with localhost/token guarding, pending activation staging, and shutdown cleanup.
 - Added a full workspace tree editing surface for groups, ROIs, anchors, CLI parameters, and CLI actions, plus ROI/anchor fixture geometry editing and save/request-activation controls.
 - Added CLI capability import and conflict handling so non-`nqctl` payloads merge into workspace JSON with imported entries disabled by default.
+- Tightened CLI import so the browser route only probes CLI names already declared by the draft workspace; arbitrary command names are rejected before subprocess discovery.
 - Kept validation, atomic write/readback, selected-workspace persistence, and reload-mediated activation under the A2 workspace service and Pi command path.
 
 ### Now known
 
 - Browser UI is the right A3 helper shape compared with Tk because it stays inside the Pi workflow now and can later support A4 host/client preview and workspace editing.
 - `ctx.reload()` remains command-bound; the web UI can stage pending activation but cannot independently refresh Quailbot hidden context.
-- Fixture images can prove coordinate correctness without a real instrument UI by comparing saved ROI/anchor coordinates against the rendered fixture targets after viewport changes.
+- Fixture targets can prove coordinate correctness without a real instrument UI by comparing overlay geometry against rendered target geometry and saved ROI/anchor coordinates after viewport changes.
 
 ### Later phases must do differently
 

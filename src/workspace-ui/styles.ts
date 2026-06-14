@@ -298,6 +298,22 @@ body {
   fill: rgba(15, 23, 42, 0.82);
 }
 
+.fixture-targets {
+  pointer-events: none;
+}
+
+.fixture-target-roi {
+  fill: rgba(38, 49, 58, 0.72);
+  stroke: rgba(110, 226, 122, 0.92);
+  stroke-width: 4;
+}
+
+.fixture-target-anchor {
+  fill: rgba(255, 208, 138, 0.92);
+  stroke: rgba(120, 78, 16, 0.88);
+  stroke-width: 2;
+}
+
 .roi-overlay rect {
   fill: rgba(59, 130, 246, 0.22);
   stroke: rgba(147, 197, 253, 0.92);

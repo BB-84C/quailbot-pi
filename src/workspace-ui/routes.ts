@@ -23,8 +23,6 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
   try {
     if (request.method === "GET" && url.pathname === "/api/workspace") {
       const active = loadActiveWorkspace({ cwd: backend.cwd });
-      backend.runtime.activeWorkspace = active;
-      backend.runtime.workspace = active.workspace;
       return jsonResponse({
         ok: true,
         summary: active.summary,
@@ -92,6 +90,9 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
         return jsonResponse({ ok: false, error: "cliName must be a non-empty string" }, 400);
       }
       const workspaceJson = record(body.workspaceJson);
+      if (!declaredCliNames(workspaceJson).has(cliName)) {
+        return jsonResponse({ ok: false, error: `cliName must be declared by the workspace before import: ${cliName}` }, 400);
+      }
       const payload = loadCliCapabilityPayload(cliName);
       const merged = mergeCliCapabilities(workspaceJson.cli_params, payload, conflictResolutions(body.resolutions));
       return jsonResponse({
@@ -145,6 +146,33 @@ function isRecord(value: unknown): value is JsonRecord {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function declaredCliNames(workspaceJson: JsonRecord): Set<string> {
+  const cliParams = record(workspaceJson.cli_params);
+  const names = new Set<string>();
+  addCliName(names, cliParams.cli_name);
+  addCliName(names, cliParams.CLI_Name);
+  collectItemCliNames(names, record(cliParams.parameters).items);
+  collectItemCliNames(names, record(cliParams.action_commands).items);
+  return names;
+}
+
+function collectItemCliNames(names: Set<string>, items: unknown): void {
+  if (!Array.isArray(items)) {
+    return;
+  }
+  for (const item of items) {
+    if (isRecord(item)) {
+      addCliName(names, item.CLI_Name);
+    }
+  }
+}
+
+function addCliName(names: Set<string>, value: unknown): void {
+  if (typeof value === "string" && value.trim().length > 0) {
+    names.add(value.trim());
+  }
 }
 
 function conflictResolutions(value: unknown): Record<string, ConflictResolution> {

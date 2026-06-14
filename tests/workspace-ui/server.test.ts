@@ -55,6 +55,36 @@ describe("workspace UI server", () => {
     expect(body.workspaceJson.cli_params.action_commands.items.map((action) => action.name)).toEqual(["Approach"]);
   });
 
+  it("does not refresh runtime workspace state from GET /api/workspace", async () => {
+    const { runtime, server } = await startServerWithWorkspace("nqctl");
+
+    const response = await fetch(`${server.url}/api/workspace?token=${server.token}`);
+    const body = (await response.json()) as { ok: true };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(runtime.activeWorkspace).toBeUndefined();
+    expect(runtime.workspace).toBeUndefined();
+  });
+
+  it("rejects CLI capability import for names not declared by the draft workspace", async () => {
+    const { server } = await startServerWithWorkspace("nqctl");
+
+    const response = await fetch(`${server.url}/api/import-cli?token=${server.token}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-quailbot-workspace-ui-token": server.token,
+      },
+      body: JSON.stringify({ workspaceJson: minimalWorkspace("nqctl"), cliName: "definitely-not-a-real-cli" }),
+    });
+    const body = (await response.json()) as { ok: false; error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.ok).toBe(false);
+    expect(body.error).toMatch(/declared by the workspace/i);
+  });
+
   it("rejects validation requests that omit the query token", async () => {
     const { server } = await startServerWithWorkspace();
 

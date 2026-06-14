@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Prove the browser workspace calibrator preserves real workspace semantics: visual ROI/anchor coordinates survive browser resizing and save through the A2 workspace service; CLI capability import works for non-`nqctl` payloads; pending activation reloads Quailbot context through the Pi command path.
+Prove the browser workspace calibrator preserves real workspace semantics: visual ROI/anchor coordinates align to deterministic fixture targets, survive browser resizing, and save through the A2 workspace service; CLI capability import works for workspace-declared non-`nqctl` payloads; pending activation reloads Quailbot context through the Pi command path.
 
 ## Fixture targets
 
@@ -41,37 +41,51 @@ npm run typecheck && npm run dev:release && npx vitest --run tests/workspace/loa
 1. Start the local calibrator against a workspace containing the fixture ROI and anchor.
 2. Open the returned `http://127.0.0.1:<port>/` URL in a browser.
 3. Capture `wide-before.png` at a wide viewport.
-4. Verify the ROI and anchor overlay align to the fixture target region.
+4. Verify the ROI and anchor overlay align to the deterministic fixture target region; preserve observed target-vs-overlay attributes and bounding boxes.
 5. Resize to a narrow viewport; capture `narrow-after.png`.
 6. Return to a wide viewport; capture `wide-after.png`.
 7. Save through the browser/API path and preserve `http/write-request.json` and `http/write-response.json`.
-8. Read the saved workspace JSON and write `coordinate-comparison.json` with zero deltas:
+8. Read the saved workspace JSON and write `coordinate-comparison.json` with zero saved-coordinate and visual overlay-to-target deltas:
 
 ```json
 {
-  "roi": {
-    "expected": { "x": 120, "y": 80, "w": 240, "h": 160 },
-    "saved": { "x": 120, "y": 80, "w": 240, "h": 160 },
-    "delta": { "x": 0, "y": 0, "w": 0, "h": 0 }
+  "savedWorkspace": {
+    "roi": {
+      "expected": { "x": 120, "y": 80, "w": 240, "h": 160 },
+      "saved": { "x": 120, "y": 80, "w": 240, "h": 160 },
+      "delta": { "x": 0, "y": 0, "w": 0, "h": 0 }
+    },
+    "anchor": {
+      "expected": { "x": 520, "y": 300 },
+      "saved": { "x": 520, "y": 300 },
+      "delta": { "x": 0, "y": 0 }
+    }
   },
-  "anchor": {
-    "expected": { "x": 520, "y": 300 },
-    "saved": { "x": 520, "y": 300 },
-    "delta": { "x": 0, "y": 0 }
+  "visualOverlayToFixture": {
+    "wideBefore": {
+      "roiAttrDelta": { "x": 0, "y": 0, "width": 0, "height": 0 },
+      "roiCssBboxDeltaPx": { "x": 0, "y": 0, "width": 0, "height": 0 },
+      "anchorAttrDelta": { "cx": 0, "cy": 0 }
+    },
+    "narrowAfter": {
+      "roiAttrDelta": { "x": 0, "y": 0, "width": 0, "height": 0 },
+      "roiCssBboxDeltaPx": { "x": 0, "y": 0, "width": 0, "height": 0 },
+      "anchorAttrDelta": { "cx": 0, "cy": 0 }
+    }
   }
 }
 ```
 
-Pass condition: browser resize/scroll/zoom/pan does not change saved ROI/anchor coordinates.
+Pass condition: browser resize/scroll/zoom/pan does not change saved ROI/anchor coordinates, and the observed overlay-to-fixture target deltas are zero for ROI geometry and anchor center coordinates.
 
 ## CLI import acceptance
 
-1. Use a fake non-`nqctl` capability payload.
+1. Use a fake non-`nqctl` capability payload from a CLI name already declared by the draft workspace.
 2. Import it through `/api/import-cli` or the browser import panel.
 3. Preserve the request/response.
 4. Confirm imported entries use the payload CLI name, are disabled by default, and conflicts require explicit resolution.
 
-Pass condition: no `nqctl` hardcoding appears in imported refs or workspace JSON.
+Pass condition: no `nqctl` hardcoding appears in imported refs or workspace JSON, and `/api/import-cli` rejects CLI names that are not declared by the draft workspace.
 
 ## A2 write/hash acceptance
 

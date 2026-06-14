@@ -29,6 +29,19 @@ describe("workspace calibrator layout contract", () => {
     expect(workspaceUiClientJs).toContain("<svg");
   });
 
+  it("renders deterministic fixture targets behind ROI and anchor overlays", () => {
+    expect(workspaceUiClientJs).toContain('data-fixture-target="roi"');
+    expect(workspaceUiClientJs).toContain('x="120" y="80" width="240" height="160"');
+    expect(workspaceUiClientJs).toContain('data-fixture-target="anchor"');
+    expect(workspaceUiClientJs).toContain('cx="520" cy="300"');
+    expect(workspaceUiClientJs.indexOf('data-fixture-target="roi"')).toBeLessThan(
+      workspaceUiClientJs.indexOf("+ roiMarkup"),
+    );
+    expect(workspaceUiClientJs.indexOf('data-fixture-target="anchor"')).toBeLessThan(
+      workspaceUiClientJs.indexOf("+ anchorMarkup"),
+    );
+  });
+
   it("only requests activation from a clean saved workspace hash", () => {
     expect(workspaceUiClientJs).toContain("const activationHash = !state.dirty ? state.lastSavedHash : ''");
     expect(workspaceUiClientJs).toContain("const expectedHash = state.lastSavedHash");

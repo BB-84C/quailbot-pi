@@ -343,6 +343,10 @@ function renderCanvas() {
     + '<rect class="canvas-backdrop" x="0" y="0" width="' + FIXTURE_WIDTH + '" height="' + FIXTURE_HEIGHT + '" data-action="canvas-click"></rect>'
     + '<g class="canvas-grid">' + gridLines.join('') + '</g>'
     + '<g class="canvas-frame"><rect x="16" y="16" width="' + (FIXTURE_WIDTH - 32) + '" height="' + (FIXTURE_HEIGHT - 32) + '"></rect></g>'
+    + '<g class="fixture-targets" aria-label="deterministic calibration fixture">'
+    + '<rect class="fixture-target-roi" data-fixture-target="roi" x="120" y="80" width="240" height="160"></rect>'
+    + '<circle class="fixture-target-anchor" data-fixture-target="anchor" cx="520" cy="300" r="10"></circle>'
+    + '</g>'
     + roiMarkup
     + anchorMarkup
     + '</svg>'

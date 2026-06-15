@@ -15,6 +15,8 @@ import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
 import { createToolContext } from "./tool-context.js";
 import type { QuailbotToolResult } from "./tool-result.js";
+import { buildQuailbotToolContent } from "./tool-result-projection.js";
+import { makeQuailbotRenderCall, renderQuailbotToolResult } from "./tool-result-renderer.js";
 
 const argsSchema = Type.Record(Type.String({ minLength: 1 }), Type.Any(), { minProperties: 1 });
 const linkedObservablesSchema = Type.Array(Type.String({ minLength: 1 }), {
@@ -89,6 +91,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "quailbot_planwrite",
     label: "Quailbot planwrite",
     description: "Write persistent or ephemeral plan context for future Quailbot agent turns.",
+    renderCall: makeQuailbotRenderCall("quailbot_planwrite"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       text: Type.String({ description: "Plan text to write or return ephemerally." }),
       mode: Type.Union([Type.Literal("system"), Type.Literal("ephemeral")], {
@@ -105,6 +109,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "cli_get",
     label: "CLI get",
     description: "Read a workspace-declared CLI parameter through the configured driver-agnostic CLI executable.",
+    renderCall: makeQuailbotRenderCall("cli_get"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       cli_name: Type.Optional(
         Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
@@ -121,6 +127,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "cli_set",
     label: "CLI set",
     description: "Set a workspace-declared CLI parameter through the configured driver-agnostic CLI executable.",
+    renderCall: makeQuailbotRenderCall("cli_set"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       cli_name: Type.Optional(
         Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
@@ -140,6 +148,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "cli_ramp",
     label: "CLI ramp",
     description: "Ramp a workspace-declared CLI parameter through the configured driver-agnostic CLI executable.",
+    renderCall: makeQuailbotRenderCall("cli_ramp"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       cli_name: Type.Optional(
         Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
@@ -161,6 +171,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "cli_action",
     label: "CLI action",
     description: "Run a workspace-declared CLI action through the configured driver-agnostic CLI executable.",
+    renderCall: makeQuailbotRenderCall("cli_action"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       cli_name: Type.Optional(
         Type.String({ minLength: 1, description: "CLI executable name, defaults to the workspace CLI name." }),
@@ -179,6 +191,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "observe",
     label: "Observe GUI ROIs",
     description: "Request GUI ROI screenshot/OCR readback. This plugin round exposes the explicit unavailable backend boundary.",
+    renderCall: makeQuailbotRenderCall("observe"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       rois: Type.Optional(roisSchema),
     }),
@@ -191,6 +205,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "click_anchor",
     label: "Click GUI anchor",
     description: "Click an active workspace GUI anchor. This plugin round exposes the explicit unavailable backend boundary.",
+    renderCall: makeQuailbotRenderCall("click_anchor"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       anchor: Type.String({ minLength: 1, description: "Active workspace anchor name or ref to click." }),
       rois: Type.Optional(roisSchema),
@@ -204,6 +220,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "set_field",
     label: "Set GUI field",
     description: "Type text into an active workspace GUI anchor. This plugin round exposes the explicit unavailable backend boundary.",
+    renderCall: makeQuailbotRenderCall("set_field"),
+    renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       anchor: Type.String({ minLength: 1, description: "Active workspace anchor name or ref for text entry." }),
       typed_text: Type.String({ minLength: 1, description: "Text to type into the GUI field." }),
@@ -219,6 +237,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "sleep_seconds",
     label: "Sleep seconds",
     description: "Wait for a finite non-negative number of seconds before continuing.",
+    renderCall: makeQuailbotRenderCall("sleep_seconds"),
+    renderResult: renderQuailbotToolResult,
     parameters: sleepSecondsParameters,
     async execute(_toolCallId, params) {
       return piToolResult(await executeSleepSeconds(params));
@@ -229,6 +249,8 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "quailbot_plan_and_execute",
     label: "Quailbot Plan And Execute",
     description: "Execute a concrete serial Quailbot program and return one final result with per-step readbacks.",
+    renderCall: makeQuailbotRenderCall("quailbot_plan_and_execute"),
+    renderResult: renderQuailbotToolResult,
     parameters: planAndExecuteParameters,
     async execute(_toolCallId, params) {
       return piToolResult(await executeQuailbotPlanAndExecute(runtimeToolContext(runtime), params as never));
@@ -250,7 +272,7 @@ function requireWorkspace(runtime: QuailbotRuntime): Workspace {
 
 function piToolResult(result: QuailbotToolResult) {
   return {
-    content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+    content: [{ type: "text" as const, text: buildQuailbotToolContent(result) }],
     details: result,
   };
 }

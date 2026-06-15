@@ -45,6 +45,27 @@ describe("CLI-backed tools", () => {
     });
   });
 
+  it("executeCliGet preserves driver error metadata", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValue({
+      ok: false,
+      exitCode: -1,
+      stdout: "",
+      stderr: "process timed out after 25ms",
+      payload: undefined,
+      argv: ["nqctl", "get", "current"],
+      error_type: "timeout",
+      error_message: "process timed out after 25ms",
+    });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli });
+
+    const result = await executeCliGet(ctx, { cli_name: "nqctl", parameter: "current" });
+
+    expect(result.primary_result).toMatchObject({
+      error_type: "timeout",
+      error_message: "process timed out after 25ms",
+    });
+  });
+
   it("executeCliSet rejects an unknown parameter before driver execution", async () => {
     const runCli = vi.fn<RunCli>();
     const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });

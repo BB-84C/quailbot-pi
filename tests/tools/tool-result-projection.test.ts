@@ -46,6 +46,14 @@ describe("tool result projection", () => {
     expect(content.length).toBeLessThanOrEqual(700);
   });
 
+  it("surfaces structured errors without stdout", () => {
+    const content = buildQuailbotToolContent(roiBackendUnavailableResult());
+
+    expect(content).toContain("observe [fail, payload_absent_empty_stdout]");
+    expect(content).toContain("error_type: roi_backend_unavailable");
+    expect(content).toContain("message: ROI screenshot/OCR backend is not configured in this plugin implementation round.");
+  });
+
   it("uses recent-full mode for bounded raw diagnostic detail", () => {
     const content = buildQuailbotToolContent(cliActionUnparsedFailure("RECENT_ACTION_FAILURE_SENTINEL"), {
       mode: "recent-full",
@@ -93,6 +101,19 @@ function cliGetScanSpeedUnparsed(): QuailbotToolResult {
       stderr: "",
       payload: undefined,
       argv: ["nqctl", "get", "scan_speed"],
+    },
+  };
+}
+
+function roiBackendUnavailableResult(): QuailbotToolResult {
+  return {
+    ok: false,
+    action: "observe",
+    action_input: { rois: ["scan"] },
+    primary_result: {
+      requested_rois: ["scan"],
+      error_type: "roi_backend_unavailable",
+      message: "ROI screenshot/OCR backend is not configured in this plugin implementation round.",
     },
   };
 }

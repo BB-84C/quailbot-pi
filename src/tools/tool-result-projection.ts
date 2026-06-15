@@ -84,23 +84,25 @@ function projectionBodyLines(
   parseStatus: PayloadParseStatus,
   mode: ProjectionMode,
 ): string[] {
+  const errorLines = structuredErrorLines(primary);
+
   if (parseStatus === "parsed_payload") {
-    return payloadSummaryLines(primary.payload);
+    return [...errorLines, ...payloadSummaryLines(primary.payload)];
   }
 
   if (mode === "recent-full") {
-    return recentFullLines(primary);
+    return recentFullLines(primary, errorLines);
   }
 
   if (result.action === "quailbot_plan_and_execute") {
-    return ["aggregate result projection pending full plan support"];
+    return [...errorLines, "aggregate result projection pending full plan support"];
   }
 
-  return previewLines(primary);
+  return [...errorLines, ...previewLines(primary)];
 }
 
-function recentFullLines(primary: Record<string, unknown>): string[] {
-  const lines = ["full raw result retained in tool details"];
+function recentFullLines(primary: Record<string, unknown>, errorLines: string[]): string[] {
+  const lines = ["full raw result retained in tool details", ...errorLines];
   const stdout = stringValue(primary.stdout) ?? "";
   const stderr = stringValue(primary.stderr) ?? "";
 
@@ -112,6 +114,21 @@ function recentFullLines(primary: Record<string, unknown>): string[] {
   }
   if (stdout.length === 0 && stderr.length === 0) {
     lines.push("stdout: <empty>");
+  }
+
+  return lines;
+}
+
+function structuredErrorLines(primary: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const errorType = stringValue(primary.error_type);
+  const message = stringValue(primary.message) ?? stringValue(primary.error_message);
+
+  if (errorType !== undefined) {
+    lines.push(`error_type: ${errorType}`);
+  }
+  if (message !== undefined) {
+    lines.push(`message: ${message}`);
   }
 
   return lines;

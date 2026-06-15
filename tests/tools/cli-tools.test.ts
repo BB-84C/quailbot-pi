@@ -495,6 +495,31 @@ describe("registered CLI tool schemas", () => {
     }
   });
 
+  it("registers compact renderers for CLI tools", () => {
+    const tools: Array<{
+      name: string;
+      renderCall?: unknown;
+      renderResult?: unknown;
+      parameters: { properties?: Record<string, unknown> };
+    }> = [];
+    const pi = {
+      registerTool: (tool: {
+        name: string;
+        renderCall?: unknown;
+        renderResult?: unknown;
+        parameters: { properties?: Record<string, unknown> };
+      }) => tools.push(tool),
+    };
+
+    registerQuailbotTools(pi as never, { workspace: fixtureWorkspace() } as never);
+
+    for (const name of ["cli_get", "cli_set", "cli_ramp", "cli_action"]) {
+      const tool = tools.find((item) => item.name === name);
+      expect(tool?.renderCall).toEqual(expect.any(Function));
+      expect(tool?.renderResult).toEqual(expect.any(Function));
+    }
+  });
+
   it("blocks cli_set, cli_ramp, and cli_action before validation or driver execution when mutation policy is disabled", async () => {
     const runCli = vi.fn<RunCli>();
     const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });

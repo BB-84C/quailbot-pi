@@ -31,7 +31,7 @@ const expectedToolNames = [
 
 type PiEventName = "session_start" | "before_agent_start" | "context" | "session_shutdown" | string;
 type PiHandler = ExtensionHandler<any, any>;
-type RegisteredTool = { name: string };
+type RegisteredTool = { name: string; renderCall?: unknown; renderResult?: unknown };
 type RegisteredCommand = {
   name: string;
   description?: string;
@@ -71,6 +71,9 @@ describe("local Pi dev release adoption", () => {
       "session_start",
     ]);
     expect(tools.map((tool) => tool.name).sort(compareExpectedToolNames)).toEqual(expectedToolNames);
+    for (const tool of tools) {
+      expect(tool.renderResult).toEqual(expect.any(Function));
+    }
     expect(commands.map((command) => command.name)).toEqual(["quailbot-workspace"]);
   });
 

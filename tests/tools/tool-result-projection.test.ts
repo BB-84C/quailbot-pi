@@ -157,6 +157,23 @@ describe("tool result projection", () => {
   it("defaults recentFullCliResultCount to two", () => {
     expect(DEFAULT_RECENT_FULL_CLI_RESULT_COUNT).toBe(2);
   });
+
+  it("classifies actual nqctl stdout quirks observed on simulator runs", () => {
+    const actionFailure = buildQuailbotToolContent(cliActionUnparsedFailure("Start action timeout"));
+    const scanSpeed = buildQuailbotToolContent(
+      cliGetScanSpeedUnparsed(`{
+    "parameter": "scan_speed",
+    "value": { "Backward time per line": Infinity },
+    "fields": { "Backward time per line": Infinity },
+    "timestamp_utc": "2026-06-15T17:46:03.394799Z"
+  }`),
+    );
+
+    expect(actionFailure).toContain("payload_parse_failed_non_json_prefix");
+    expect(actionFailure).toContain("Start action timeout");
+    expect(scanSpeed).toContain("payload_parse_failed_nonstandard_json");
+    expect(scanSpeed).toContain("Infinity");
+  });
 });
 
 function cliGetBiasResult(): QuailbotToolResult {
@@ -190,7 +207,9 @@ function planwriteEphemeralResult(): QuailbotToolResult {
   };
 }
 
-function cliGetScanSpeedUnparsed(): QuailbotToolResult {
+function cliGetScanSpeedUnparsed(
+  stdout = `{"parameter":"scan_speed","value":{"Backward time per line": Infinity},"tail":"${"Y".repeat(5000)}"}`,
+): QuailbotToolResult {
   return {
     ok: true,
     action: "cli_get",
@@ -199,7 +218,7 @@ function cliGetScanSpeedUnparsed(): QuailbotToolResult {
       parameter: "scan_speed",
       ok: true,
       exit_code: 0,
-      stdout: `{"parameter":"scan_speed","value":{"Backward time per line": Infinity},"tail":"${"Y".repeat(5000)}"}`,
+      stdout,
       stderr: "",
       payload: undefined,
       argv: ["nqctl", "get", "scan_speed"],

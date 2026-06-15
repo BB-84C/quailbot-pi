@@ -327,7 +327,9 @@ function planStepStatus(primary: Record<string, unknown>): ProjectionStatus {
 function planStepResultSummary(kind: string, primary: Record<string, unknown>, linkedObservation: unknown): string {
   const readbacks = linkedCliReadbackLines(record(linkedObservation), "=").map(stripReadbackParseStatus);
   if (readbacks.length > 0) {
-    return `readback ${readbacks.join(" ")}`;
+    const diagnosticParts = structuredDiagnosticParts(primary);
+    const diagnosticSuffix = diagnosticParts.length > 0 ? ` ${diagnosticParts.join(" ")}` : "";
+    return `readback ${readbacks.join(" ")}${diagnosticSuffix}`;
   }
 
   const payload = recordOrUndefined(primary.payload);

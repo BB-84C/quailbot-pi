@@ -99,6 +99,17 @@ describe("tool result projection", () => {
     expect(text).not.toContain("NESTED_STDOUT_SHOULD_NOT_APPEAR");
   });
 
+  it("keeps failed plan primary diagnostics when linked readback exists", () => {
+    const text = buildQuailbotToolContent(planWithFailedPrimaryAndLinkedReadback());
+
+    expect(text).toContain("#0 cli_set [fail]");
+    expect(text).toContain("readback nqctl:bias_v=0.18");
+    expect(text).toContain("exit=3");
+    expect(text).toContain("instrument_error");
+    expect(text).toContain("set failed");
+    expect(text).not.toContain("PRIMARY_FAILURE_STDOUT_SHOULD_NOT_APPEAR");
+  });
+
   it("preserves failed plan linked readback diagnostics without raw stdout", () => {
     const text = buildQuailbotToolContent(planWithFailedLinkedReadbackStep());
 
@@ -331,6 +342,44 @@ function planWithFailedLinkedReadbackStep(): QuailbotToolResult {
                     error_type: "readback_exception",
                     error_message: "readback blew up",
                   },
+                },
+              },
+              roi: { unavailable: [] },
+            },
+            unresolved: [],
+          },
+        },
+      ],
+    },
+  };
+}
+
+function planWithFailedPrimaryAndLinkedReadback(): QuailbotToolResult {
+  return {
+    ok: false,
+    action: "quailbot_plan_and_execute",
+    action_input: {},
+    primary_result: {
+      ok: false,
+      stopped_reason: "step_failed",
+      steps: [
+        {
+          index: 0,
+          kind: "cli_set",
+          primary_result: {
+            ok: false,
+            exit_code: 3,
+            stdout: "PRIMARY_FAILURE_STDOUT_SHOULD_NOT_APPEAR",
+            stderr: "set failed",
+            payload: undefined,
+            error_type: "instrument_error",
+            error_message: "set failed",
+          },
+          linked_observation: {
+            channels: {
+              cli: {
+                results: {
+                  "nqctl:bias_v": { ok: true, payload: { value: 0.18 } },
                 },
               },
               roi: { unavailable: [] },

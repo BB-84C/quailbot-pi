@@ -13,6 +13,7 @@ export type PayloadParseStatus =
   | "payload_parse_failed_nonstandard_json"
   | "payload_parse_failed_unclassified"
   | "aggregate_result"
+  | "structured_result"
   | "spawn_error"
   | "timeout";
 
@@ -90,6 +91,10 @@ function projectionBodyLines(
     return [...errorLines, ...planAndExecuteSummaryLines(primary)];
   }
 
+  if (result.action === "quailbot_planwrite") {
+    return [...errorLines, ...planwriteSummaryLines(primary)];
+  }
+
   if (parseStatus === "parsed_payload") {
     return [...errorLines, ...payloadSummaryLines(result.action, primary, primary.payload), ...linkedObservationLines(result.linked_observation)];
   }
@@ -114,6 +119,29 @@ function recentFullLines(primary: Record<string, unknown>, errorLines: string[])
   }
   if (stdout.length === 0 && stderr.length === 0) {
     lines.push("stdout: <empty>");
+  }
+
+  return lines;
+}
+
+function planwriteSummaryLines(primary: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const mode = stringValue(primary.mode);
+  const cleaned = booleanValue(primary.cleaned);
+  const persisted = booleanValue(primary.persisted);
+  const text = stringValue(primary.text);
+
+  if (mode !== undefined) {
+    lines.push(`mode: ${mode}`);
+  }
+  if (cleaned !== undefined) {
+    lines.push(`cleaned: ${formatValue(cleaned)}`);
+  }
+  if (persisted !== undefined) {
+    lines.push(`persisted: ${formatValue(persisted)}`);
+  }
+  if (text !== undefined) {
+    lines.push(`text: ${text.length > 0 ? text : "<empty>"}`);
   }
 
   return lines;
@@ -393,6 +421,10 @@ function previewLines(primary: Record<string, unknown>): string[] {
 function payloadParseStatus(result: QuailbotToolResult, primary: Record<string, unknown>): PayloadParseStatus {
   if (result.action === "quailbot_plan_and_execute") {
     return "aggregate_result";
+  }
+
+  if (result.action === "quailbot_planwrite") {
+    return "structured_result";
   }
 
   return primaryPayloadParseStatus(primary);

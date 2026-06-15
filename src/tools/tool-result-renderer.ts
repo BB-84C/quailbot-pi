@@ -63,6 +63,10 @@ function deriveCallTarget(toolName: string, input: Record<string, unknown>): str
 }
 
 function callSummaryParts(toolName: string, input: Record<string, unknown>): string[] {
+  if (toolName === "quailbot_plan_and_execute") {
+    return [];
+  }
+
   if (isRecord(input.args)) {
     return [formatAssignments(input.args)];
   }

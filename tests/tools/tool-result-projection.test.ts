@@ -143,6 +143,17 @@ describe("tool result projection", () => {
     expect(text).not.toContain("LINKED_FAILURE_STDOUT_SHOULD_NOT_APPEAR");
   });
 
+  it("preserves planwrite semantic text in model-visible projection", () => {
+    const text = buildQuailbotToolContent(planwriteEphemeralResult());
+
+    expect(text).toContain("quailbot_planwrite [ok, structured_result]");
+    expect(text).toContain("mode: ephemeral");
+    expect(text).toContain("cleaned: true");
+    expect(text).toContain("persisted: false");
+    expect(text).toContain("text: Keep bias ramp below 0.20 V before readback");
+    expect(text).not.toContain("stdout_preview: <empty>");
+  });
+
   it("defaults recentFullCliResultCount to two", () => {
     expect(DEFAULT_RECENT_FULL_CLI_RESULT_COUNT).toBe(2);
   });
@@ -161,6 +172,20 @@ function cliGetBiasResult(): QuailbotToolResult {
       stderr: "",
       payload: { value: 0.17, fields: { "Bias value": 0.17 } },
       argv: ["nqctl", "get", "bias_v"],
+    },
+  };
+}
+
+function planwriteEphemeralResult(): QuailbotToolResult {
+  return {
+    ok: true,
+    action: "quailbot_planwrite",
+    action_input: { mode: "ephemeral", text: "Keep bias ramp below 0.20 V before readback", clean: true },
+    primary_result: {
+      mode: "ephemeral",
+      cleaned: true,
+      persisted: false,
+      text: "Keep bias ramp below 0.20 V before readback",
     },
   };
 }

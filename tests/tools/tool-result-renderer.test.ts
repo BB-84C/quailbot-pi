@@ -37,6 +37,25 @@ describe("tool result renderer", () => {
     expect(partialLines[0]).toMatch(/^Quailbot tool running\.\.\./);
   });
 
+  it("renders plan execution calls without dumping nested steps", () => {
+    const text = makeQuailbotRenderCall("quailbot_plan_and_execute")(
+      {
+        steps: [
+          { tool: "cli_get", args: { parameter: "bias_v", secret: "do-not-dump-step-1" } },
+          { tool: "cli_set", args: { parameter: "bias_v", value: "do-not-dump-step-2" } },
+        ],
+      },
+      {},
+      {},
+    )
+      .render(120)
+      .join("\n");
+
+    expect(text).toContain("quailbot_plan_and_execute plan steps=2");
+    expect(text).not.toContain("do-not-dump-step");
+    expect(text).not.toContain("tool=cli_get");
+  });
+
   it("renders compact and expanded results from details", () => {
     const details: QuailbotToolResult = {
       ok: true,

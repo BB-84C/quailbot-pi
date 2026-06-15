@@ -86,19 +86,19 @@ function projectionBodyLines(
 ): string[] {
   const errorLines = structuredErrorLines(primary);
 
+  if (result.action === "quailbot_plan_and_execute") {
+    return [...errorLines, ...planAndExecuteSummaryLines(primary)];
+  }
+
   if (parseStatus === "parsed_payload") {
-    return [...errorLines, ...payloadSummaryLines(primary.payload)];
+    return [...errorLines, ...payloadSummaryLines(result.action, primary, primary.payload), ...linkedObservationLines(result.linked_observation)];
   }
 
   if (mode === "recent-full") {
-    return recentFullLines(primary, errorLines);
+    return [...recentFullLines(primary, errorLines), ...linkedObservationLines(result.linked_observation)];
   }
 
-  if (result.action === "quailbot_plan_and_execute") {
-    return [...errorLines, "aggregate result projection pending full plan support"];
-  }
-
-  return [...errorLines, ...previewLines(primary)];
+  return [...errorLines, ...previewLines(primary), ...linkedObservationLines(result.linked_observation)];
 }
 
 function recentFullLines(primary: Record<string, unknown>, errorLines: string[]): string[] {
@@ -134,7 +134,15 @@ function structuredErrorLines(primary: Record<string, unknown>): string[] {
   return lines;
 }
 
-function payloadSummaryLines(payload: unknown): string[] {
+function payloadSummaryLines(action: string, primary: Record<string, unknown>, payload: unknown): string[] {
+  if (action === "cli_set") {
+    return cliSetSummaryLines(primary, payload);
+  }
+
+  if (action === "cli_ramp") {
+    return cliRampSummaryLines(primary, payload);
+  }
+
   if (!isRecord(payload)) {
     return [`payload: ${formatValue(payload)}`];
   }
@@ -145,6 +153,177 @@ function payloadSummaryLines(payload: unknown): string[] {
   }
 
   return entries.map(([key, value]) => `${key}: ${formatValue(value)}`);
+}
+
+function cliSetSummaryLines(primary: Record<string, unknown>, payload: unknown): string[] {
+  const payloadRecord = record(payload);
+  const args = recordOrUndefined(payloadRecord.args) ?? recordOrUndefined(primary.args);
+  const lines: string[] = [];
+  const value = primary.value ?? payloadRecord.value;
+
+  if (args !== undefined && Object.keys(args).length > 0) {
+    lines.push(`set: ${formatAssignments(args, " ")}`);
+  } else if (value !== undefined) {
+    lines.push(`set: value=${formatValue(value)}`);
+  }
+
+  const driverParts = [
+    fieldPart("command", payloadRecord.command),
+    fieldPart("applied", payloadRecord.applied),
+    fieldPart("dry_run", payloadRecord.dry_run),
+  ].filter((part): part is string => part !== undefined);
+
+  if (driverParts.length > 0) {
+    lines.push(`driver result: ${driverParts.join(" ")}`);
+  }
+
+  return lines.length > 0 ? lines : genericPayloadSummaryLines(payload);
+}
+
+function cliRampSummaryLines(primary: Record<string, unknown>, payload: unknown): string[] {
+  const payloadRecord = record(payload);
+  const start = payloadRecord.start_value ?? primary.start;
+  const end = payloadRecord.end_value ?? primary.end;
+  const step = payloadRecord.step_value ?? primary.step;
+  const interval = payloadRecord.interval_s ?? primary.interval_s;
+  const lines: string[] = [];
+
+  if (start !== undefined || end !== undefined || step !== undefined || interval !== undefined) {
+    lines.push(
+      `ramp: ${formatValue(start)} -> ${formatValue(end)} step=${formatValue(step)} interval=${formatValue(interval)}`,
+    );
+  }
+
+  const report = recordOrUndefined(payloadRecord.report);
+  if (report !== undefined) {
+    const reportParts = [
+      fieldPart("attempted_steps", report.attempted_steps),
+      fieldPart("applied_steps", report.applied_steps),
+      fieldPart("final_value", report.final_value),
+    ].filter((part): part is string => part !== undefined);
+
+    if (reportParts.length > 0) {
+      lines.push(`report: ${reportParts.join(" ")}`);
+    }
+  }
+
+  return lines.length > 0 ? lines : genericPayloadSummaryLines(payload);
+}
+
+function genericPayloadSummaryLines(payload: unknown): string[] {
+  if (!isRecord(payload)) {
+    return [`payload: ${formatValue(payload)}`];
+  }
+
+  const entries = Object.entries(payload);
+  if (entries.length === 0) {
+    return ["payload: {}"];
+  }
+
+  return entries.map(([key, value]) => `${key}: ${formatValue(value)}`);
+}
+
+function linkedObservationLines(value: unknown): string[] {
+  const observation = recordOrUndefined(value);
+  if (observation === undefined) {
+    return [];
+  }
+
+  const readbacks = linkedCliReadbackLines(observation, " = ");
+  const roiUnavailable = linkedRoiUnavailable(observation);
+  const unresolved = stringArray(observation.unresolved);
+  const lines: string[] = [];
+
+  if (readbacks.length > 0 || roiUnavailable.length > 0) {
+    lines.push("readback:", ...readbacks);
+    if (roiUnavailable.length > 0) {
+      lines.push("roi unavailable:", ...roiUnavailable.map((ref) => `- ${ref}`));
+    }
+  }
+
+  if (unresolved.length > 0) {
+    lines.push("unresolved:", ...unresolved.map((ref) => `- ${ref}`));
+  }
+
+  return lines;
+}
+
+function linkedCliReadbackLines(observation: Record<string, unknown>, separator: string): string[] {
+  const cli = recordOrUndefined(recordOrUndefined(observation.channels)?.cli);
+  const results = recordOrUndefined(cli?.results);
+  if (results === undefined) {
+    return [];
+  }
+
+  return Object.entries(results).map(([ref, rawResult]) => {
+    const result = record(rawResult);
+    const parseStatus = primaryPayloadParseStatus(result);
+    const payload = result.payload;
+    const value = payloadValue(payload);
+
+    if (value !== undefined) {
+      return `${ref}${separator}${formatValue(value)} [${parseStatus}]`;
+    }
+
+    return `${ref} [${parseStatus}]`;
+  });
+}
+
+function linkedRoiUnavailable(observation: Record<string, unknown>): string[] {
+  const roi = recordOrUndefined(recordOrUndefined(observation.channels)?.roi);
+  return stringArray(roi?.unavailable);
+}
+
+function planAndExecuteSummaryLines(primary: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const stoppedReason = stringValue(primary.stopped_reason);
+  const steps = Array.isArray(primary.steps) ? primary.steps : [];
+
+  if (stoppedReason !== undefined) {
+    lines.push(`stopped_reason: ${stoppedReason}`);
+  }
+
+  for (const [position, rawStep] of steps.slice(0, 30).entries()) {
+    const step = record(rawStep);
+    lines.push(planStepSummaryLine(step, position));
+  }
+
+  if (steps.length > 30) {
+    lines.push(`[truncated ${steps.length - 30} additional steps]`);
+  }
+
+  return lines;
+}
+
+function planStepSummaryLine(step: Record<string, unknown>, fallbackIndex: number): string {
+  const index = numberValue(step.index) ?? fallbackIndex;
+  const kind = stringValue(step.kind) ?? "step";
+  const primary = record(step.primary_result);
+  const status = booleanValue(primary.ok) === false ? "fail" : "ok";
+  const summary = planStepResultSummary(kind, primary, step.linked_observation);
+  return `#${index} ${kind} [${status}]${summary.length > 0 ? ` ${summary}` : ""}`;
+}
+
+function planStepResultSummary(kind: string, primary: Record<string, unknown>, linkedObservation: unknown): string {
+  const readbacks = linkedCliReadbackLines(record(linkedObservation), "=").map(stripReadbackParseStatus);
+  if (readbacks.length > 0) {
+    return `readback ${readbacks.join(" ")}`;
+  }
+
+  const payload = recordOrUndefined(primary.payload);
+  const value = payloadValue(payload);
+  if (value !== undefined) {
+    return `value=${formatValue(value)}`;
+  }
+
+  if (kind === "cli_set") {
+    const applied = recordOrUndefined(payload?.result)?.applied ?? payload?.applied;
+    if (applied !== undefined) {
+      return `applied=${formatValue(applied)}`;
+    }
+  }
+
+  return "";
 }
 
 function previewLines(primary: Record<string, unknown>): string[] {
@@ -170,6 +349,10 @@ function payloadParseStatus(result: QuailbotToolResult, primary: Record<string, 
     return "aggregate_result";
   }
 
+  return primaryPayloadParseStatus(primary);
+}
+
+function primaryPayloadParseStatus(primary: Record<string, unknown>): PayloadParseStatus {
   const errorType = stringValue(primary.error_type);
   if (errorType === "timeout") {
     return "timeout";
@@ -202,6 +385,10 @@ function deriveTarget(result: QuailbotToolResult, primary: Record<string, unknow
   const input = record(result.action_input);
   const argv = stringArray(primary.argv);
   const cliName = stringValue(input.cli_name) || argv[0];
+
+  if (result.action === "quailbot_plan_and_execute") {
+    return "plan";
+  }
 
   if (result.action === "cli_get" || result.action === "cli_set" || result.action === "cli_ramp") {
     const parameter = stringValue(input.parameter) || stringValue(primary.parameter);
@@ -254,6 +441,33 @@ function formatValue(value: unknown): string {
   return String(value);
 }
 
+function formatAssignments(value: Record<string, unknown>, separator: string): string {
+  return Object.entries(value)
+    .map(([key, entry]) => `${key}=${formatValue(entry)}`)
+    .join(separator);
+}
+
+function fieldPart(name: string, value: unknown): string | undefined {
+  return value === undefined ? undefined : `${name}=${formatValue(value)}`;
+}
+
+function payloadValue(value: unknown): unknown {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return value.value;
+}
+
+function stripReadbackParseStatus(value: string): string {
+  const marker = value.lastIndexOf(" [");
+  if (marker === -1 || !value.endsWith("]")) {
+    return value;
+  }
+
+  return value.slice(0, marker);
+}
+
 function maxCharsForMode(mode: ProjectionMode, options: ProjectionOptions): number {
   return mode === "recent-full"
     ? positiveLimit(options.fullMaxChars, DEFAULT_FULL_MAX_CHARS)
@@ -278,6 +492,10 @@ function record(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
+function recordOrUndefined(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -288,6 +506,10 @@ function stringValue(value: unknown): string | undefined {
 
 function numberValue(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function stringArray(value: unknown): string[] {

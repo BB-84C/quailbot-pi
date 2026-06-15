@@ -66,6 +66,39 @@ describe("tool result projection", () => {
     expect(content.length).toBeLessThanOrEqual(1200);
   });
 
+  it("summarizes mutating linked-observable readback and unresolved refs", () => {
+    const text = buildQuailbotToolContent(cliSetWithLinkedReadback());
+
+    expect(text).toContain("cli_set nqctl:bias_v [ok, parsed_payload]");
+    expect(text).toContain("set: Bias_value_V=0.18");
+    expect(text).toContain("driver result: command=Bias_Set applied=true dry_run=false");
+    expect(text).toContain("readback:");
+    expect(text).toContain("nqctl:bias_v = 0.180000007 [parsed_payload]");
+    expect(text).toContain("unresolved:");
+    expect(text).toContain("nqctl:current_a");
+    expect(text).not.toContain("LINKED_STDOUT_SHOULD_NOT_APPEAR");
+  });
+
+  it("summarizes ramp reports without dumping plan arrays", () => {
+    const text = buildQuailbotToolContent(cliRampVerboseResult());
+
+    expect(text).toContain("cli_ramp nqctl:bias_v [ok, parsed_payload]");
+    expect(text).toContain("ramp: 0.18 -> 0.19 step=0.01 interval=0");
+    expect(text).toContain("attempted_steps=2 applied_steps=2 final_value=0.19");
+    expect(text).not.toContain("VERBOSE_PLAN_SENTINEL");
+    expect(text).not.toContain("VERBOSE_REPORT_SENTINEL");
+  });
+
+  it("summarizes plan-and-execute as ordered steps without raw nested stdout", () => {
+    const text = buildQuailbotToolContent(planAndExecuteResult());
+
+    expect(text).toContain("quailbot_plan_and_execute plan [ok, aggregate_result]");
+    expect(text).toContain("stopped_reason: completed");
+    expect(text).toContain("#0 cli_set [ok] readback nqctl:bias_v=0.18");
+    expect(text).toContain("#1 cli_get [ok] value=0.18");
+    expect(text).not.toContain("NESTED_STDOUT_SHOULD_NOT_APPEAR");
+  });
+
   it("defaults recentFullCliResultCount to two", () => {
     expect(DEFAULT_RECENT_FULL_CLI_RESULT_COUNT).toBe(2);
   });
@@ -114,6 +147,115 @@ function roiBackendUnavailableResult(): QuailbotToolResult {
       requested_rois: ["scan"],
       error_type: "roi_backend_unavailable",
       message: "ROI screenshot/OCR backend is not configured in this plugin implementation round.",
+    },
+  };
+}
+
+function cliSetWithLinkedReadback(): QuailbotToolResult {
+  return {
+    ok: true,
+    action: "cli_set",
+    action_input: { cli_name: "nqctl", parameter: "bias_v" },
+    primary_result: {
+      parameter: "bias_v",
+      ok: true,
+      exit_code: 0,
+      stdout: "PRIMARY_STDOUT_SHOULD_NOT_APPEAR",
+      stderr: "",
+      payload: {
+        command: "Bias_Set",
+        args: { Bias_value_V: 0.18 },
+        dry_run: false,
+        applied: true,
+      },
+      argv: ["nqctl", "set", "bias_v", "--value", "0.18"],
+    },
+    linked_observation: {
+      channels: {
+        cli: {
+          results: {
+            "nqctl:bias_v": {
+              ok: true,
+              stdout: "LINKED_STDOUT_SHOULD_NOT_APPEAR",
+              payload: {
+                parameter: "bias_v",
+                value: 0.180000007,
+                fields: { "Bias value": 0.180000007 },
+              },
+            },
+          },
+        },
+      },
+      unresolved: ["nqctl:current_a"],
+    },
+  };
+}
+
+function cliRampVerboseResult(): QuailbotToolResult {
+  return {
+    ok: true,
+    action: "cli_ramp",
+    action_input: { cli_name: "nqctl", parameter: "bias_v" },
+    primary_result: {
+      parameter: "bias_v",
+      ok: true,
+      exit_code: 0,
+      stdout: "",
+      stderr: "",
+      payload: {
+        start_value: 0.18,
+        end_value: 0.19,
+        step_value: 0.01,
+        interval_s: 0,
+        plan: { targets: ["VERBOSE_PLAN_SENTINEL"] },
+        applied: true,
+        report: {
+          attempted_steps: 2,
+          applied_steps: 2,
+          final_value: 0.19,
+          reports: ["VERBOSE_REPORT_SENTINEL"],
+        },
+      },
+      argv: ["nqctl", "ramp", "bias_v", "--to", "0.19"],
+    },
+  };
+}
+
+function planAndExecuteResult(): QuailbotToolResult {
+  return {
+    ok: true,
+    action: "quailbot_plan_and_execute",
+    action_input: {},
+    primary_result: {
+      ok: true,
+      stopped_reason: "completed",
+      steps: [
+        {
+          index: 0,
+          kind: "cli_set",
+          primary_result: {
+            ok: true,
+            stdout: "NESTED_STDOUT_SHOULD_NOT_APPEAR",
+            payload: { parameter: "bias_v", result: { applied: true } },
+          },
+          linked_observation: {
+            channels: {
+              cli: {
+                results: {
+                  "nqctl:bias_v": { ok: true, payload: { value: 0.18 } },
+                },
+              },
+              roi: { unavailable: [] },
+            },
+            unresolved: [],
+          },
+        },
+        {
+          index: 1,
+          kind: "cli_get",
+          primary_result: { ok: true, payload: { parameter: "bias_v", value: 0.18 } },
+        },
+      ],
     },
   };
 }

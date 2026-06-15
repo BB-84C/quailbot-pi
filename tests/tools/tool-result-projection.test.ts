@@ -99,6 +99,15 @@ describe("tool result projection", () => {
     expect(text).not.toContain("NESTED_STDOUT_SHOULD_NOT_APPEAR");
   });
 
+  it("preserves failed plan linked readback diagnostics without raw stdout", () => {
+    const text = buildQuailbotToolContent(planWithFailedLinkedReadbackStep());
+
+    expect(text).toContain("#0 cli_set [ok] readback nqctl:current_a");
+    expect(text).toContain("readback_exception");
+    expect(text).toContain("readback blew up");
+    expect(text).not.toContain("PLAN_LINKED_FAILURE_STDOUT_SHOULD_NOT_APPEAR");
+  });
+
   it("surfaces plan validation errors", () => {
     const text = buildQuailbotToolContent(planValidationErrorResult());
 
@@ -286,6 +295,48 @@ function planAndExecuteResult(): QuailbotToolResult {
           index: 1,
           kind: "cli_get",
           primary_result: { ok: true, payload: { parameter: "bias_v", value: 0.18 } },
+        },
+      ],
+    },
+  };
+}
+
+function planWithFailedLinkedReadbackStep(): QuailbotToolResult {
+  return {
+    ok: false,
+    action: "quailbot_plan_and_execute",
+    action_input: {},
+    primary_result: {
+      ok: false,
+      stopped_reason: "step_failed",
+      steps: [
+        {
+          index: 0,
+          kind: "cli_set",
+          primary_result: {
+            ok: true,
+            payload: { parameter: "bias_v", result: { applied: true } },
+          },
+          linked_observation: {
+            channels: {
+              cli: {
+                results: {
+                  "nqctl:current_a": {
+                    ok: false,
+                    exit_code: -1,
+                    stdout: "PLAN_LINKED_FAILURE_STDOUT_SHOULD_NOT_APPEAR",
+                    stderr: "readback blew up",
+                    payload: undefined,
+                    argv: ["nqctl", "get", "current_a"],
+                    error_type: "readback_exception",
+                    error_message: "readback blew up",
+                  },
+                },
+              },
+              roi: { unavailable: [] },
+            },
+            unresolved: [],
+          },
         },
       ],
     },

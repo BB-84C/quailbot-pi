@@ -504,12 +504,8 @@ function payloadValue(value: unknown): unknown {
 }
 
 function stripReadbackParseStatus(value: string): string {
-  const marker = value.lastIndexOf(" [");
-  if (marker === -1 || !value.endsWith("]")) {
-    return value;
-  }
-
-  return value.slice(0, marker);
+  const parsedPayloadSuffix = " [parsed_payload]";
+  return value.endsWith(parsedPayloadSuffix) ? value.slice(0, -parsedPayloadSuffix.length) : value;
 }
 
 function maxCharsForMode(mode: ProjectionMode, options: ProjectionOptions): number {

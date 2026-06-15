@@ -498,26 +498,79 @@ describe("registered CLI tool schemas", () => {
   it("registers compact renderers for CLI tools", () => {
     const tools: Array<{
       name: string;
-      renderCall?: unknown;
-      renderResult?: unknown;
+      renderCall?: (args: unknown, theme: unknown, context: unknown) => { render: (width: number) => string[] };
+      renderResult?: (
+        result: { content: Array<{ type: "text"; text: string }>; details: unknown },
+        options: { expanded: boolean; isPartial: boolean },
+        theme: unknown,
+        context: unknown,
+      ) => { render: (width: number) => string[] };
       parameters: { properties?: Record<string, unknown> };
     }> = [];
     const pi = {
       registerTool: (tool: {
         name: string;
-        renderCall?: unknown;
-        renderResult?: unknown;
+        renderCall?: (args: unknown, theme: unknown, context: unknown) => { render: (width: number) => string[] };
+        renderResult?: (
+          result: { content: Array<{ type: "text"; text: string }>; details: unknown },
+          options: { expanded: boolean; isPartial: boolean },
+          theme: unknown,
+          context: unknown,
+        ) => { render: (width: number) => string[] };
         parameters: { properties?: Record<string, unknown> };
       }) => tools.push(tool),
     };
 
     registerQuailbotTools(pi as never, { workspace: fixtureWorkspace() } as never);
 
-    for (const name of ["cli_get", "cli_set", "cli_ramp", "cli_action"]) {
+    for (const { name, input, expected } of [
+      { name: "cli_get", input: { cli_name: "nqctl", parameter: "bias_v" }, expected: "cli_get nqctl:bias_v" },
+      { name: "cli_set", input: { cli_name: "nqctl", parameter: "bias_v", value: 0.18 }, expected: "cli_set nqctl:bias_v value=0.18" },
+      {
+        name: "cli_ramp",
+        input: { cli_name: "nqctl", parameter: "bias_v", start: 0, end: 1, step: 0.1, interval_s: 1 },
+        expected: "cli_ramp nqctl:bias_v start=0 end=1 step=0.1 interval_s=1",
+      },
+      {
+        name: "cli_action",
+        input: { cli_name: "nqctl", action_name: "Scan_Action", args: { action: "start" } },
+        expected: "cli_action nqctl:Scan_Action action=start",
+      },
+    ]) {
       const tool = tools.find((item) => item.name === name);
       expect(tool?.renderCall).toEqual(expect.any(Function));
       expect(tool?.renderResult).toEqual(expect.any(Function));
+      const renderedCall = tool?.renderCall?.(input, {}, {}).render(120).join("\n");
+      expect(renderedCall).toContain(expected);
+      expect(renderedCall).not.toContain("{");
+      expect(renderedCall).not.toContain("}");
     }
+
+    const cliGet = tools.find((item) => item.name === "cli_get");
+    const renderedResult = cliGet?.renderResult?.(
+      {
+        content: [{ type: "text", text: "fallback text should not render when details are present" }],
+        details: {
+          ok: true,
+          action: "cli_get",
+          action_input: { cli_name: "nqctl", parameter: "bias_v" },
+          primary_result: {
+            parameter: "bias_v",
+            ok: true,
+            exit_code: 0,
+            stdout: "REGISTERED_RENDERER_RAW_STDOUT_SHOULD_NOT_APPEAR",
+            stderr: "",
+            payload: { parameter: "bias_v", value: 0.17, fields: { "Bias value": 0.17 } },
+            argv: ["nqctl", "get", "bias_v"],
+          },
+        },
+      },
+      { expanded: false, isPartial: false },
+      {},
+      {},
+    ).render(120).join("\n");
+    expect(renderedResult).toContain("cli_get nqctl:bias_v [ok, parsed_payload]");
+    expect(renderedResult).not.toContain("REGISTERED_RENDERER_RAW_STDOUT_SHOULD_NOT_APPEAR");
   });
 
   it("blocks cli_set, cli_ramp, and cli_action before validation or driver execution when mutation policy is disabled", async () => {

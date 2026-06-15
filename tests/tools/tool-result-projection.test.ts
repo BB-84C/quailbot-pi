@@ -159,15 +159,8 @@ describe("tool result projection", () => {
   });
 
   it("classifies actual nqctl stdout quirks observed on simulator runs", () => {
-    const actionFailure = buildQuailbotToolContent(cliActionUnparsedFailure("Start action timeout"));
-    const scanSpeed = buildQuailbotToolContent(
-      cliGetScanSpeedUnparsed(`{
-    "parameter": "scan_speed",
-    "value": { "Backward time per line": Infinity },
-    "fields": { "Backward time per line": Infinity },
-    "timestamp_utc": "2026-06-15T17:46:03.394799Z"
-  }`),
-    );
+    const actionFailure = buildQuailbotToolContent(cliActionUnparsedFailure(NQCTL_SCAN_ACTION_TIMEOUT_STDOUT));
+    const scanSpeed = buildQuailbotToolContent(cliGetScanSpeedUnparsed(NQCTL_SCAN_SPEED_INFINITY_STDOUT));
 
     expect(actionFailure).toContain("payload_parse_failed_non_json_prefix");
     expect(actionFailure).toContain("Start action timeout");
@@ -175,6 +168,21 @@ describe("tool result projection", () => {
     expect(scanSpeed).toContain("Infinity");
   });
 });
+
+// Observed in A5 grounded nqctl simulator recon on 2026-06-15: scan-speed get
+// returned JSON-shaped stdout containing the JavaScript token Infinity, which is
+// not valid JSON and must stay classified as nonstandard JSON diagnostics.
+const NQCTL_SCAN_SPEED_INFINITY_STDOUT = `{
+  "parameter": "scan_speed",
+  "value": { "Backward time per line": Infinity },
+  "fields": { "Backward time per line": Infinity },
+  "timestamp_utc": "2026-06-15T17:46:03.394799Z"
+}`;
+
+// Observed in A5 grounded nqctl simulator recon on 2026-06-15: scan action
+// timeout stdout began with a human diagnostic before any JSON-shaped payload.
+const NQCTL_SCAN_ACTION_TIMEOUT_STDOUT = `Start action timeout
+{"error":"instrument rejected scan start"}`;
 
 function cliGetBiasResult(): QuailbotToolResult {
   return {
@@ -508,7 +516,7 @@ function cliSetWithLinkedFailureReadback(): QuailbotToolResult {
   };
 }
 
-function cliActionUnparsedFailure(sentinel: string): QuailbotToolResult {
+function cliActionUnparsedFailure(stdout: string): QuailbotToolResult {
   return {
     ok: false,
     action: "cli_action",
@@ -518,7 +526,7 @@ function cliActionUnparsedFailure(sentinel: string): QuailbotToolResult {
       args: { action: "start" },
       ok: false,
       exit_code: 3,
-      stdout: `${sentinel}\n{"error":"instrument rejected scan start"}`,
+      stdout,
       stderr: "scan failed before motion started",
       payload: undefined,
       argv: ["nqctl", "act", "Scan_Action", "--arg", "action=start"],

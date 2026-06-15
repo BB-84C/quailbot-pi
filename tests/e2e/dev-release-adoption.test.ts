@@ -74,6 +74,9 @@ describe("local Pi dev release adoption", () => {
     for (const tool of tools) {
       expect(tool.renderResult).toEqual(expect.any(Function));
     }
+    for (const tool of tools.filter((tool) => expectedToolNames.includes(tool.name))) {
+      expect(tool.renderCall).toEqual(expect.any(Function));
+    }
     expect(commands.map((command) => command.name)).toEqual(["quailbot-workspace"]);
   });
 

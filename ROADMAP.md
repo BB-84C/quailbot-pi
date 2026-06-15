@@ -28,7 +28,7 @@ Date: 2026-06-01
 
 ## Deferred items
 
-- Experiment log design and implementation.
+- Experiment log subsystem is promoted to Phase A7 rather than staying as an unnumbered deferred item.
 - `wait_until`, calibration UI, and legacy `finish`/`fail` tools, unless later explicitly scoped.
 - Packaging/distribution decision for the Pi plugin after the local extension implementation proves the protocol.
 
@@ -130,7 +130,7 @@ Date: 2026-06-11
 ### Later phases must do differently
 
 - A3 calibration/editing must call the A2 workspace service rather than writing its own workspace activation path.
-- A4 remote host must reuse the A2 validation/hash/activation semantics and add host-side approved-destination policy, auth, job queue, cancellation, supervisor policy, and durable experiment evidence around them.
+- The later remote host phase must reuse the A2 validation/hash/activation semantics and add host-side approved-destination policy, auth, job queue, cancellation, supervisor policy, and durable experiment evidence around them.
 - A2A remains deferred as a possible peer-agent facade; it is not the core host/workspace API.
 
 ## Implementation round: A3 browser workspace calibrator responsive shell
@@ -180,7 +180,7 @@ Date: 2026-06-14
 
 ### Later phases must do differently
 
-- A4 must add auth, approved destination policy, host lifecycle, job supervision, cancellation, and durable experiment evidence around the A2/A3 workspace substrate rather than exposing the raw local write server remotely.
+- The remote host phase must add auth, approved destination policy, host lifecycle, job supervision, cancellation, and durable experiment evidence around the A2/A3 workspace substrate rather than exposing the raw local write server remotely.
 - Live capture should enter through `CaptureFrame` metadata so browser display coordinates remain separate from saved image/instrument coordinates.
 - Experiment logs remain outside A3; they should record workspace path/hash, actions, linked-observable readback, driver payloads, and failure/abort records in a later phase.
 
@@ -264,34 +264,20 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 **Recommended default:** Probe the split approach. Use A2 as the state/reload contract so either TUI edits or external GUI writes converge on the same workspace selection path.
 
-### Phase A4: Remote instrument host, client, and MCP surface
-
-**Concise spec:** Rebuild the remote operation model around Pi: a human supervisor launches a host on the instrument server; the host connects to one or more instruments; remote users submit jobs/tasks from their laptops through a client; that client also exposes MCP so a user's agent can submit/status/cancel/fetch jobs through MCP.
-
-**Feasibility:** Medium. Legacy Quailbot has FastAPI host routes, a job manager, HTTP client, and FastMCP hub tools. Pi provides useful agent infrastructure through RPC mode and `AgentSession` SDK, but Pi explicitly does not include built-in MCP and does not provide a ready-made multi-user HTTP job server. This should be built on top of Pi, not embedded blindly into the extension.
-
-**Options / trade-offs:**
-
-- Separate supervised host service using Pi SDK or Pi RPC sessions per job: best long-term seam; clear host/client boundary; requires queueing, auth, cancellation, logs, and multi-instrument routing.
-- Adapt legacy FastAPI host + HTTP client + FastMCP hub around Pi RPC: fastest behavior transplant; carries Python service dependencies and legacy route assumptions.
-- New TypeScript/Node host around Pi SDK: closer to the Pi package ecosystem; more rewrite cost.
-- HTTP server inside the Pi extension: avoid unless SDK constraints force it; it couples session UI/plugin code to long-lived job serving.
-
-**Recommended default:** Design a separate host/supervisor service first, with the MCP client as a downstream wrapper over the host API. Reuse A2's workspace control-plane substrate for host-side workspace validation/revision/activation instead of inventing a second remote workspace contract. Treat A2A as an optional future facade only when Quailbot needs peer agent-to-agent delegation; do not use A2A as the core host API now. Treat legacy server-host-hub-client-MCP as behavior evidence, not code to paste wholesale.
-
 ### Phase A5: Pi TUI tool-result rendering/truncation
 
-**Concise spec:** Stop large Quailbot tool results from flooding the Pi TUI. Render concise previews for tool calls/results, keep full structured evidence available through `details` or local artifacts, and make truncation explicit. The goal is TUI readability first; context-size reduction is a separate choice if we also truncate tool-result `content` sent back to the model.
+**Concise spec:** Add contract-grounded Quailbot tool-result projection and TUI rendering. Replace raw pretty-JSON `QuailbotToolResult` content with bounded semantic summaries grounded in `quail-cli-core`, `nqctl`, and quailbot-pi's actual `runCli` parser behavior. Keep full original results in `details`, surface payload parse status explicitly, render compact/expanded TUI rows from the same projection, and add a context policy that exposes fuller model-visible CLI details only for the latest two direct `cli_*` results while older CLI results stay summary-only.
 
 **Feasibility:** High for Quailbot-owned tools, medium for global Pi behavior. Current `src/tools/register-tools.ts` serializes the full `QuailbotToolResult` into `content[0].text`; Pi custom tools support `renderCall` and `renderResult`, and the `tool_result` event can modify returned content/details. OpenCode's bash/tool-output precedent uses line/byte caps, writes full output to disk, and returns a preview plus recovery hint.
 
 **Options / trade-offs:**
 
-- Display-only `renderResult` for Quailbot tools: best for TUI readability; does not reduce model context payload.
-- Content-level truncation service for Quailbot tool results: reduces TUI and model context pressure; must preserve full output in `details` or artifacts with a recovery path.
+- Display-only `renderResult` for Quailbot tools: improves TUI readability but does not reduce model context payload; rejected as insufficient for A5.
+- Contract-grounded projection plus renderers: recommended. Use parsed payload when available, surface parse failures when payload is absent, summarize linked-observable readback, and keep full result in `details`.
+- Parser hardening for prefixed JSON or non-standard tokens such as `Infinity`: defer as a follow-up; A5 first slice should detect and expose parse failures rather than silently repairing them.
 - Pi core rendering/truncation patch: only needed for built-in/global tool rendering or if plugin renderers cannot cover the desired surface.
 
-**Recommended default:** First implement a Quailbot-owned truncation/preview service and per-tool renderers. Escalate to Pi core only if built-in rendering remains the blocker.
+**Recommended default:** First implement a Quailbot-owned projection service and per-tool renderers. Default `recentFullCliResultCount` to `2`. Preserve full raw results in `details`; leave durable disk-backed experiment evidence to A7. Escalate to Pi core only if plugin-level projection/rendering cannot satisfy real TUI acceptance.
 
 ### Phase A6: Context usage by component and hierarchy
 
@@ -307,10 +293,41 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 **Recommended default:** Start hybrid. Show Quailbot-owned component estimates clearly, and reserve Pi core work for exact system/tool/skills/message hierarchy.
 
+### Phase A7: Experiment log subsystem
+
+**Concise spec:** Add a durable experiment log subsystem separate from Pi session history and separate from OpenCode construction artifacts. It should record experiment id, workspace path/hash/revision, submitted action or plan-step sequence, primary tool results, linked-observable readback, timestamps, driver payloads, allow/deny decisions, abort/failure records, and evidence/artifact pointers. The log should be usable by local Pi runs first and become the evidence substrate that the later remote host reuses.
+
+**Feasibility:** Medium-high. Current mutating tools and `quailbot_plan_and_execute` already produce ordered primary results and linked-observable observations; the missing seam is a durable, append-only experiment evidence model with query/readback helpers. Keep it product-generic and workspace/driver/instrument agnostic.
+
+**Options / trade-offs:**
+
+- Append-only project-local JSONL or per-experiment JSON artifacts: recommended first slice; easy to audit, easy to preserve, and low-intrusion.
+- SQLite-backed experiment store: better querying and concurrency, but premature unless local logs become hard to query or A8 needs concurrent multi-user writes.
+- Piggyback on Pi session history: rejected; chat/session history is not the same authority as instrument experiment evidence.
+- OpenCode `.opencode/artifacts/...` only: rejected for product runtime evidence; construction artifacts are local acceptance evidence, not the user's durable experiment record.
+
+**Recommended default:** Start with a Quailbot-owned append-only experiment log service and a small read/query surface. Hook it into mutating direct tools and `quailbot_plan_and_execute` after defining the semantic acceptance matrix: successful mutating step, linked-observable readback, denied mutation, validation failure before side effects, step failure, and abort/failure recording.
+
+### Phase A8: Remote instrument host, client, and MCP surface (formerly A4)
+
+**Concise spec:** Rebuild the remote operation model around Pi after A5/A6/A7: a human supervisor launches a host on the instrument server; the host connects to one or more instruments; remote users submit jobs/tasks from their laptops through a client; that client also exposes MCP so a user's agent can submit/status/cancel/fetch jobs through MCP.
+
+**Feasibility:** Medium. Legacy Quailbot has FastAPI host routes, a job manager, HTTP client, and FastMCP hub tools. Pi provides useful agent infrastructure through RPC mode and `AgentSession` SDK, but Pi explicitly does not include built-in MCP and does not provide a ready-made multi-user HTTP job server. This should be built on top of Pi, not embedded blindly into the extension.
+
+**Options / trade-offs:**
+
+- Separate supervised host service using Pi SDK or Pi RPC sessions per job: best long-term seam; clear host/client boundary; requires queueing, auth, cancellation, logs, and multi-instrument routing.
+- Adapt legacy FastAPI host + HTTP client + FastMCP hub around Pi RPC: fastest behavior transplant; carries Python service dependencies and legacy route assumptions.
+- New TypeScript/Node host around Pi SDK: closer to the Pi package ecosystem; more rewrite cost.
+- HTTP server inside the Pi extension: avoid unless SDK constraints force it; it couples session UI/plugin code to long-lived job serving.
+
+**Recommended default:** Design a separate host/supervisor service first, with the MCP client as a downstream wrapper over the host API. Reuse A2's workspace control-plane substrate and A7's experiment log subsystem for host-side workspace validation/revision/activation and durable evidence instead of inventing a second remote workspace or evidence contract. Treat A2A as an optional future facade only when Quailbot needs peer agent-to-agent delegation; do not use A2A as the core host API now. Treat legacy server-host-hub-client-MCP as behavior evidence, not code to paste wholesale.
+
 ### Sequencing notes
 
 - A1 should land first so later behavior runs under the right instrument-operator identity.
 - A2 should land before A3 because calibration/editing must share one workspace selection, validation, write, revision, and reload contract.
-- A4 is a separate architecture phase after local plugin workflow is stable, but A2 must be designed as the substrate A4 will reuse for workspace validation and activation.
-- A5 and A6 are operability phases and can run once real sessions produce enough tool/context volume to justify them.
+- A5 and A6 are the next operability phases and can run once real sessions produce enough tool/context volume to justify them.
+- A7 should add the durable experiment evidence substrate before the remote host so remote jobs do not invent a second logging contract.
+- A8 is the deferred remote-host architecture phase after A5/A6/A7; it must reuse A2 for workspace validation/activation and A7 for experiment evidence.
 - Every future implementation phase still needs semantic Pi-session acceptance; the ROADMAP is only a guide, not the detailed spec.

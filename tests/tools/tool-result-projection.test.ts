@@ -99,6 +99,30 @@ describe("tool result projection", () => {
     expect(text).not.toContain("NESTED_STDOUT_SHOULD_NOT_APPEAR");
   });
 
+  it("surfaces plan validation errors", () => {
+    const text = buildQuailbotToolContent(planValidationErrorResult());
+
+    expect(text).toContain("stopped_reason: validation_failed");
+    expect(text).toContain("validation_error: mutation policy disabled");
+  });
+
+  it("marks failed GUI plan steps as fail", () => {
+    const text = buildQuailbotToolContent(planWithFailedGuiStepResult());
+
+    expect(text).toContain("#0 observe [fail]");
+    expect(text).toContain("error_type=roi_backend_unavailable");
+    expect(text).toContain("ROI screenshot/OCR backend is not configured in this plugin implementation round.");
+  });
+
+  it("surfaces linked readback failures without raw stdout", () => {
+    const text = buildQuailbotToolContent(cliSetWithLinkedFailureReadback());
+
+    expect(text).toContain("nqctl:current_a");
+    expect(text).toContain("readback_exception");
+    expect(text).toContain("readback blew up");
+    expect(text).not.toContain("LINKED_FAILURE_STDOUT_SHOULD_NOT_APPEAR");
+  });
+
   it("defaults recentFullCliResultCount to two", () => {
     expect(DEFAULT_RECENT_FULL_CLI_RESULT_COUNT).toBe(2);
   });
@@ -264,6 +288,78 @@ function planAndExecuteResult(): QuailbotToolResult {
           primary_result: { ok: true, payload: { parameter: "bias_v", value: 0.18 } },
         },
       ],
+    },
+  };
+}
+
+function planValidationErrorResult(): QuailbotToolResult {
+  return {
+    ok: false,
+    action: "quailbot_plan_and_execute",
+    action_input: {},
+    primary_result: {
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: "mutation policy disabled: Mutating quantum-instrument tools require QUAILBOT_ALLOW_MUTATING_TOOLS=1.",
+      steps: [],
+    },
+  };
+}
+
+function planWithFailedGuiStepResult(): QuailbotToolResult {
+  return {
+    ok: false,
+    action: "quailbot_plan_and_execute",
+    action_input: {},
+    primary_result: {
+      ok: false,
+      stopped_reason: "step_failed",
+      steps: [
+        {
+          index: 0,
+          kind: "observe",
+          primary_result: {
+            requested_rois: ["scan"],
+            error_type: "roi_backend_unavailable",
+            message: "ROI screenshot/OCR backend is not configured in this plugin implementation round.",
+          },
+        },
+      ],
+    },
+  };
+}
+
+function cliSetWithLinkedFailureReadback(): QuailbotToolResult {
+  return {
+    ok: false,
+    action: "cli_set",
+    action_input: { cli_name: "nqctl", parameter: "bias_v" },
+    primary_result: {
+      parameter: "bias_v",
+      ok: true,
+      exit_code: 0,
+      stdout: "PRIMARY_STDOUT_SHOULD_NOT_APPEAR",
+      stderr: "",
+      payload: { parameter: "bias_v", value: 0.18 },
+      argv: ["nqctl", "set", "bias_v", "--value", "0.18"],
+    },
+    linked_observation: {
+      channels: {
+        cli: {
+          results: {
+            "nqctl:current_a": {
+              ok: false,
+              exit_code: -1,
+              stdout: "LINKED_FAILURE_STDOUT_SHOULD_NOT_APPEAR",
+              stderr: "readback blew up",
+              payload: undefined,
+              argv: ["nqctl", "get", "current_a"],
+              error_type: "readback_exception",
+              error_message: "readback blew up",
+            },
+          },
+        },
+      },
     },
   };
 }

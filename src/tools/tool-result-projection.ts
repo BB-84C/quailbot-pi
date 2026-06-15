@@ -266,7 +266,9 @@ function linkedCliReadbackLines(observation: Record<string, unknown>, separator:
       return `${ref}${separator}${formatValue(value)} [${parseStatus}]`;
     }
 
-    return `${ref} [${parseStatus}]`;
+    const diagnosticParts = structuredDiagnosticParts(result);
+    const suffix = diagnosticParts.length > 0 ? `, ${diagnosticParts.join(" ")}` : "";
+    return `${ref} [${parseStatus}${suffix}]`;
   });
 }
 
@@ -278,10 +280,14 @@ function linkedRoiUnavailable(observation: Record<string, unknown>): string[] {
 function planAndExecuteSummaryLines(primary: Record<string, unknown>): string[] {
   const lines: string[] = [];
   const stoppedReason = stringValue(primary.stopped_reason);
+  const validationError = stringValue(primary.validation_error);
   const steps = Array.isArray(primary.steps) ? primary.steps : [];
 
   if (stoppedReason !== undefined) {
     lines.push(`stopped_reason: ${stoppedReason}`);
+  }
+  if (validationError !== undefined) {
+    lines.push(`validation_error: ${validationError}`);
   }
 
   for (const [position, rawStep] of steps.slice(0, 30).entries()) {
@@ -300,9 +306,22 @@ function planStepSummaryLine(step: Record<string, unknown>, fallbackIndex: numbe
   const index = numberValue(step.index) ?? fallbackIndex;
   const kind = stringValue(step.kind) ?? "step";
   const primary = record(step.primary_result);
-  const status = booleanValue(primary.ok) === false ? "fail" : "ok";
+  const status = planStepStatus(primary);
   const summary = planStepResultSummary(kind, primary, step.linked_observation);
   return `#${index} ${kind} [${status}]${summary.length > 0 ? ` ${summary}` : ""}`;
+}
+
+function planStepStatus(primary: Record<string, unknown>): ProjectionStatus {
+  const ok = booleanValue(primary.ok);
+  if (ok === false) {
+    return "fail";
+  }
+
+  if (ok === undefined && hasStructuredError(primary)) {
+    return "fail";
+  }
+
+  return "ok";
 }
 
 function planStepResultSummary(kind: string, primary: Record<string, unknown>, linkedObservation: unknown): string {
@@ -324,7 +343,31 @@ function planStepResultSummary(kind: string, primary: Record<string, unknown>, l
     }
   }
 
+  const diagnosticParts = structuredDiagnosticParts(primary);
+  if (diagnosticParts.length > 0) {
+    return diagnosticParts.join(" ");
+  }
+
   return "";
+}
+
+function structuredDiagnosticParts(primary: Record<string, unknown>): string[] {
+  return [
+    fieldPart("ok", booleanValue(primary.ok) === false ? false : undefined),
+    fieldPart("exit", numberValue(primary.exit_code)),
+    fieldPart("error_type", primary.error_type),
+    fieldPart("error_message", primary.error_message),
+    fieldPart("message", primary.message),
+    fieldPart("stderr", primary.stderr),
+  ].filter((part): part is string => part !== undefined);
+}
+
+function hasStructuredError(primary: Record<string, unknown>): boolean {
+  return (
+    stringValue(primary.error_type) !== undefined ||
+    stringValue(primary.error_message) !== undefined ||
+    stringValue(primary.message) !== undefined
+  );
 }
 
 function previewLines(primary: Record<string, unknown>): string[] {

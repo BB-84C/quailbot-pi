@@ -157,7 +157,8 @@ function payloadSummaryLines(action: string, primary: Record<string, unknown>, p
 
 function cliSetSummaryLines(primary: Record<string, unknown>, payload: unknown): string[] {
   const payloadRecord = record(payload);
-  const args = recordOrUndefined(payloadRecord.args) ?? recordOrUndefined(primary.args);
+  const result = recordOrUndefined(payloadRecord.result);
+  const args = recordOrUndefined(result?.args) ?? recordOrUndefined(payloadRecord.args) ?? recordOrUndefined(primary.args);
   const lines: string[] = [];
   const value = primary.value ?? payloadRecord.value;
 
@@ -168,9 +169,9 @@ function cliSetSummaryLines(primary: Record<string, unknown>, payload: unknown):
   }
 
   const driverParts = [
-    fieldPart("command", payloadRecord.command),
-    fieldPart("applied", payloadRecord.applied),
-    fieldPart("dry_run", payloadRecord.dry_run),
+    fieldPart("command", result?.command ?? payloadRecord.command),
+    fieldPart("applied", result?.applied ?? payloadRecord.applied),
+    fieldPart("dry_run", result?.dry_run ?? payloadRecord.dry_run),
   ].filter((part): part is string => part !== undefined);
 
   if (driverParts.length > 0) {

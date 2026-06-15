@@ -29,7 +29,7 @@ const expectedToolNames = [
   "sleep_seconds",
 ];
 
-type PiEventName = "session_start" | "before_agent_start" | "session_shutdown" | string;
+type PiEventName = "session_start" | "before_agent_start" | "context" | "session_shutdown" | string;
 type PiHandler = ExtensionHandler<any, any>;
 type RegisteredTool = { name: string };
 type RegisteredCommand = {
@@ -64,7 +64,12 @@ describe("local Pi dev release adoption", () => {
   it("registers deterministic handlers, commands, and product-agnostic tools from the built extension", async () => {
     const { handlers, tools, commands } = await loadBuiltExtensionWithPiStub();
 
-    expect([...handlers.keys()].sort(compareNames)).toEqual(["before_agent_start", "session_shutdown", "session_start"]);
+    expect([...handlers.keys()].sort(compareNames)).toEqual([
+      "before_agent_start",
+      "context",
+      "session_shutdown",
+      "session_start",
+    ]);
     expect(tools.map((tool) => tool.name).sort(compareExpectedToolNames)).toEqual(expectedToolNames);
     expect(commands.map((command) => command.name)).toEqual(["quailbot-workspace"]);
   });

@@ -84,12 +84,12 @@ function projectionBodyLines(
   parseStatus: PayloadParseStatus,
   mode: ProjectionMode,
 ): string[] {
-  if (mode === "recent-full") {
-    return recentFullLines(primary);
-  }
-
   if (parseStatus === "parsed_payload") {
     return payloadSummaryLines(primary.payload);
+  }
+
+  if (mode === "recent-full") {
+    return recentFullLines(primary);
   }
 
   if (result.action === "quailbot_plan_and_execute") {

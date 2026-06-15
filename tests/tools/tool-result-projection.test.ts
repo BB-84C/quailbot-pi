@@ -22,6 +22,18 @@ describe("tool result projection", () => {
     expect(content).not.toContain("RAW_STDOUT_SHOULD_NOT_APPEAR_WHEN_PAYLOAD_EXISTS");
   });
 
+  it("uses parsed cli_get payload in recent-full mode without duplicating raw stdout", () => {
+    const content = buildQuailbotToolContent(cliGetBiasResult(), {
+      mode: "recent-full",
+      fullMaxChars: 1200,
+    });
+
+    expect(content).toContain("cli_get nqctl:bias_v [ok, parsed_payload]");
+    expect(content).toContain("value: 0.17");
+    expect(content).toContain("fields: Bias value=0.17");
+    expect(content).not.toContain("RAW_STDOUT_SHOULD_NOT_APPEAR_WHEN_PAYLOAD_EXISTS");
+  });
+
   it("surfaces unparsed successful stdout with a bounded preview", () => {
     const content = buildQuailbotToolContent(cliGetScanSpeedUnparsed(), { summaryMaxChars: 700 });
     const projection = projectQuailbotToolResult(cliGetScanSpeedUnparsed(), { summaryMaxChars: 700 });

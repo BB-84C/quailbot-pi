@@ -18,6 +18,25 @@ describe("tool result renderer", () => {
     expect(text).toContain("Bias_value_V=0.18");
   });
 
+  it("renders tool summaries without tui padding", () => {
+    const callLines = makeQuailbotRenderCall("cli_get")(
+      { parameter: "bias_v", cli_name: "nqctl" },
+      {},
+      {},
+    ).render(120);
+    const partialLines = renderQuailbotToolResult(
+      { content: [{ type: "text" as const, text: "running" }], details: undefined },
+      { expanded: false, isPartial: true },
+      {},
+      {},
+    ).render(120);
+
+    expect(callLines).toHaveLength(1);
+    expect(callLines[0]).toMatch(/^cli_get nqctl:bias_v/);
+    expect(partialLines).toHaveLength(1);
+    expect(partialLines[0]).toMatch(/^Quailbot tool running\.\.\./);
+  });
+
   it("renders compact and expanded results from details", () => {
     const details: QuailbotToolResult = {
       ok: true,

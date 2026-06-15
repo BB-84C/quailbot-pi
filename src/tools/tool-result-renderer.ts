@@ -5,7 +5,7 @@ import type { QuailbotToolResult } from "./tool-result.js";
 import { buildQuailbotToolContent, projectQuailbotToolResult } from "./tool-result-projection.js";
 
 export function makeQuailbotRenderCall(toolName: string) {
-  return (args: unknown, _theme: unknown, _context: unknown): Text => new Text(formatToolCall(toolName, args));
+  return (args: unknown, _theme: unknown, _context: unknown): Text => new Text(formatToolCall(toolName, args), 0, 0);
 }
 
 export function renderQuailbotToolResult(
@@ -15,17 +15,17 @@ export function renderQuailbotToolResult(
   _context: unknown,
 ): Text {
   if (options.isPartial) {
-    return new Text("Quailbot tool running...");
+    return new Text("Quailbot tool running...", 0, 0);
   }
 
   if (isQuailbotToolResult(result.details)) {
     const text = options.expanded
       ? buildQuailbotToolContent(result.details)
       : projectQuailbotToolResult(result.details).headline;
-    return new Text(text);
+    return new Text(text, 0, 0);
   }
 
-  return new Text(firstTextContent(result.content) ?? "Quailbot tool result unavailable");
+  return new Text(firstTextContent(result.content) ?? "Quailbot tool result unavailable", 0, 0);
 }
 
 function formatToolCall(toolName: string, args: unknown): string {

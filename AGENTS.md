@@ -56,3 +56,15 @@
 - For the A3 web-workspace / visual-helper workstream, use subagent-driven implementation, best-of-N sampling for nontrivial slices, and multiple small commits with push-backed continuity when the workstream is being advanced across sessions.
 - Keep A3 work on dedicated feature branches or worktrees rather than mixing it into unrelated branch state.
 - Because there is no real instrument UI available yet, visual semantic acceptance for the web UI should focus on ROI and anchor fidelity: capture the actual image, compare the saved or observed image region against the ROI or anchor drawn in the web UI, and treat offset or alignment mismatch as a real failure.
+
+## A3 Real-Substrate Acceptance (2026-06-14)
+- A3 workspace-calibrator acceptance must use a real screenshot or real workspace capture image as the substrate; synthetic SVG or fixture imagery does not count.
+- For ROI and anchor proof, draw the ROI and anchor over that exact captured image and preserve evidence that the overlay coordinates do not drift relative to the screenshot.
+- Group tree collapse and expand must actually work in the web UI; visual acceptance must show the collapsed state, not just code-path claims.
+- Acceptance must prove the real path: load existing workspace -> web edit/write -> request activation -> current agent hidden WORKSPACE context updated.
+- Before claiming schema compatibility, compare the generated workspace file against the authoritative real workspace JSON under `D:/quailbot` and check for drift.
+- Do not substitute mocked or synthetic evidence when the user asked for real screenshot or real workspace proof.
+## Tk Parity Is Authoritative (2026-06-15)
+- For the web workspace/calibrator work, `D:/quailbot` is the authoritative behavior source. Implement against the old Tk product logic directly instead of improvising a new interaction model.
+- Do not limit parity work to the first failures the user happened to hit. Treat group tree behavior, ROI draw/edit flow, save/load, and the rest of the calibrator as a broad parity surface, and assume more gaps may exist until checked against the old project.
+- When the target behavior is already clear from the old project, proceed with TDD and do not interrupt the user for extra review/decision gates unless you are genuinely unsure how to proceed.

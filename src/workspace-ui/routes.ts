@@ -3,7 +3,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 
 import { loadActiveWorkspace, validateWorkspaceJson, writeWorkspaceJson } from "../workspace/workspace-service.js";
 import type { QuailbotRuntime } from "../extension.js";
-import { findWorkspaceCaptureFrame } from "./capture-frame.js";
+import { findWorkspaceCaptureFrame, persistWorkspaceCaptureFrameOrigin, refreshWorkspaceCaptureFrame, type WorkspaceCaptureFrame } from "./capture-frame.js";
 import { loadCliCapabilityPayload, mergeCliCapabilities, type ConflictResolution } from "./cli-import.js";
 import { createWorkspaceDraft, serializeWorkspaceDraft } from "./draft.js";
 
@@ -11,6 +11,7 @@ export type WorkspaceUiBackend = {
   cwd: string;
   runtime: QuailbotRuntime;
   token: string;
+  refreshCaptureFrame?: (cwd: string) => WorkspaceCaptureFrame | Promise<WorkspaceCaptureFrame>;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -31,19 +32,32 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
         summary: active.summary,
         ...(captureFrame !== undefined
           ? {
-              captureFrame: {
-                href: `/assets/workspace-capture?token=${encodeURIComponent(backend.token)}`,
-                imageWidth: captureFrame.imageWidth,
-                imageHeight: captureFrame.imageHeight,
-                contentType: captureFrame.contentType,
-              },
+              captureFrame: captureFramePayload(captureFrame, backend),
             }
           : {}),
         workspaceJson: serializeWorkspaceDraft(createWorkspaceDraft(JSON.parse(readFileSync(active.selection.path, "utf8")) as unknown)),
       });
     }
 
+    if (request.method === "GET" && url.pathname === "/api/health") {
+      return jsonResponse({ ok: true, status: "workspace-ui-alive" });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/capture") {
+      const headerAuth = authorizeHeaderToken(request, backend);
+      if (headerAuth !== undefined) {
+        return headerAuth;
+      }
+      const frame = await (backend.refreshCaptureFrame ?? refreshWorkspaceCaptureFrame)(backend.cwd);
+      persistWorkspaceCaptureFrameOrigin(backend.cwd, frame);
+      return jsonResponse({ ok: true, captureFrame: captureFramePayload(frame, backend) });
+    }
+
     if (request.method === "POST" && url.pathname === "/api/validate") {
+      const headerAuth = authorizeHeaderToken(request, backend);
+      if (headerAuth !== undefined) {
+        return headerAuth;
+      }
       const body = record(await readJsonBody(request));
       const validation = validateWorkspaceJson(body.workspaceJson, { cwd: backend.cwd });
       if (!validation.ok) {
@@ -131,6 +145,17 @@ export async function handleWorkspaceApi(request: Request, backend: WorkspaceUiB
   }
 
   return jsonResponse({ ok: false, error: "workspace UI route not found" }, 404);
+}
+
+function captureFramePayload(frame: WorkspaceCaptureFrame, backend: WorkspaceUiBackend): JsonRecord {
+  return {
+    href: `/assets/workspace-capture?token=${encodeURIComponent(backend.token)}`,
+    imageWidth: frame.imageWidth,
+    imageHeight: frame.imageHeight,
+    originX: frame.originX,
+    originY: frame.originY,
+    contentType: frame.contentType,
+  };
 }
 
 function authorizeQueryToken(url: URL, backend: WorkspaceUiBackend): Response | undefined {

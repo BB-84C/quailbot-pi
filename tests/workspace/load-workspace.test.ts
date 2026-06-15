@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -41,6 +41,17 @@ describe("loadWorkspace", () => {
     });
   });
 
+  it.skipIf(!existsSync("D:/quailbot/workspaces/workspace.json"))(
+    "loads the authoritative D:/quailbot Tk workspace schema without drift",
+    () => {
+      const workspace = loadWorkspace("D:/quailbot/workspaces/workspace.json");
+
+      expect(workspace.sourcePath).toBe("D:\\quailbot\\workspaces\\workspace.json");
+      expect(workspace.cli.parameters.size).toBeGreaterThan(300);
+      expect(workspace.cli.actions.size).toBeGreaterThan(100);
+    },
+  );
+
   it("throws when the workspace path does not exist", () => {
     expect(() => loadWorkspace(join(process.cwd(), "tests/workspaces/missing.workspace.json"))).toThrow(
       /workspace file does not exist/,
@@ -59,6 +70,86 @@ describe("loadWorkspace", () => {
     expect(workspace.cli.enabled).toBe(false);
     expect(workspace.cli.parameters.size).toBe(0);
     expect(workspace.cli.actions.size).toBe(0);
+  });
+
+  it("loads legacy tools.cli workspaces when cli_params is absent", () => {
+    const workspace = loadWorkspace(
+      writeWorkspace({
+        tools: {
+          cli: {
+            enabled: true,
+            cli_name: "legacyctl",
+            parameters: {
+              bias: {
+                enabled: false,
+                description: "Bias voltage",
+                actions: { get: true, set: false, ramp: false },
+                linked_observables: ["current"],
+              },
+            },
+            actions: {
+              Approach: {
+                enabled: true,
+                description: "Approach tip",
+                action_cmd: { command: "Approach" },
+                linked_ROIs: ["current"],
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(workspace.cli.enabled).toBe(true);
+    expect(workspace.cli.defaultCliName).toBe("legacyctl");
+    expect(workspace.cli.parameters.get("legacyctl:bias")).toMatchObject({
+      name: "bias",
+      enabled: false,
+      description: "Bias voltage",
+      linkedObservables: ["current"],
+      actions: { get: true, set: false, ramp: false },
+    });
+    expect(workspace.cli.actions.get("legacyctl:Approach")).toMatchObject({
+      name: "Approach",
+      enabled: true,
+      description: "Approach tip",
+      linkedObservables: ["current"],
+      actionCmd: { command: "Approach" },
+    });
+  });
+
+  it("loads Tk dict-shaped cli_params parameters, action_commands, and actions", () => {
+    const workspace = loadWorkspace(
+      writeWorkspace({
+        cli_params: {
+          cli_name: "nqctl",
+          enabled: false,
+          parameters: {
+            bias: { readable: true, linked_observables: ["current"] },
+            Sweep: { action_cmd: { command: "Sweep" }, linked_ROIs: ["spectrum"] },
+          },
+          action_commands: {
+            Approach: { action_cmd: { command: "Approach" } },
+          },
+          actions: {
+            Stop: { action_cmd: { command: "Stop" }, enabled: true },
+          },
+        },
+      }),
+    );
+
+    expect(workspace.cli.enabled).toBe(false);
+    expect(workspace.cli.defaultCliName).toBe("nqctl");
+    expect(workspace.cli.parameters.get("nqctl:bias")).toMatchObject({
+      name: "bias",
+      enabled: false,
+      actions: { get: true, set: false, ramp: false },
+      linkedObservables: ["current"],
+    });
+    expect(workspace.cli.actions.get("nqctl:Sweep")?.actionCmd).toEqual({ command: "Sweep" });
+    expect(workspace.cli.actions.get("nqctl:Sweep")?.linkedObservables).toEqual(["spectrum"]);
+    expect(workspace.cli.actions.get("nqctl:Approach")?.actionCmd).toEqual({ command: "Approach" });
+    expect(workspace.cli.actions.get("nqctl:Stop")).toMatchObject({ enabled: true, actionCmd: { command: "Stop" } });
   });
 
   it("loads GUI-wrapped visual fields while preserving top-level cli_params", () => {
@@ -86,6 +177,15 @@ describe("loadWorkspace", () => {
 
   it("rejects malformed cli_params with a contextual error", () => {
     expect(() => loadWorkspace(writeWorkspace({ cli_params: [] }))).toThrow(/workspace cli_params must be an object/);
+  });
+
+  it("rejects visual ROI geometry with non-positive saved dimensions", () => {
+    expect(() => loadWorkspace(writeWorkspace({ rois: [{ name: "bad", x: 0, y: 0, w: 0, h: 10 }] }))).toThrow(
+      /ROI bad width and height must be positive/,
+    );
+    expect(() => loadWorkspace(writeWorkspace({ rois: [{ name: "bad", x: 0, y: 0, w: 10, h: -1 }] }))).toThrow(
+      /ROI bad width and height must be positive/,
+    );
   });
 
   it("derives parameter action permissions conservatively unless explicit actions are present", () => {

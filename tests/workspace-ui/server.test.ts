@@ -66,6 +66,16 @@ describe("workspace UI server", () => {
     expect(body.workspaceJson.cli_params.action_commands.items.map((action) => action.name)).toEqual(["Approach"]);
   });
 
+  it("reports UI server health through an authenticated endpoint", async () => {
+    const { server } = await startServerWithWorkspace("nqctl");
+
+    const response = await fetch(`${server.url}/api/health?token=${server.token}`);
+    const body = (await response.json()) as { ok: boolean; status: string };
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ ok: true, status: "workspace-ui-alive" });
+  });
+
   it("reports and serves a real workspace capture image when one exists beside the workspace", async () => {
     const { cwd, server } = await startServerWithWorkspace("nqctl");
     const capturePath = join(cwd, ".quailbot-pi", "workspace-capture.png");
@@ -74,7 +84,7 @@ describe("workspace UI server", () => {
     const response = await fetch(`${server.url}/api/workspace?token=${server.token}`);
     const body = (await response.json()) as {
       ok: true;
-      captureFrame: { href: string; imageWidth: number; imageHeight: number; contentType: string };
+      captureFrame: { href: string; imageWidth: number; imageHeight: number; originX: number; originY: number; contentType: string };
     };
 
     expect(response.status).toBe(200);
@@ -82,6 +92,8 @@ describe("workspace UI server", () => {
       href: `/assets/workspace-capture?token=${encodeURIComponent(server.token)}`,
       imageWidth: 1,
       imageHeight: 1,
+      originX: 0,
+      originY: 0,
       contentType: "image/png",
     });
 
@@ -91,6 +103,64 @@ describe("workspace UI server", () => {
     expect(imageResponse.status).toBe(200);
     expect(imageResponse.headers.get("content-type")).toBe("image/png");
     expect(imageBytes.subarray(0, 8)).toEqual(oneByOnePng().subarray(0, 8));
+  });
+
+  it("refreshes the workspace capture image through an authenticated screenshot route", async () => {
+    const { cwd, server } = await startServerWithWorkspace("nqctl", async (workspaceCwd) => {
+      expect(workspaceCwd).toBe(cwd);
+      const capturePath = join(workspaceCwd, ".quailbot-pi", "workspace-capture.png");
+      writeFileSync(capturePath, oneByOnePng(), "binary");
+      return { path: capturePath, imageWidth: 1, imageHeight: 1, originX: -1920, originY: 120, contentType: "image/png" };
+    });
+
+    const response = await fetch(`${server.url}/api/capture?token=${server.token}`, {
+      method: "POST",
+      headers: { "x-quailbot-workspace-ui-token": server.token },
+    });
+    const body = (await response.json()) as {
+      ok: true;
+      captureFrame: { href: string; imageWidth: number; imageHeight: number; originX: number; originY: number; contentType: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.captureFrame).toEqual({
+      href: `/assets/workspace-capture?token=${encodeURIComponent(server.token)}`,
+      imageWidth: 1,
+      imageHeight: 1,
+      originX: -1920,
+      originY: 120,
+      contentType: "image/png",
+    });
+  });
+
+  it("preserves refreshed virtual-screen origin when the workspace is loaded again", async () => {
+    const { cwd, server } = await startServerWithWorkspace("nqctl", async (workspaceCwd) => {
+      expect(workspaceCwd).toBe(cwd);
+      const capturePath = join(workspaceCwd, ".quailbot-pi", "workspace-capture.png");
+      writeFileSync(capturePath, oneByOnePng(), "binary");
+      return { path: capturePath, imageWidth: 1, imageHeight: 1, originX: -1920, originY: 120, contentType: "image/png" };
+    });
+
+    await fetch(`${server.url}/api/capture?token=${server.token}`, {
+      method: "POST",
+      headers: { "x-quailbot-workspace-ui-token": server.token },
+    });
+
+    const response = await fetch(`${server.url}/api/workspace?token=${server.token}`);
+    const body = (await response.json()) as {
+      ok: true;
+      captureFrame: { href: string; imageWidth: number; imageHeight: number; originX: number; originY: number; contentType: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.captureFrame).toEqual({
+      href: `/assets/workspace-capture?token=${encodeURIComponent(server.token)}`,
+      imageWidth: 1,
+      imageHeight: 1,
+      originX: -1920,
+      originY: 120,
+      contentType: "image/png",
+    });
   });
 
   it("does not refresh runtime workspace state from GET /api/workspace", async () => {
@@ -127,6 +197,18 @@ describe("workspace UI server", () => {
     const { server } = await startServerWithWorkspace();
 
     const response = await fetch(`${server.url}/api/validate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspaceJson: minimalWorkspace("qctl") }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("rejects validation requests that omit the mutating header token", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/api/validate?token=${server.token}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ workspaceJson: minimalWorkspace("qctl") }),
@@ -298,7 +380,10 @@ describe("workspace UI server", () => {
   });
 });
 
-async function startServerWithWorkspace(cliName = "nqctl"): Promise<{
+async function startServerWithWorkspace(
+  cliName = "nqctl",
+  refreshCaptureFrame?: Parameters<typeof startWorkspaceUiServer>[0]["refreshCaptureFrame"],
+): Promise<{
   cwd: string;
   runtime: QuailbotRuntime;
   server: WorkspaceUiServer;
@@ -309,7 +394,7 @@ async function startServerWithWorkspace(cliName = "nqctl"): Promise<{
   mkdirSync(join(cwd, ".quailbot-pi"), { recursive: true });
   writeFileSync(workspacePath, `${JSON.stringify(minimalWorkspace(cliName), null, 2)}\n`, "utf8");
   const runtime: QuailbotRuntime = { planStore: new PlanContextStore() };
-  const server = await startWorkspaceUiServer({ cwd, runtime });
+  const server = await startWorkspaceUiServer({ cwd, runtime, refreshCaptureFrame });
   servers.push(server);
   return { cwd, runtime, server, workspacePath };
 }

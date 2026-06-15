@@ -184,6 +184,34 @@ Date: 2026-06-14
 - Live capture should enter through `CaptureFrame` metadata so browser display coordinates remain separate from saved image/instrument coordinates.
 - Experiment logs remain outside A3; they should record workspace path/hash, actions, linked-observable readback, driver payloads, and failure/abort records in a later phase.
 
+## Implementation round: A3 Tk parity and real-substrate browser acceptance
+
+Date: 2026-06-15
+
+### Delivered
+
+- Reworked the browser calibrator toward legacy Tk behavior for grouped workspace editing: child groups, grouped ROIs/anchors/CLI entries, active-state cascade, metadata/group/link editing, deletion cleanup, and double-click group collapse/expand.
+- Added Tk-compatible serialization details: nested groups use `group`, anchors preserve both `linked_ROIs` and `linked_observables`, active anchors force linked ROIs active, and CLI `count` fields refresh from item lengths.
+- Hardened browser save/activation UX with clean-hash-gated Request Activation, health/disconnect guidance, positive ROI geometry validation, real workspace schema compatibility checks, and passive capture/canvas layers so draw/pick events route to the SVG canvas.
+- Added real-workspace CLI compatibility for legacy `tools.cli`, dict/list-shaped `cli_params`, nested action entries, source-specific enabled defaults, and browser editing of workspace CLI name/enabled state.
+- Added Tk-style Add ROI/Add Anchor defaults: zero/default draft items are selected first, draw/pick modes require the correct selected item, and zero ROI dimensions are rejected by validation until the selected ROI is drawn.
+- Persisted capture-frame virtual-screen origin metadata beside `workspace-capture.png` so a refresh with non-zero monitor origin survives later `/api/workspace` reloads.
+- Preserved current real browser evidence using a real workspace capture under `.opencode/artifacts/a3-real-desktop-acceptance/20260614-2340/`, including schema counts from the authoritative workspace, screenshot refresh, group collapse, zero-default validation, ROI drag preview, anchor pick/link, CLI name/enabled edit, save/readback, pending activation, and hidden `WORKSPACE` activation proof.
+
+### Now known
+
+- The authoritative `D:/quailbot/workspaces/workspace.json` may contain empty visual arrays while still carrying large CLI sections and `tools`; schema compatibility must check the rich CLI/tool shape, not require pre-existing ROIs/anchors.
+- Tk uses `linked_observables` as the primary anchor link field and `linked_ROIs` as a compatibility fallback; web edits should write both to avoid drift.
+- Browser-level visible acceptance proves image-local overlay fidelity; the reload into current hidden `WORKSPACE` context remains command-mediated and is proven by the `dev-release-adoption` e2e activation test rather than by the browser alone.
+- The real workspace currently exercises 328 CLI parameters, 117 CLI actions, `tools.cli`, and `tools.nqctl`; compatibility tests must keep using this rich shape instead of tiny `fixturectl` substitutes when claiming real-schema parity.
+- Capture-frame origin is a two-step contract: the live screenshot refresh returns `originX/originY`, and the browser/server reload path must read the persisted sidecar metadata instead of silently reverting to `0/0`.
+
+### Later phases must do differently
+
+- Current browser evidence was captured on a zero-origin monitor, while tests cover non-zero-origin persistence. Do not claim physical multi-monitor visual acceptance until a real non-zero-origin capture is available.
+- Replace more raw-string contract tests with DOM-level behavior tests if the client grows further; the duplicate double-click path showed that string checks alone can miss event-order bugs.
+- Keep `.opencode/artifacts/...` as the evidence home for real browser captures and do not promote runtime workspace screenshots or browser-generated scratch into product code.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

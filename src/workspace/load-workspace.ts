@@ -20,33 +20,51 @@ export function loadWorkspace(path: string): Workspace {
 
   const parsed: unknown = JSON.parse(readFileSync(sourcePath, "utf8"));
   const root = unwrapGui(parsed);
-  const cliParams = parseCliParams(root);
-  const cliParamsRecord = cliParams ?? {};
+  const cliSource = parseCliSource(root);
+  const cliParamsRecord = cliSource?.config ?? {};
   const cliName = stringValue(cliParamsRecord.cli_name) ?? stringValue(cliParamsRecord.CLI_Name) ?? "default";
+  const itemDefaultEnabled = cliSource?.kind === "tools.cli";
 
   return {
     sourcePath,
     rois: records(root.rois).map(parseRoi),
     anchors: records(root.anchors).map(parseAnchor),
     cli: {
-      enabled: cliParams !== undefined ? booleanValue(cliParamsRecord.enabled, true) : false,
+      enabled: cliSource !== undefined ? booleanValue(cliParamsRecord.enabled, cliSource.kind === "cli_params") : false,
       defaultCliName: cliName,
-      parameters: parseParameters(cliParamsRecord, cliName),
-      actions: parseActions(cliParamsRecord, cliName),
+      parameters: parseParameters(cliParamsRecord, cliName, itemDefaultEnabled),
+      actions: parseActions(cliParamsRecord, cliName, itemDefaultEnabled),
     },
   };
 }
 
-function parseCliParams(root: JsonRecord): JsonRecord | undefined {
-  if (root.cli_params === undefined) {
+function parseCliSource(root: JsonRecord): { kind: "cli_params" | "tools.cli"; config: JsonRecord } | undefined {
+  if (root.cli_params !== undefined) {
+    if (!isRecord(root.cli_params)) {
+      throw new Error("workspace cli_params must be an object");
+    }
+
+    return { kind: "cli_params", config: root.cli_params };
+  }
+
+  if (root.tools === undefined) {
     return undefined;
   }
 
-  if (!isRecord(root.cli_params)) {
-    throw new Error("workspace cli_params must be an object");
+  if (!isRecord(root.tools)) {
+    throw new Error("workspace tools must be an object");
   }
 
-  return root.cli_params;
+  const cli = root.tools.cli;
+  if (cli === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(cli)) {
+    throw new Error("workspace tools.cli must be an object");
+  }
+
+  return { kind: "tools.cli", config: cli };
 }
 
 function unwrapGui(value: unknown): JsonRecord {
@@ -67,6 +85,7 @@ function unwrapGui(value: unknown): JsonRecord {
 function parseRoi(roi: JsonRecord, index: number): WorkspaceRoi {
   const name = stringValue(roi.name);
   const ref = stringValue(roi.ref) ?? name ?? `roi:${index}`;
+  validateRoiGeometry(roi, name ?? ref);
 
   return {
     ref,
@@ -75,6 +94,17 @@ function parseRoi(roi: JsonRecord, index: number): WorkspaceRoi {
     linkedObservables: strings(roi.linked_observables),
     schema: roi,
   };
+}
+
+function validateRoiGeometry(roi: JsonRecord, label: string): void {
+  const width = roi.w;
+  const height = roi.h;
+  if (
+    (width !== undefined && (typeof width !== "number" || !Number.isFinite(width) || width <= 0)) ||
+    (height !== undefined && (typeof height !== "number" || !Number.isFinite(height) || height <= 0))
+  ) {
+    throw new Error(`ROI ${label} width and height must be positive`);
+  }
 }
 
 function parseAnchor(anchor: JsonRecord, index: number): WorkspaceAnchor {
@@ -92,14 +122,17 @@ function parseAnchor(anchor: JsonRecord, index: number): WorkspaceAnchor {
   };
 }
 
-function parseParameters(cliParams: JsonRecord, cliName: string): Map<string, CliParameter> {
+function parseParameters(cliParams: JsonRecord, cliName: string, defaultEnabled: boolean): Map<string, CliParameter> {
   const parameters = new Map<string, CliParameter>();
   const container = record(cliParams.parameters);
 
-  for (const [index, parameter] of itemRecords(container.items, "cli_params.parameters.items").entries()) {
-    const name = stringValue(parameter.name);
+  for (const { item: parameter, nameHint, index, context } of sectionEntries(container, "cli_params.parameters")) {
+    if (isRecord(parameter.action_cmd)) {
+      continue;
+    }
+    const name = stringValue(parameter.name) ?? nameHint;
     if (!name) {
-      throw new Error(`workspace parameter at cli_params.parameters.items[${index}] is missing name`);
+      throw new Error(`workspace parameter at ${context}[${index}] is missing name`);
     }
 
     const parameterCliName = itemCliName(parameter, cliName);
@@ -110,7 +143,7 @@ function parseParameters(cliParams: JsonRecord, cliName: string): Map<string, Cl
       name,
       label: stringValue(parameter.label),
       description: stringValue(parameter.description),
-      enabled: booleanValue(parameter.enabled, true),
+      enabled: booleanValue(parameter.enabled, defaultEnabled),
       actions: deriveActions(parameter),
       linkedObservables: linkedObservables(parameter),
       schema: parameter,
@@ -120,14 +153,20 @@ function parseParameters(cliParams: JsonRecord, cliName: string): Map<string, Cl
   return parameters;
 }
 
-function parseActions(cliParams: JsonRecord, cliName: string): Map<string, CliAction> {
+function parseActions(cliParams: JsonRecord, cliName: string, defaultEnabled: boolean): Map<string, CliAction> {
   const actions = new Map<string, CliAction>();
-  const container = record(cliParams.action_commands);
 
-  for (const [index, action] of itemRecords(container.items, "cli_params.action_commands.items").entries()) {
-    const name = stringValue(action.name);
+  for (const { item: action, nameHint, index, context } of [
+    ...sectionEntries(record(cliParams.parameters), "cli_params.parameters"),
+    ...sectionEntries(record(cliParams.action_commands), "cli_params.action_commands"),
+    ...sectionEntries(record(cliParams.actions), "cli_params.actions"),
+  ]) {
+    if (context === "cli_params.parameters" && !isRecord(action.action_cmd)) {
+      continue;
+    }
+    const name = stringValue(action.name) ?? nameHint;
     if (!name) {
-      throw new Error(`workspace action at cli_params.action_commands.items[${index}] is missing name`);
+      throw new Error(`workspace action at ${context}[${index}] is missing name`);
     }
 
     const actionCliName = itemCliName(action, cliName);
@@ -137,11 +176,11 @@ function parseActions(cliParams: JsonRecord, cliName: string): Map<string, CliAc
       cliName: actionCliName,
       name,
       description: stringValue(action.description),
-      enabled: booleanValue(action.enabled, true),
+      enabled: booleanValue(action.enabled, defaultEnabled),
       safetyMode: stringValue(action.safety_mode),
       actions: deriveActions(action),
       linkedObservables: linkedObservables(action),
-      actionCmd: parseActionCmd(action, index),
+      actionCmd: parseActionCmd(action, index, context),
       schema: action,
     });
   }
@@ -176,16 +215,39 @@ function linkedObservables(item: JsonRecord): string[] {
   return strings(item.linked_observables ?? item.linked_ROIs);
 }
 
-function parseActionCmd(action: JsonRecord, index: number): JsonRecord | undefined {
+function parseActionCmd(action: JsonRecord, index: number, context: string): JsonRecord | undefined {
   if (action.action_cmd === undefined) {
     return undefined;
   }
 
   if (!isRecord(action.action_cmd)) {
-    throw new Error(`workspace action at cli_params.action_commands.items[${index}] action_cmd must be an object`);
+    throw new Error(`workspace action at ${context}[${index}] action_cmd must be an object`);
   }
 
   return action.action_cmd;
+}
+
+function sectionEntries(container: JsonRecord, context: string): Array<{ item: JsonRecord; nameHint: string | undefined; index: number; context: string }> {
+  if (Array.isArray(container.items)) {
+    return itemRecords(container.items, `${context}.items`).map((item, index) => ({
+      item,
+      nameHint: undefined,
+      index,
+      context: `${context}.items`,
+    }));
+  }
+
+  const entries: Array<{ item: JsonRecord; nameHint: string | undefined; index: number; context: string }> = [];
+  for (const [key, value] of Object.entries(container)) {
+    if (key === "items" || key === "count") {
+      continue;
+    }
+    if (!isRecord(value)) {
+      throw new Error(`workspace ${context}.${key} must be an object`);
+    }
+    entries.push({ item: value, nameHint: key, index: entries.length, context });
+  }
+  return entries;
 }
 
 function strings(value: unknown): string[] {

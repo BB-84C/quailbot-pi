@@ -54,6 +54,14 @@ body {
   font-size: 0.85rem;
 }
 
+.disconnected-banner {
+  border-bottom: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(127, 29, 29, 0.72);
+  color: #fee2e2;
+  padding: 0.65rem 1rem;
+  font-weight: 700;
+}
+
 .workspace-main {
   display: grid;
   grid-template-columns: clamp(16rem, 22vw, 26rem) minmax(22rem, 1fr) clamp(18rem, 26vw, 32rem);
@@ -154,6 +162,11 @@ body {
   opacity: 0.55;
 }
 
+.toolbar-button.danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
 .toolbar-button.is-active,
 .tree-item.is-selected {
   border-color: rgba(96, 165, 250, 0.9);
@@ -247,7 +260,39 @@ body {
   padding: 0.65rem 0.75rem;
   background: rgba(15, 23, 42, 0.68);
   color: #e2e8f0;
+}
+
+.tree-active-toggle,
+.tree-item-main {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
+}
+
+.tree-active-toggle {
+  flex: 0 0 auto;
+  color: #bfdbfe;
+}
+
+.tree-active-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.tree-item-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.tree-item.is-forced-active {
+  border-color: rgba(250, 204, 21, 0.48);
 }
 
 .tree-item-title,
@@ -278,7 +323,8 @@ body {
 }
 
 .field input,
-.field select {
+.field select,
+.editor-block select[multiple] {
   width: 100%;
   min-width: 0;
   border-radius: 0.625rem;
@@ -323,6 +369,14 @@ body {
   fill: none;
 }
 
+.canvas-grid {
+  pointer-events: none;
+}
+
+.canvas-frame {
+  pointer-events: none;
+}
+
 .canvas-backdrop {
   fill: rgba(15, 23, 42, 0.82);
 }
@@ -343,6 +397,13 @@ body {
   fill: rgba(59, 130, 246, 0.22);
   stroke: rgba(147, 197, 253, 0.92);
   stroke-width: 2;
+}
+
+.roi-drag-preview {
+  fill: rgba(6, 182, 212, 0.18);
+  stroke: #00d1ff;
+  stroke-width: 2;
+  pointer-events: none;
 }
 
 .anchor-overlay circle {

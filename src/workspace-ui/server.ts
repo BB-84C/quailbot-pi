@@ -14,9 +14,10 @@ export type WorkspaceUiServer = { url: string; token: string; close: () => Promi
 export async function startWorkspaceUiServer(options: {
   cwd: string;
   runtime: QuailbotRuntime;
+  refreshCaptureFrame?: WorkspaceUiBackend["refreshCaptureFrame"];
 }): Promise<WorkspaceUiServer> {
   const token = randomBytes(24).toString("hex");
-  const backend: WorkspaceUiBackend = { cwd: options.cwd, runtime: options.runtime, token };
+  const backend: WorkspaceUiBackend = { cwd: options.cwd, runtime: options.runtime, token, refreshCaptureFrame: options.refreshCaptureFrame };
   const nodeServer = createServer((request, response) => {
     void handleHttpRequest(request, response, backend);
   });

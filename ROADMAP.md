@@ -339,9 +339,11 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 **Deferred condition:** If exact component breakdown becomes important later, build it in Pi core/provider instrumentation where the final request assembly and provider token-counting semantics are available. Do not add a Quailbot plugin dashboard that duplicates Pi's aggregate footer and guesses per-component token buckets.
 
-**Next active phase:** A7 experiment log subsystem.
+**Resolved by:** A7 experiment log subsystem, now complete. Next active phase is A8 remote instrument host, client, and MCP surface.
 
-### Phase A7: Experiment log subsystem
+### Phase A7: Experiment log subsystem [DONE]
+
+**Status:** Done. Implemented, verified, merged to `main`, and pushed 2026-06-16. The implementation round above is the authoritative closeout; the notes below preserve the original planning substrate.
 
 **Concise spec:** Add a durable experiment log subsystem separate from Pi session history and separate from OpenCode construction artifacts. It should record experiment id, workspace path/hash/revision, submitted action or plan-step sequence, primary tool results, linked-observable readback, timestamps, driver payloads, allow/deny decisions, abort/failure records, and evidence/artifact pointers. The log should be usable by local Pi runs first and become the evidence substrate that the later remote host reuses.
 
@@ -375,7 +377,7 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 - A1 should land first so later behavior runs under the right instrument-operator identity.
 - A2 should land before A3 because calibration/editing must share one workspace selection, validation, write, revision, and reload contract.
-- A5 is complete and A6 is skipped; A7 is the next active operability phase.
-- A7 should add the durable experiment evidence substrate before the remote host so remote jobs do not invent a second logging contract.
-- A8 is the deferred remote-host architecture phase after A5/A6/A7; it must reuse A2 for workspace validation/activation and A7 for experiment evidence.
+- A5 is complete, A6 is skipped, and A7 is complete.
+- A7 added the durable experiment evidence substrate before the remote host so remote jobs do not invent a second logging contract.
+- A8 is the next active construction phase; it must reuse A2 for workspace validation/activation and A7 for experiment evidence.
 - Every future implementation phase still needs semantic Pi-session acceptance; the ROADMAP is only a guide, not the detailed spec.

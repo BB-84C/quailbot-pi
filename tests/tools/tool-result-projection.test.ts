@@ -99,6 +99,17 @@ describe("tool result projection", () => {
     expect(text).not.toContain("NESTED_STDOUT_SHOULD_NOT_APPEAR");
   });
 
+  it("surfaces nested plan cli parse failures without dumping full stdout", () => {
+    const text = buildQuailbotToolContent(planWithNestedCliActionParseFailure());
+
+    expect(text).toContain("quailbot_plan_and_execute plan [fail, aggregate_result]");
+    expect(text).toContain("#0 cli_action [fail]");
+    expect(text).toContain("payload_parse_failed_non_json_prefix");
+    expect(text).toContain("Start action timeout");
+    expect(text).not.toContain("NanonisProtocolError");
+    expect(text).not.toContain('"exit_code": 3');
+  });
+
   it("keeps failed plan primary diagnostics when linked readback exists", () => {
     const text = buildQuailbotToolContent(planWithFailedPrimaryAndLinkedReadback());
 
@@ -181,8 +192,16 @@ const NQCTL_SCAN_SPEED_INFINITY_STDOUT = `{
 
 // Observed in A5 grounded nqctl simulator recon on 2026-06-15: scan action
 // timeout stdout began with a human diagnostic before any JSON-shaped payload.
-const NQCTL_SCAN_ACTION_TIMEOUT_STDOUT = `Start action timeout
-{"error":"instrument rejected scan start"}`;
+const NQCTL_SCAN_ACTION_TIMEOUT_STDOUT = `The following error appeared:
+ Start action timeout
+{
+  "error": {
+    "message": "Controller returned error for command 'Scan_Action' (Scan_Action): Start action timeout",
+    "type": "NanonisProtocolError"
+  },
+  "exit_code": 3,
+  "ok": false
+}`;
 
 function cliGetBiasResult(): QuailbotToolResult {
   return {
@@ -358,6 +377,33 @@ function planAndExecuteResult(): QuailbotToolResult {
           index: 1,
           kind: "cli_get",
           primary_result: { ok: true, payload: { parameter: "bias_v", value: 0.18 } },
+        },
+      ],
+    },
+  };
+}
+
+function planWithNestedCliActionParseFailure(): QuailbotToolResult {
+  return {
+    ok: false,
+    action: "quailbot_plan_and_execute",
+    action_input: {},
+    primary_result: {
+      ok: false,
+      stopped_reason: "step_failed",
+      steps: [
+        {
+          index: 0,
+          kind: "cli_action",
+          primary_result: {
+            action_name: "Scan_Action",
+            ok: false,
+            exit_code: 3,
+            stdout: NQCTL_SCAN_ACTION_TIMEOUT_STDOUT,
+            stderr: "",
+            payload: undefined,
+            argv: ["nqctl", "act", "Scan_Action"],
+          },
         },
       ],
     },

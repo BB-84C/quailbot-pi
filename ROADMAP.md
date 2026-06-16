@@ -229,6 +229,7 @@ Date: 2026-06-15
 - Parsed payloads are the semantic source when available; raw stdout is transport/debug evidence and should not be duplicated into model context.
 - Linked-observable readback is the most important post-mutation signal and must remain visible even when primary action payload parsing fails.
 - Plugin-level `renderCall`, `renderResult`, and `context` hooks are sufficient for the Quailbot-owned first slice: TUI rows become compact while model-visible historical content is bounded.
+- `quailbot_plan_and_execute` aggregates are not exempt from parse-failure visibility: nested CLI failures need bounded step-level diagnostics even when the full raw stdout stays in preserved `details`.
 
 ### Later phases must do differently
 

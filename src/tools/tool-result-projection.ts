@@ -373,7 +373,7 @@ function planStepResultSummary(kind: string, primary: Record<string, unknown>, l
     }
   }
 
-  const diagnosticParts = structuredDiagnosticParts(primary);
+  const diagnosticParts = [...structuredDiagnosticParts(primary), ...parseFailureDiagnosticParts(primary)];
   if (diagnosticParts.length > 0) {
     return diagnosticParts.join(" ");
   }
@@ -390,6 +390,46 @@ function structuredDiagnosticParts(primary: Record<string, unknown>): string[] {
     fieldPart("message", primary.message),
     fieldPart("stderr", primary.stderr),
   ].filter((part): part is string => part !== undefined);
+}
+
+function parseFailureDiagnosticParts(primary: Record<string, unknown>): string[] {
+  const parseStatus = primaryPayloadParseStatus(primary);
+  if (parseStatus === "parsed_payload" || parseStatus === "payload_absent_empty_stdout") {
+    return [];
+  }
+
+  const parts = [`parse=${parseStatus}`];
+  const stdoutDiagnostic = compactStdoutDiagnostic(primary.stdout);
+  if (stdoutDiagnostic !== undefined) {
+    parts.push(`stdout_diagnostic=${stdoutDiagnostic}`);
+  }
+
+  return parts;
+}
+
+function compactStdoutDiagnostic(value: unknown): string | undefined {
+  const stdout = stringValue(value);
+  if (stdout === undefined || stdout.trim().length === 0) {
+    return undefined;
+  }
+
+  const diagnosticLines: string[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+    if (startsWithJsonContainer(trimmed)) {
+      break;
+    }
+    diagnosticLines.push(trimmed);
+    if (diagnosticLines.length === 2) {
+      break;
+    }
+  }
+
+  const diagnostic = diagnosticLines.length > 0 ? diagnosticLines.join(" | ") : stdout.trim().split(/\r?\n/, 1)[0];
+  return compactInline(diagnostic, 180);
 }
 
 function hasStructuredError(primary: Record<string, unknown>): boolean {
@@ -526,7 +566,20 @@ function formatAssignments(value: Record<string, unknown>, separator: string): s
 }
 
 function fieldPart(name: string, value: unknown): string | undefined {
+  if (typeof value === "string" && value.length === 0) {
+    return undefined;
+  }
+
   return value === undefined ? undefined : `${name}=${formatValue(value)}`;
+}
+
+function compactInline(value: string, maxChars: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxChars - " [truncated]".length))} [truncated]`;
 }
 
 function payloadValue(value: unknown): unknown {

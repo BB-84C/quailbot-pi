@@ -212,6 +212,31 @@ Date: 2026-06-15
 - Replace more raw-string contract tests with DOM-level behavior tests if the client grows further; the duplicate double-click path showed that string checks alone can miss event-order bugs.
 - Keep `.opencode/artifacts/...` as the evidence home for real browser captures and do not promote runtime workspace screenshots or browser-generated scratch into product code.
 
+## Implementation round: A5 contract-grounded tool-result projection
+
+Date: 2026-06-15
+
+### Delivered
+
+- Added a Quailbot-owned projection layer for `QuailbotToolResult` that replaces raw pretty-JSON model content with bounded semantic summaries while preserving full structured `details`.
+- Added compact/expanded TUI renderers for Quailbot tools using the same projection model.
+- Added a context recency policy with `recentFullCliResultCount = 2` for direct `cli_*` results.
+- Preserved real Nanonis/`nqctl` acceptance artifacts under `.opencode/artifacts/a5-tool-result-rendering/20260615-175559/`.
+
+### Now known
+
+- A5 must surface payload parse status because real `nqctl` can produce non-strict JSON stdout in both error and success cases.
+- Parsed payloads are the semantic source when available; raw stdout is transport/debug evidence and should not be duplicated into model context.
+- Linked-observable readback is the most important post-mutation signal and must remain visible even when primary action payload parsing fails.
+- Plugin-level `renderCall`, `renderResult`, and `context` hooks are sufficient for the Quailbot-owned first slice: TUI rows become compact while model-visible historical content is bounded.
+
+### Later phases must do differently
+
+- Parser hardening for prefixed JSON or non-standard tokens should be considered separately from A5 projection so driver contract violations stay visible.
+- A7 experiment logs should reuse the full raw result preserved in `details` rather than inventing a second action/readback schema.
+- A6 context accounting should measure summary-vs-full projection savings for Quailbot tool results.
+- Future real TUI acceptance should use the live terminal surface when the task explicitly asks for visual proof; A5's preserved local artifacts cover the contract/output substrate for this implementation round.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

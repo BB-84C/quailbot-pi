@@ -30,6 +30,8 @@ export async function executeCliGet(ctx: ToolContext, input: CliGetInput): Promi
       stderr: run.stderr,
       payload: run.payload,
       argv: run.argv,
+      ...(run.error_type === undefined ? {} : { error_type: run.error_type }),
+      ...(run.error_message === undefined ? {} : { error_message: run.error_message }),
     },
     linked_observation: linkedObservation(parameter.linkedObservables),
   };

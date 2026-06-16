@@ -5,6 +5,7 @@ import { buildWorkspaceContextText } from "./prompt/workspace-summary.js";
 import { PlanContextStore } from "./prompt/plan-context.js";
 import { mutationPolicyFromEnvironment } from "./tools/mutation-policy.js";
 import { registerQuailbotTools } from "./tools/register-tools.js";
+import { projectQuailbotContextMessages } from "./tools/tool-result-context.js";
 import { registerWorkspaceCommands } from "./workspace/register-workspace-commands.js";
 import { loadActiveWorkspace } from "./workspace/workspace-service.js";
 import type { LoadedWorkspace } from "./workspace/workspace-service.js";
@@ -51,6 +52,10 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
       runtime.pendingWorkspaceActivation = undefined;
     }
   });
+
+  pi.on("context", (event) => ({
+    messages: projectQuailbotContextMessages(event.messages),
+  }));
 
   pi.on("before_agent_start", (event) => {
     const mutationPolicy = mutationPolicyFromEnvironment();

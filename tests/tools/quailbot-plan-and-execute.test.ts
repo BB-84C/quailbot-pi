@@ -343,13 +343,15 @@ describe("quailbot_plan_and_execute", () => {
     }
   });
 
-  it("registers the tool and returns the JSON result envelope", async () => {
+  it("registers the tool and returns the projected result envelope", async () => {
     const tools: Array<{
       name: string;
       label: string;
       description: string;
       parameters: { properties?: Record<string, unknown> };
       execute: (id: string, params: unknown) => Promise<unknown>;
+      renderCall?: unknown;
+      renderResult?: unknown;
     }> = [];
     const pi = {
       registerTool: (tool: {
@@ -358,6 +360,8 @@ describe("quailbot_plan_and_execute", () => {
         description: string;
         parameters: { properties?: Record<string, unknown> };
         execute: (id: string, params: unknown) => Promise<unknown>;
+        renderCall?: unknown;
+        renderResult?: unknown;
       }) => tools.push(tool),
     };
 
@@ -369,6 +373,8 @@ describe("quailbot_plan_and_execute", () => {
     expect(tool?.description).toBe(
       "Execute a concrete serial Quailbot program and return one final result with per-step readbacks.",
     );
+    expect(typeof tool?.renderResult).toBe("function");
+    expect(typeof tool?.renderCall).toBe("function");
     expect(tool?.parameters.properties?.steps).toMatchObject({ type: "array", minItems: 1 });
     const schemaText = JSON.stringify(tool?.parameters.properties?.steps);
     for (const kind of [
@@ -396,7 +402,10 @@ describe("quailbot_plan_and_execute", () => {
       content: [{ type: "text" }],
     });
     const text = (result as { content: Array<{ text: string }> }).content[0].text;
-    expect(JSON.parse(text)).toMatchObject({ ok: true, action: "quailbot_plan_and_execute" });
+    expect(text).toContain("quailbot_plan_and_execute plan [ok, aggregate_result]");
+    expect(text).toContain("stopped_reason: completed");
+    expect(text).not.toContain('"action_input"');
+    expect((result as { details: { action: string } }).details.action).toBe("quailbot_plan_and_execute");
   });
 });
 

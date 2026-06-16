@@ -20,7 +20,14 @@ export type ReadExperimentResult = {
   events_path: string;
   events: ExperimentLogEvent[];
   summary: ExperimentLogSummary;
+  ignoredLines?: IgnoredExperimentLogLine[];
   ignoredTail?: string;
+};
+
+export type IgnoredExperimentLogLine = {
+  lineNumber: number;
+  line: string;
+  error: string;
 };
 
 export function listExperiments(root: string): ExperimentLogSummary[] {
@@ -34,13 +41,14 @@ export function listExperiments(root: string): ExperimentLogSummary[] {
 
 export function readExperiment(eventsPath: string): ReadExperimentResult {
   const { lines, ignoredTail } = completeLines(readFileSync(eventsPath, "utf8"));
-  const events = lines.map((line) => JSON.parse(line) as ExperimentLogEvent);
+  const { events, ignoredLines } = parseEvents(lines);
   const summary = summarize(eventsPath, events);
 
   return {
     events_path: eventsPath,
     events,
     summary,
+    ...withDefined("ignoredLines", ignoredLines.length === 0 ? undefined : ignoredLines),
     ...withDefined("ignoredTail", ignoredTail),
   };
 }
@@ -74,7 +82,7 @@ function findEventsJsonl(root: string): string[] {
   return results;
 }
 
-function completeLines(content: string): { lines: string[]; ignoredTail?: string } {
+function completeLines(content: string): { lines: Array<{ lineNumber: number; line: string }>; ignoredTail?: string } {
   if (content.length === 0) {
     return { lines: [] };
   }
@@ -82,9 +90,30 @@ function completeLines(content: string): { lines: string[]; ignoredTail?: string
   const endsWithNewline = content.endsWith("\n");
   const completeContent = endsWithNewline ? content : content.slice(0, lastLineBreak(content) + 1);
   const ignoredTail = endsWithNewline ? undefined : content.slice(lastLineBreak(content) + 1);
-  const lines = completeContent.split("\n").filter((line) => line.length > 0);
+  const lines = completeContent
+    .split("\n")
+    .map((line, index) => ({ lineNumber: index + 1, line }))
+    .filter((entry) => entry.line.length > 0);
 
   return { lines, ...withDefined("ignoredTail", ignoredTail) };
+}
+
+function parseEvents(lines: Array<{ lineNumber: number; line: string }>): {
+  events: ExperimentLogEvent[];
+  ignoredLines: IgnoredExperimentLogLine[];
+} {
+  const events: ExperimentLogEvent[] = [];
+  const ignoredLines: IgnoredExperimentLogLine[] = [];
+
+  for (const entry of lines) {
+    try {
+      events.push(JSON.parse(entry.line) as ExperimentLogEvent);
+    } catch (error) {
+      ignoredLines.push({ lineNumber: entry.lineNumber, line: entry.line, error: errorMessage(error) });
+    }
+  }
+
+  return { events, ignoredLines };
 }
 
 function summarize(eventsPath: string, events: ExperimentLogEvent[]): ExperimentLogSummary {
@@ -136,6 +165,10 @@ function incrementOutcome(counts: Partial<Record<ExperimentOutcome, number>>, ou
 
 function lastLineBreak(content: string): number {
   return content.lastIndexOf("\n");
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function withDefined<TKey extends string, TValue>(key: TKey, value: TValue | undefined): Record<TKey, TValue> | {} {

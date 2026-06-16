@@ -58,12 +58,12 @@ describe("ExperimentLogService", () => {
     expect(service.currentWorkspaceHash()).toBe("sha256:workspace-A");
     expect(existsSync(blobsPath)).toBe(true);
 
-    const started = service.recordToolInvocationStarted({ toolName: "cli_set", input: toolResult.action_input });
+    const started = service.recordToolInvocationStarted({ toolCallId: "call-start", toolName: "cli_set", actionInput: toolResult.action_input });
     expect(started).toMatchObject({ ok: true, path: eventsPath, event_id: "evt-start", sequence: 2 });
 
     service.updateContext({ workspace: updatedWorkspace, mutationPolicy: disabledMutationPolicy() });
     expect(service.currentWorkspaceHash()).toBe("sha256:workspace-B");
-    const result = service.recordToolResult(toolResult);
+    const result = service.recordToolResult({ toolCallId: "call-start", parentEventId: "evt-start", toolName: "cli_set", result: toolResult });
     expect(result).toMatchObject({ ok: true, path: eventsPath, event_id: "evt-result", sequence: 3 });
 
     const close = service.close("session_shutdown");
@@ -92,10 +92,13 @@ describe("ExperimentLogService", () => {
       workspace: { hash: "sha256:workspace-A" },
       mutation_policy: { mutating_tools_enabled: true },
     });
-    expect(events[1]).toMatchObject({ event_id: "evt-start", tool_name: "cli_set", input: toolResult.action_input });
+    expect(events[1]).toMatchObject({ event_id: "evt-start", tool_call_id: "call-start", tool_name: "cli_set", input: toolResult.action_input });
     expect(events[2]).toMatchObject({
       event_id: "evt-result",
       event_kind: "tool_result",
+      tool_call_id: "call-start",
+      parent_event_id: "evt-start",
+      tool_name: "cli_set",
       outcome: "applied",
       result: toolResult,
       workspace: { hash: "sha256:workspace-B" },
@@ -120,12 +123,15 @@ describe("ExperimentLogService", () => {
     service.open({ sessionStartReason: "fresh_session" });
     const error = new TypeError("driver exploded");
 
-    const exception = service.recordToolException({ toolName: "cli_get", input: { parameter: "current" }, error });
+    const exception = service.recordToolException({ toolCallId: "call-exception", toolName: "cli_get", actionInput: { parameter: "current" }, error });
     const step = service.recordPlanStepResult({
-      index: 0,
-      kind: "cli_set",
-      args: { parameter: "bias_v", value: 1.25 },
-      primary_result: { ok: true, exit_code: 0 },
+      toolCallId: "call-step",
+      step: {
+        index: 0,
+        kind: "cli_set",
+        args: { parameter: "bias_v", value: 1.25 },
+        primary_result: { ok: true, exit_code: 0 },
+      },
     });
 
     expect(exception).toMatchObject({ ok: true, event: { event_kind: "tool_exception", outcome: "exception" } });
@@ -134,6 +140,7 @@ describe("ExperimentLogService", () => {
     }
     expect(exception.event).toMatchObject({
       tool_name: "cli_get",
+      tool_call_id: "call-exception",
       input: { parameter: "current" },
       error: { name: "TypeError", message: "driver exploded" },
     });
@@ -162,6 +169,87 @@ describe("ExperimentLogService", () => {
     });
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("experiment log write failed");
+  });
+
+  it("clears open state when the initial append fails so later records stay not-open", () => {
+    const service = new ExperimentLogService({
+      root: makeTempDir(),
+      now: fixedNow,
+      idFactory: idFactory(["exp_20260616-063000Z_openfail", "evt-open"]),
+      appendLine: () => {
+        throw new Error("write denied");
+      },
+      warn: () => {},
+    });
+
+    const result = service.open({ sessionStartReason: "fresh_session", workspace: loadedWorkspace("sha256:unpersisted") });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("write denied"),
+      event: { event_kind: "experiment_open", sequence: 1 },
+    });
+    expect(service.currentIdentity()).toBeUndefined();
+    expect(service.currentWorkspaceHash()).toBeUndefined();
+    expect(service.recordToolInvocationStarted({ toolCallId: "call-after-fail", toolName: "cli_get", actionInput: {} })).toMatchObject({
+      ok: false,
+      error: "experiment log is not open",
+    });
+  });
+
+  it("records tool call correlation on started/result/exception and plan step events", () => {
+    const root = makeTempDir();
+    const service = new ExperimentLogService({
+      root,
+      now: fixedNow,
+      idFactory: idFactory(["exp_20260616-063000Z_correlation", "evt-open", "evt-start", "evt-result", "evt-exception", "evt-step"]),
+    });
+    service.open({ sessionStartReason: "fresh_session" });
+    const resultPayload: QuailbotToolResult = {
+      ok: true,
+      action: "cli_get",
+      action_input: { parameter: "bias_v" },
+      primary_result: { ok: true, payload: { bias_v: 1.25 } },
+    };
+
+    const started = service.recordToolInvocationStarted({ toolCallId: "tool-call-1", toolName: "cli_get", actionInput: { parameter: "bias_v" } });
+    const result = service.recordToolResult({
+      toolCallId: "tool-call-1",
+      parentEventId: "evt-start",
+      toolName: "cli_get",
+      result: resultPayload,
+    });
+    const exception = service.recordToolException({
+      toolCallId: "tool-call-2",
+      parentEventId: "evt-start",
+      toolName: "cli_set",
+      actionInput: { parameter: "bias_v", value: 2.5 },
+      error: new Error("driver failed"),
+    });
+    const step = service.recordPlanStepResult({
+      toolCallId: "tool-call-3",
+      parentEventId: "evt-start",
+      step: {
+        index: 1,
+        kind: "cli_get",
+        args: { parameter: "bias_v" },
+        primary_result: { ok: true, payload: { bias_v: 1.25 } },
+      },
+    });
+
+    expect(started).toMatchObject({ ok: true, event: { event_kind: "tool_invocation_started", tool_call_id: "tool-call-1" } });
+    expect(result).toMatchObject({
+      ok: true,
+      event: { event_kind: "tool_result", tool_call_id: "tool-call-1", parent_event_id: "evt-start", result: resultPayload },
+    });
+    expect(exception).toMatchObject({
+      ok: true,
+      event: { event_kind: "tool_exception", tool_call_id: "tool-call-2", parent_event_id: "evt-start", input: { parameter: "bias_v", value: 2.5 } },
+    });
+    expect(step).toMatchObject({
+      ok: true,
+      event: { event_kind: "plan_step_result", tool_call_id: "tool-call-3", parent_event_id: "evt-start", step: { index: 1 } },
+    });
   });
 });
 

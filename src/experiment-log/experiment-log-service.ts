@@ -48,12 +48,30 @@ export type ExperimentLogOpenOptions = {
 };
 
 export type ToolInvocationStartedInput = {
+  toolCallId: string;
   toolName: string;
-  input: unknown;
+  actionInput: unknown;
+};
+
+export type ToolResultInput = {
+  toolCallId: string;
+  parentEventId?: string;
+  toolName: string;
+  result: QuailbotToolResult;
+  durationMs?: number;
 };
 
 export type ToolExceptionInput = ToolInvocationStartedInput & {
+  parentEventId?: string;
   error: unknown;
+  durationMs?: number;
+};
+
+export type PlanStepResultInput = {
+  toolCallId: string;
+  parentEventId?: string;
+  step: PlanStepResultPayload;
+  durationMs?: number;
 };
 
 export function experimentLogRoot(cwd = process.cwd()): string {
@@ -99,16 +117,19 @@ export class ExperimentLogService {
     );
     const blobsPath = join(dirname(eventsPath), "blobs");
 
-    this.identity = { experiment_id: experimentId, events_path: eventsPath, blobs_path: blobsPath, started_at: timestamp };
-    this.workspace = options.workspace;
-    this.mutationPolicy = options.mutationPolicy;
-    this.sequence = 0;
-    this.eventCount = 0;
-
-    const event = this.buildEvent("experiment_open", timestamp, {
+    const identity = { experiment_id: experimentId, events_path: eventsPath, blobs_path: blobsPath, started_at: timestamp };
+    const event: ExperimentOpenEvent = {
+      schema_version: EXPERIMENT_LOG_SCHEMA_VERSION,
+      event_id: this.nextEventId(timestamp),
+      experiment_id: identity.experiment_id,
+      sequence: 1,
+      timestamp_utc: timestamp,
+      event_kind: "experiment_open",
+      ...withDefined("workspace", workspaceSnapshot(options.workspace)),
+      ...withDefined("mutation_policy", mutationPolicySnapshot(options.mutationPolicy)),
       session_start_reason: options.sessionStartReason,
       ...(options.previousSessionFile === undefined ? {} : { previous_session_file: options.previousSessionFile }),
-    });
+    };
 
     try {
       mkdirSync(blobsPath, { recursive: true });
@@ -116,7 +137,19 @@ export class ExperimentLogService {
       return this.writeFailure(eventsPath, event, error);
     }
 
-    return this.appendEvent(event);
+    try {
+      this.appendLine(eventsPath, `${JSON.stringify(event)}\n`);
+    } catch (error) {
+      return this.writeFailure(eventsPath, event, error);
+    }
+
+    this.identity = identity;
+    this.workspace = options.workspace;
+    this.mutationPolicy = options.mutationPolicy;
+    this.sequence = 1;
+    this.eventCount = 1;
+
+    return { ok: true, path: eventsPath, event_id: event.event_id, sequence: event.sequence, event };
   }
 
   currentIdentity(): ExperimentLogIdentity | undefined {
@@ -146,21 +179,25 @@ export class ExperimentLogService {
 
     return this.appendEvent(
       this.buildEvent("tool_invocation_started", this.now().toISOString(), {
+        tool_call_id: input.toolCallId,
         tool_name: input.toolName,
-        input: input.input,
+        input: input.actionInput,
       }),
     );
   }
 
-  recordToolResult(result: QuailbotToolResult): ExperimentLogWriteResult<ToolResultEvent> {
+  recordToolResult(input: ToolResultInput): ExperimentLogWriteResult<ToolResultEvent> {
     if (this.identity === undefined) {
       return { ok: false, error: "experiment log is not open" };
     }
 
     return this.appendEvent(
       this.buildEvent("tool_result", this.now().toISOString(), {
-        result,
-        outcome: classifyToolOutcome(result),
+        tool_call_id: input.toolCallId,
+        ...withDefined("parent_event_id", input.parentEventId),
+        tool_name: input.toolName,
+        result: input.result,
+        outcome: classifyToolOutcome(input.result),
       }),
     );
   }
@@ -173,8 +210,10 @@ export class ExperimentLogService {
     const error = serializeError(input.error);
     return this.appendEvent(
       this.buildEvent("tool_exception", this.now().toISOString(), {
+        tool_call_id: input.toolCallId,
+        ...withDefined("parent_event_id", input.parentEventId),
         tool_name: input.toolName,
-        input: input.input,
+        input: input.actionInput,
         outcome: "exception" as const,
         error,
         error_message: error.message,
@@ -182,15 +221,17 @@ export class ExperimentLogService {
     );
   }
 
-  recordPlanStepResult(step: PlanStepResultPayload): ExperimentLogWriteResult<PlanStepResultEvent> {
+  recordPlanStepResult(input: PlanStepResultInput): ExperimentLogWriteResult<PlanStepResultEvent> {
     if (this.identity === undefined) {
       return { ok: false, error: "experiment log is not open" };
     }
 
     return this.appendEvent(
       this.buildEvent("plan_step_result", this.now().toISOString(), {
-        step,
-        outcome: classifyPlanStepOutcome(step),
+        tool_call_id: input.toolCallId,
+        ...withDefined("parent_event_id", input.parentEventId),
+        step: input.step,
+        outcome: classifyPlanStepOutcome(input.step),
       }),
     );
   }
@@ -260,8 +301,13 @@ export class ExperimentLogService {
   }
 
   private emitWarning(message: string): void {
+    if (this.warn === undefined) {
+      console.warn(message);
+      return;
+    }
+
     try {
-      this.warn?.(message);
+      this.warn(message);
     } catch {
       // Logging is fail-soft by design; warning callbacks must not affect tool behavior.
     }

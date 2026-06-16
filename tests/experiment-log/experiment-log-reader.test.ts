@@ -132,6 +132,46 @@ describe("readExperiment", () => {
     expect(result.ignoredTail).toBe("{\"event_kind\":\"tool_result\"");
     expect(result.summary.status).toBe("closed");
   });
+
+  it("skips and exposes malformed complete jsonl lines while keeping valid events", () => {
+    const root = makeTempDir();
+    const eventsPath = join(root, "2026", "06", "16", "exp_corrupt", "events.jsonl");
+    mkdirSync(dirname(eventsPath), { recursive: true });
+    writeFileSync(
+      eventsPath,
+      [
+        JSON.stringify(
+          event({
+            event_id: "evt-open",
+            experiment_id: "exp_corrupt",
+            sequence: 1,
+            timestamp_utc: "2026-06-16T06:30:00.000Z",
+            event_kind: "experiment_open",
+          }),
+        ),
+        "{not valid json}",
+        JSON.stringify(
+          event({
+            event_id: "evt-result",
+            experiment_id: "exp_corrupt",
+            sequence: 2,
+            timestamp_utc: "2026-06-16T06:31:00.000Z",
+            event_kind: "tool_result",
+            outcome: "measured",
+            result: { ok: true, action: "cli_get", action_input: {}, primary_result: { ok: true } },
+          }),
+        ),
+      ].join("\n") + "\n",
+      "utf8",
+    );
+
+    const result = readExperiment(eventsPath);
+
+    expect(result.events.map((entry) => entry.event_id)).toEqual(["evt-open", "evt-result"]);
+    expect(result.ignoredLines).toEqual([{ lineNumber: 2, line: "{not valid json}", error: expect.any(String) }]);
+    expect(result.summary.event_count).toBe(2);
+    expect(result.summary.outcome_counts).toMatchObject({ measured: 1, interrupted_unknown: 1 });
+  });
 });
 
 describe("listExperiments and findExperimentEventsPath", () => {
@@ -162,6 +202,39 @@ describe("listExperiments and findExperimentEventsPath", () => {
     expect(findExperimentEventsPath(root, "exp_newer")).toBe(newerPath);
     expect(findExperimentEventsPath(root, "exp_older")).toBe(olderPath);
     expect(findExperimentEventsPath(root, "exp_missing")).toBeUndefined();
+  });
+
+  it("does not throw when one discovered experiment has a malformed complete line", () => {
+    const root = makeTempDir();
+    const validPath = writeExperiment(root, "2026/06/16/exp_valid/events.jsonl", [
+      event({
+        event_id: "evt-valid-open",
+        experiment_id: "exp_valid",
+        sequence: 1,
+        timestamp_utc: "2026-06-16T06:30:00.000Z",
+        event_kind: "experiment_open",
+      }),
+    ]);
+    const corruptPath = join(root, "2026", "06", "16", "exp_corrupt_discovered", "events.jsonl");
+    mkdirSync(dirname(corruptPath), { recursive: true });
+    writeFileSync(
+      corruptPath,
+      `${JSON.stringify(
+        event({
+          event_id: "evt-corrupt-open",
+          experiment_id: "exp_corrupt_discovered",
+          sequence: 1,
+          timestamp_utc: "2026-06-16T06:31:00.000Z",
+          event_kind: "experiment_open",
+        }),
+      )}\n{broken}\n`,
+      "utf8",
+    );
+
+    expect(() => listExperiments(root)).not.toThrow();
+    expect(listExperiments(root).map((summary) => summary.experiment_id)).toEqual(["exp_corrupt_discovered", "exp_valid"]);
+    expect(findExperimentEventsPath(root, "exp_valid")).toBe(validPath);
+    expect(findExperimentEventsPath(root, "exp_corrupt_discovered")).toBe(corruptPath);
   });
 });
 

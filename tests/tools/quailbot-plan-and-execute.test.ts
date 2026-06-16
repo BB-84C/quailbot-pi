@@ -34,6 +34,82 @@ describe("quailbot_plan_and_execute", () => {
     expect(runCli).toHaveBeenCalledTimes(1);
   });
 
+  it("emits one step record after real cli_get execution", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValueOnce({
+      ok: true,
+      exitCode: 0,
+      stdout: '{"current":1.2}',
+      stderr: "",
+      payload: { current: 1.2 },
+      argv: ["nqctl", "get", "current"],
+    });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });
+    const records: Array<Record<string, unknown>> = [];
+
+    const result = await executeQuailbotPlanAndExecute(
+      ctx,
+      { steps: [{ kind: "cli_get", cli_name: "nqctl", parameter: "current" }] },
+      { onStepResult: (step) => { records.push(step); } },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      index: 0,
+      kind: "cli_get",
+      args: { kind: "cli_get", cli_name: "nqctl", parameter: "current" },
+      primary_result: { ok: true, parameter: "current" },
+    });
+    expect(runCli).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits zero step records on validation failure", async () => {
+    const runCli = vi.fn<RunCli>();
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: enabledMutationPolicy() });
+    const onStepResult = vi.fn();
+
+    const result = await executeQuailbotPlanAndExecute(
+      ctx,
+      { steps: [{ kind: "cli_get", cli_name: "nqctl", parameter: "missing" }] },
+      { onStepResult },
+    );
+
+    expect(result.primary_result).toMatchObject({
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: expect.stringContaining("unknown CLI parameter: nqctl:missing"),
+      steps: [],
+    });
+    expect(onStepResult).not.toHaveBeenCalled();
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
+  it("swallows recorder throws without changing the plan result", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValueOnce({
+      ok: true,
+      exitCode: 0,
+      stdout: '{"current":1.2}',
+      stderr: "",
+      payload: { current: 1.2 },
+      argv: ["nqctl", "get", "current"],
+    });
+    const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });
+    const onStepResult = vi.fn().mockRejectedValueOnce(new Error("recorder offline"));
+
+    const result = await executeQuailbotPlanAndExecute(
+      ctx,
+      { steps: [{ kind: "cli_get", cli_name: "nqctl", parameter: "current" }] },
+      { onStepResult },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.primary_result).toMatchObject({ ok: true, stopped_reason: "completed" });
+    const primary = result.primary_result as { steps: Array<Record<string, unknown>> };
+    expect(primary.steps).toHaveLength(1);
+    expect(primary.steps[0]).toMatchObject({ kind: "cli_get", primary_result: { ok: true, parameter: "current" } });
+    expect(onStepResult).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects mutating cli_set plans during preflight under the default disabled mutation policy", async () => {
     const runCli = vi.fn<RunCli>();
     const ctx = createToolContext({ workspace: fixtureWorkspace(), runCli, mutationPolicy: disabledMutationPolicy() });

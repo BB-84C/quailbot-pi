@@ -9,7 +9,7 @@ import { executeCliGet } from "./cli_get.js";
 import { executeCliRamp } from "./cli_ramp.js";
 import { executeCliSet } from "./cli_set.js";
 import { executeObserve } from "./observe.js";
-import { executeQuailbotPlanAndExecute } from "./quailbot_plan_and_execute.js";
+import { executeQuailbotPlanAndExecute, type PlanStepResultRecord } from "./quailbot_plan_and_execute.js";
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
 import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
@@ -118,8 +118,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       parameter: Type.String({ minLength: 1, description: "Workspace parameter name to read." }),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeCliGet(runtimeToolContext(runtime), params));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "cli_get", params, async () => executeCliGet(runtimeToolContext(runtime), params)),
+      );
     },
   });
 
@@ -139,8 +141,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeCliSet(runtimeToolContext(runtime), params));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "cli_set", params, async () => executeCliSet(runtimeToolContext(runtime), params)),
+      );
     },
   });
 
@@ -162,8 +166,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeCliRamp(runtimeToolContext(runtime), params));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "cli_ramp", params, async () => executeCliRamp(runtimeToolContext(runtime), params)),
+      );
     },
   });
 
@@ -182,8 +188,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeCliAction(runtimeToolContext(runtime), params));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "cli_action", params, async () => executeCliAction(runtimeToolContext(runtime), params)),
+      );
     },
   });
 
@@ -196,8 +204,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     parameters: Type.Object({
       rois: Type.Optional(roisSchema),
     }),
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeObserve(runtimeToolContext(runtime), params));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "observe", params, async () => executeObserve(runtimeToolContext(runtime), params)),
+      );
     },
   });
 
@@ -211,8 +221,12 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       anchor: Type.String({ minLength: 1, description: "Active workspace anchor name or ref to click." }),
       rois: Type.Optional(roisSchema),
     }),
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeClickAnchor(runtimeToolContext(runtime), params));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "click_anchor", params, async () =>
+          executeClickAnchor(runtimeToolContext(runtime), params),
+        ),
+      );
     },
   });
 
@@ -228,8 +242,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       submit: Type.Optional(Type.Union([Type.Literal("enter"), Type.Literal("tab")], { description: "Optional submit key." })),
       rois: Type.Optional(roisSchema),
     }),
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeSetField(runtimeToolContext(runtime), params));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "set_field", params, async () => executeSetField(runtimeToolContext(runtime), params)),
+      );
     },
   });
 
@@ -252,8 +268,14 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     renderCall: makeQuailbotRenderCall("quailbot_plan_and_execute"),
     renderResult: renderQuailbotToolResult,
     parameters: planAndExecuteParameters,
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeQuailbotPlanAndExecute(runtimeToolContext(runtime), params as never));
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_plan_and_execute", params, async (parentEventId) =>
+          executeQuailbotPlanAndExecute(runtimeToolContext(runtime), params as never, {
+            onStepResult: (step) => recordPlanStep(runtime, toolCallId, parentEventId, step),
+          }),
+        ),
+      );
     },
   });
 }
@@ -268,6 +290,105 @@ function requireWorkspace(runtime: QuailbotRuntime): Workspace {
   }
 
   return runtime.workspace;
+}
+
+async function executeLoggedTool(
+  runtime: QuailbotRuntime,
+  toolCallId: string,
+  toolName: string,
+  params: unknown,
+  run: (parentEventId: string | undefined) => Promise<QuailbotToolResult>,
+): Promise<QuailbotToolResult> {
+  const startedAt = Date.now();
+  const parentEventId = recordToolInvocationStarted(runtime, toolCallId, toolName, params);
+
+  try {
+    const result = await run(parentEventId);
+    recordToolResult(runtime, toolCallId, parentEventId, toolName, result, durationSince(startedAt));
+    return result;
+  } catch (error) {
+    recordToolException(runtime, toolCallId, parentEventId, toolName, params, error, durationSince(startedAt));
+    throw error;
+  }
+}
+
+function recordToolInvocationStarted(
+  runtime: QuailbotRuntime,
+  toolCallId: string,
+  toolName: string,
+  actionInput: unknown,
+): string | undefined {
+  try {
+    const result = runtime.experimentLog?.recordToolInvocationStarted({ toolCallId, toolName, actionInput });
+    return result?.ok ? result.event_id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function recordToolResult(
+  runtime: QuailbotRuntime,
+  toolCallId: string,
+  parentEventId: string | undefined,
+  toolName: string,
+  result: QuailbotToolResult,
+  durationMs: number,
+): void {
+  try {
+    runtime.experimentLog?.recordToolResult({
+      toolCallId,
+      ...(parentEventId === undefined ? {} : { parentEventId }),
+      toolName,
+      result,
+      durationMs,
+    });
+  } catch {
+    // Experiment telemetry is fail-soft and must not affect tool results.
+  }
+}
+
+function recordToolException(
+  runtime: QuailbotRuntime,
+  toolCallId: string,
+  parentEventId: string | undefined,
+  toolName: string,
+  actionInput: unknown,
+  error: unknown,
+  durationMs: number,
+): void {
+  try {
+    runtime.experimentLog?.recordToolException({
+      toolCallId,
+      ...(parentEventId === undefined ? {} : { parentEventId }),
+      toolName,
+      actionInput,
+      error,
+      durationMs,
+    });
+  } catch {
+    // Preserve the original tool exception even if telemetry fails.
+  }
+}
+
+function recordPlanStep(
+  runtime: QuailbotRuntime,
+  toolCallId: string,
+  parentEventId: string | undefined,
+  step: PlanStepResultRecord,
+): void {
+  try {
+    runtime.experimentLog?.recordPlanStepResult({
+      toolCallId,
+      ...(parentEventId === undefined ? {} : { parentEventId }),
+      step,
+    });
+  } catch {
+    // Step telemetry is best-effort only.
+  }
+}
+
+function durationSince(startedAt: number): number {
+  return Math.max(0, Date.now() - startedAt);
 }
 
 function piToolResult(result: QuailbotToolResult) {

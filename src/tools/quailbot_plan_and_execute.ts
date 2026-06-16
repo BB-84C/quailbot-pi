@@ -23,6 +23,18 @@ export type PlanAndExecuteStep =
 
 export type PlanAndExecuteInput = { steps: PlanAndExecuteStep[] };
 
+export type PlanStepResultRecord = {
+  index: number;
+  kind: PlanAndExecuteStep["kind"];
+  args: Record<string, unknown>;
+  primary_result: unknown;
+  linked_observation?: unknown;
+};
+
+export type PlanAndExecuteOptions = {
+  onStepResult?: (step: PlanStepResultRecord) => void | Promise<void>;
+};
+
 async function runStep(ctx: ToolContext, step: PlanAndExecuteStep): Promise<QuailbotToolResult> {
   if (step.kind === "cli_get") return await executeCliGet(ctx, step);
   if (step.kind === "cli_set") return await executeCliSet(ctx, step);
@@ -118,6 +130,7 @@ function isMutatingPlanStep(step: unknown): boolean {
 export async function executeQuailbotPlanAndExecute(
   ctx: ToolContext,
   input: PlanAndExecuteInput,
+  options: PlanAndExecuteOptions = {},
 ): Promise<QuailbotToolResult> {
   if (!Array.isArray(input.steps) || input.steps.length === 0) {
     throw new Error("quailbot_plan_and_execute requires at least one step");
@@ -133,20 +146,27 @@ export async function executeQuailbotPlanAndExecute(
     };
   }
 
-  const steps: Record<string, unknown>[] = [];
+  const steps: PlanStepResultRecord[] = [];
   let ok = true;
   let stopped_reason: "completed" | "step_failed" = "completed";
 
   for (let index = 0; index < input.steps.length; index += 1) {
     const step = input.steps[index];
     const result = await runStep(ctx, step);
-    steps.push({
+    const stepRecord: PlanStepResultRecord = {
       index,
       kind: step.kind,
       args: { ...step },
       primary_result: result.primary_result,
       linked_observation: result.linked_observation,
-    });
+    };
+    steps.push(stepRecord);
+
+    try {
+      await options.onStepResult?.(stepRecord);
+    } catch {
+      // Recorder callbacks are best-effort telemetry and must not affect plan execution.
+    }
 
     if (!result.ok) {
       ok = false;

@@ -68,3 +68,13 @@
 - For the web workspace/calibrator work, `D:/quailbot` is the authoritative behavior source. Implement against the old Tk product logic directly instead of improvising a new interaction model.
 - Do not limit parity work to the first failures the user happened to hit. Treat group tree behavior, ROI draw/edit flow, save/load, and the rest of the calibrator as a broad parity surface, and assume more gaps may exist until checked against the old project.
 - When the target behavior is already clear from the old project, proceed with TDD and do not interrupt the user for extra review/decision gates unless you are genuinely unsure how to proceed.
+
+## Screenshot Parity And Geometry Proof (2026-06-15)
+- Tk/web parity includes visible screenshot controls. If the old tool exposes refresh or pick-on-screenshot behavior, the web UI should expose the corresponding button/control instead of hiding it.
+- A3 geometry acceptance is not just "looks aligned on one machine". Prove that ROIs and anchors drawn on the screenshot round-trip to screen-space without drift, including non-zero virtual-screen origin and different screen/resolution deployments, using a verification method that does not interfere with the user's live desktop.
+
+## A5 Tool Result Rendering (2026-06-15)
+- For A5 CLI/tool-result presentation and context-retention design, ground the contract in the actual CLI driver substrate before inventing fields: inspect `D:\quail-cli-core`, `D:\Nanonis-QCodes-Controller` (`nqctl`), and quailbot-pi's current `cli_*` parsing path. Do not assume arbitrary CLI drivers or invent projection fields that the real contract cannot support.
+- Map `context[0].text`, renderResult output, and retained `details` only to information that is actually parsed or preserved by current tool results; treat noisy or unparsable raw stdout as bounded diagnostics, not as semantic fields.
+- Default `recentFullCliResultCount` to `2`: keep full `details` in model-visible context only for the most recent two `cli_*` tool results; older results should degrade to summary-only context while retaining full local details elsewhere.
+- For the current quailbot-pi redesign track, use a subagent-driven feature-branch workflow with best-of-N sampling and frequent small commit/push steps.

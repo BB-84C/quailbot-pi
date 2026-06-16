@@ -1,4 +1,14 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -77,7 +87,85 @@ describe("local Pi dev release adoption", () => {
     for (const tool of tools.filter((tool) => expectedToolNames.includes(tool.name))) {
       expect(tool.renderCall).toEqual(expect.any(Function));
     }
-    expect(commands.map((command) => command.name)).toEqual(["quailbot-workspace"]);
+    expect(commands.map((command) => command.name).sort(compareNames)).toEqual([
+      "quailbot-experiments",
+      "quailbot-workspace",
+    ]);
+  });
+
+  it("opens and closes an experiment log across session lifecycle events", async () => {
+    const tempCwd = makeTempDir();
+    installStarterWorkspace(tempCwd);
+
+    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
+    const extensionContext = createExtensionContextStub(tempCwd);
+
+    await handlers.get("session_start")?.(
+      { type: "session_start", reason: "resume" } satisfies SessionStartEvent,
+      extensionContext,
+    );
+    await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, extensionContext);
+
+    const experimentCommand = requireExperimentCommand(commands);
+    const commandContext = createCommandContextStub(tempCwd);
+    await experimentCommand.handler("list", commandContext);
+
+    const summaries = notificationJson(commandContext.notifications, "Quailbot experiments") as Array<{
+      status: string;
+      event_count: number;
+    }>;
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({ status: "closed", event_count: 2 });
+
+    const eventsPath = onlyExperimentEventsJsonl(tempCwd);
+    const fileText = readFileSync(eventsPath, "utf8");
+    expect(fileText).toContain('"session_start_reason":"resume"');
+    expect(fileText).toContain('"reason":"session_shutdown"');
+  });
+
+  it("continues the experiment log on same-workspace reload and rolls logs when the workspace hash changes", async () => {
+    const tempCwd = makeTempDir();
+    const workspacePath = installStarterWorkspace(tempCwd);
+
+    const { handlers } = await loadBuiltExtensionWithPiStub();
+    const extensionContext = createExtensionContextStub(tempCwd);
+
+    await handlers.get("session_start")?.(
+      { type: "session_start", reason: "startup" } satisfies SessionStartEvent,
+      extensionContext,
+    );
+    const initialEventsPath = onlyExperimentEventsJsonl(tempCwd);
+
+    await handlers.get("session_start")?.(
+      { type: "session_start", reason: "reload" } satisfies SessionStartEvent,
+      extensionContext,
+    );
+
+    expect(findExperimentEventsJsonl(tempCwd)).toEqual([initialEventsPath]);
+    expect(readFileSync(initialEventsPath, "utf8")).not.toContain('"event_kind":"experiment_close"');
+
+    const changedWorkspaceJson = readFileSync(workspacePath, "utf8").replace(
+      "Measured tunneling current.",
+      "Measured tunneling current after reload.",
+    );
+    writeFileSync(workspacePath, changedWorkspaceJson, "utf8");
+
+    await handlers.get("session_start")?.(
+      { type: "session_start", reason: "reload" } satisfies SessionStartEvent,
+      extensionContext,
+    );
+
+    const eventsPaths = findExperimentEventsJsonl(tempCwd);
+    expect(eventsPaths).toHaveLength(2);
+    expect(readFileSync(initialEventsPath, "utf8")).toContain('"reason":"workspace_changed"');
+    const reloadedEventsPath = eventsPaths.find((path) => path !== initialEventsPath);
+    expect(reloadedEventsPath).toBeDefined();
+    if (reloadedEventsPath === undefined) {
+      throw new Error("changed workspace reload did not open a second experiment log");
+    }
+    expect(readFileSync(reloadedEventsPath, "utf8")).toContain('"session_start_reason":"reload"');
+
+    await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, extensionContext);
   });
 
   it("loads the generic starter workspace into hidden context on Pi lifecycle events", async () => {
@@ -628,6 +716,56 @@ function requireWorkspaceCommand(commands: RegisteredCommand[]): RegisteredComma
     throw new Error("workspace command was not registered");
   }
   return workspaceCommand;
+}
+
+function requireExperimentCommand(commands: RegisteredCommand[]): RegisteredCommand {
+  const experimentCommand = commands.find((command) => command.name === "quailbot-experiments");
+  expect(experimentCommand).toBeDefined();
+  if (!experimentCommand) {
+    throw new Error("experiment command was not registered");
+  }
+  return experimentCommand;
+}
+
+function installStarterWorkspace(cwd: string): string {
+  const workspacePath = join(cwd, ".quailbot-pi", "workspace.json");
+  mkdirSync(dirname(workspacePath), { recursive: true });
+  copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), workspacePath);
+  return workspacePath;
+}
+
+function onlyExperimentEventsJsonl(cwd: string): string {
+  const eventsPaths = findExperimentEventsJsonl(cwd);
+  expect(eventsPaths).toHaveLength(1);
+  const [eventsPath] = eventsPaths;
+  if (eventsPath === undefined) {
+    throw new Error("no experiment events.jsonl file was written");
+  }
+  return eventsPath;
+}
+
+function findExperimentEventsJsonl(cwd: string): string[] {
+  return findEventsJsonl(join(cwd, ".quailbot-pi", "experiments")).sort(compareNames);
+}
+
+function findEventsJsonl(path: string): string[] {
+  if (!existsSync(path)) {
+    return [];
+  }
+
+  const stat = statSync(path);
+  if (stat.isFile()) {
+    return path.endsWith("events.jsonl") ? [path] : [];
+  }
+  if (!stat.isDirectory()) {
+    return [];
+  }
+
+  const results: string[] = [];
+  for (const name of readdirSync(path)) {
+    results.push(...findEventsJsonl(join(path, name)));
+  }
+  return results;
 }
 
 async function workspaceUiSession(notifications: string[]): Promise<{ url: string; token: string }> {

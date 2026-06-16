@@ -1,5 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { registerExperimentCommands } from "./experiment-log/register-experiment-commands.js";
+import { ExperimentLogService, experimentLogRoot } from "./experiment-log/experiment-log-service.js";
+import type { ExperimentCloseReason } from "./experiment-log/experiment-log-types.js";
 import { buildQuailbotSystemPrompt } from "./prompt/quailbot-system-prompt.js";
 import { buildWorkspaceContextText } from "./prompt/workspace-summary.js";
 import { PlanContextStore } from "./prompt/plan-context.js";
@@ -19,6 +22,7 @@ export type QuailbotRuntime = {
   activeWorkspace?: LoadedWorkspace;
   pendingWorkspaceActivation?: PendingWorkspaceActivation;
   workspaceUiServer?: WorkspaceUiServer;
+  experimentLog?: ExperimentLogService;
   planStore: PlanContextStore;
 };
 
@@ -29,13 +33,15 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
 
   registerQuailbotTools(pi, runtime);
   registerWorkspaceCommands(pi, runtime);
+  registerExperimentCommands(pi);
 
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", (event, ctx) => {
     runtime.planStore.clear();
     runtime.pendingWorkspaceActivation = undefined;
 
+    let activeWorkspace: LoadedWorkspace | undefined;
     try {
-      const activeWorkspace = loadActiveWorkspace({ cwd: ctx.cwd });
+      activeWorkspace = loadActiveWorkspace({ cwd: ctx.cwd });
       runtime.activeWorkspace = activeWorkspace;
       runtime.workspace = activeWorkspace.workspace;
     } catch (error) {
@@ -43,10 +49,13 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
       runtime.workspace = undefined;
       notifyWarning(ctx, `Quailbot workspace unavailable: ${errorMessage(error)}`);
     }
+
+    synchronizeExperimentLog(runtime, ctx, sessionStartReason(event), activeWorkspace, mutationPolicyFromEnvironment());
   });
 
-  pi.on("session_shutdown", async () => {
+  pi.on("session_shutdown", async (_event, ctx) => {
     try {
+      closeExperimentLog(runtime, ctx, "session_shutdown");
       await stopWorkspaceUiServer(runtime);
     } finally {
       runtime.pendingWorkspaceActivation = undefined;
@@ -79,6 +88,90 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
       },
     };
   });
+}
+
+function synchronizeExperimentLog(
+  runtime: QuailbotRuntime,
+  ctx: ExtensionContext,
+  reason: string,
+  activeWorkspace: LoadedWorkspace | undefined,
+  mutationPolicy: ReturnType<typeof mutationPolicyFromEnvironment>,
+): void {
+  try {
+    if (reason === "reload" && runtime.experimentLog !== undefined) {
+      if (runtime.experimentLog.currentWorkspaceHash() === activeWorkspace?.hash) {
+        runtime.experimentLog.updateContext({ workspace: activeWorkspace, mutationPolicy });
+        return;
+      }
+
+      const previousSessionFile = closeExperimentLog(runtime, ctx, "workspace_changed");
+      openExperimentLog(runtime, ctx, reason, activeWorkspace, mutationPolicy, previousSessionFile);
+      return;
+    }
+
+    const previousSessionFile = closeExperimentLog(runtime, ctx, "session_restarted");
+    openExperimentLog(runtime, ctx, reason, activeWorkspace, mutationPolicy, previousSessionFile);
+  } catch (error) {
+    notifyExperimentLogWarning(ctx, `experiment log lifecycle failed: ${errorMessage(error)}`);
+    runtime.experimentLog = undefined;
+  }
+}
+
+function openExperimentLog(
+  runtime: QuailbotRuntime,
+  ctx: ExtensionContext,
+  sessionStartReason: string,
+  activeWorkspace: LoadedWorkspace | undefined,
+  mutationPolicy: ReturnType<typeof mutationPolicyFromEnvironment>,
+  previousSessionFile: string | undefined,
+): void {
+  const service = new ExperimentLogService({
+    root: experimentLogRoot(ctx.cwd),
+    warn: (message) => notifyExperimentLogWarning(ctx, message),
+  });
+  const result = service.open({
+    sessionStartReason,
+    previousSessionFile,
+    workspace: activeWorkspace,
+    mutationPolicy,
+  });
+
+  if (!result.ok) {
+    notifyExperimentLogWarning(ctx, `experiment log open failed: ${result.error}`);
+    runtime.experimentLog = undefined;
+    return;
+  }
+
+  runtime.experimentLog = service;
+}
+
+function closeExperimentLog(
+  runtime: QuailbotRuntime,
+  ctx: ExtensionContext,
+  reason: ExperimentCloseReason,
+): string | undefined {
+  const service = runtime.experimentLog;
+  if (service === undefined) {
+    return undefined;
+  }
+
+  const previousSessionFile = service.currentIdentity()?.events_path;
+  const result = service.close(reason);
+  runtime.experimentLog = undefined;
+
+  if (!result.ok) {
+    notifyExperimentLogWarning(ctx, `experiment log close failed: ${result.error}`);
+  }
+
+  return previousSessionFile;
+}
+
+function sessionStartReason(event: { reason?: unknown }): string {
+  return typeof event.reason === "string" && event.reason.length > 0 ? event.reason : "unknown";
+}
+
+function notifyExperimentLogWarning(ctx: ExtensionContext, message: string): void {
+  notifyWarning(ctx, `Quailbot experiment log warning: ${message}`);
 }
 
 function notifyWarning(ctx: ExtensionContext, message: string): void {

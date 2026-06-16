@@ -54,4 +54,12 @@
 ## Branch Hygiene (2026-06-16)
 - A3-era worktree guidance is obsolete. For ordinary feature work in this repo, use normal local feature branches in the main checkout.
 - Reserve local `.worktrees` for best-of-N sampling or explicitly authorized isolation only.
-- Do not leave stale milestone-specific guidance in `AGENTS.md`; remove it when it stops being live.
+- Do not leave stale milestone-specific guidance in `AGENTS.md`; remove it when it stops being live.## A6/A7 Notes (2026-06-16)
+- Do not force an inaccurate Quailbot-owned context bucket breakdown. Pi already exposes aggregate context pressure in the TUI footer, and provider-specific tokenizer/accounting limits make a full per-bucket breakdown false precision unless the data is exact or clearly labeled as an estimate.
+- If any `/quailbot-context`-style surface is kept, default it to read-only and non-model-visible.
+- For A7 experiment-log work, use subagent-driven best-of-N on a new feature branch with multiple small commits/pushes.
+- Advisory diagnostics on these surfaces should be warnings only; they must not block tool execution.
+
+## Dreaming Updates (2026-06-16)
+- In best-of-N review/judge prompts, bind stable candidate labels (`A/B/C/...`) and explicitly tell reviewers to ignore directory, branch, and worktree names. Per-judge path permutations are acceptable only if the candidate labels stay stable.
+- For multi-task feature branches, per-task spec/code-quality approvals are not enough by themselves. Before handoff, run one final whole-branch review focused on cross-task integration coherence, fail-soft warning paths, lifecycle reload/close semantics, and schema stability.

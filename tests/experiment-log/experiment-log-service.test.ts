@@ -63,7 +63,13 @@ describe("ExperimentLogService", () => {
 
     service.updateContext({ workspace: updatedWorkspace, mutationPolicy: disabledMutationPolicy() });
     expect(service.currentWorkspaceHash()).toBe("sha256:workspace-B");
-    const result = service.recordToolResult({ toolCallId: "call-start", parentEventId: "evt-start", toolName: "cli_set", result: toolResult });
+    const result = service.recordToolResult({
+      toolCallId: "call-start",
+      parentEventId: "evt-start",
+      toolName: "cli_set",
+      result: toolResult,
+      durationMs: 125,
+    });
     expect(result).toMatchObject({ ok: true, path: eventsPath, event_id: "evt-result", sequence: 3 });
 
     const close = service.close("session_shutdown");
@@ -92,7 +98,8 @@ describe("ExperimentLogService", () => {
       workspace: { hash: "sha256:workspace-A" },
       mutation_policy: { mutating_tools_enabled: true },
     });
-    expect(events[1]).toMatchObject({ event_id: "evt-start", tool_call_id: "call-start", tool_name: "cli_set", input: toolResult.action_input });
+    expect(events[1]).toMatchObject({ event_id: "evt-start", tool_call_id: "call-start", tool_name: "cli_set", action_input: toolResult.action_input });
+    expect(events[1]).not.toHaveProperty("input");
     expect(events[2]).toMatchObject({
       event_id: "evt-result",
       event_kind: "tool_result",
@@ -100,6 +107,7 @@ describe("ExperimentLogService", () => {
       parent_event_id: "evt-start",
       tool_name: "cli_set",
       outcome: "applied",
+      duration_ms: 125,
       result: toolResult,
       workspace: { hash: "sha256:workspace-B" },
       mutation_policy: { mutating_tools_enabled: false },
@@ -123,7 +131,13 @@ describe("ExperimentLogService", () => {
     service.open({ sessionStartReason: "fresh_session" });
     const error = new TypeError("driver exploded");
 
-    const exception = service.recordToolException({ toolCallId: "call-exception", toolName: "cli_get", actionInput: { parameter: "current" }, error });
+    const exception = service.recordToolException({
+      toolCallId: "call-exception",
+      toolName: "cli_get",
+      actionInput: { parameter: "current" },
+      error,
+      durationMs: 42,
+    });
     const step = service.recordPlanStepResult({
       toolCallId: "call-step",
       step: {
@@ -141,9 +155,11 @@ describe("ExperimentLogService", () => {
     expect(exception.event).toMatchObject({
       tool_name: "cli_get",
       tool_call_id: "call-exception",
-      input: { parameter: "current" },
+      action_input: { parameter: "current" },
+      duration_ms: 42,
       error: { name: "TypeError", message: "driver exploded" },
     });
+    expect(exception.event).not.toHaveProperty("input");
     expect(typeof exception.event.error.stack).toBe("string");
     expect(step).toMatchObject({ ok: true, event: { event_kind: "plan_step_result", outcome: "applied" } });
   });
@@ -218,6 +234,7 @@ describe("ExperimentLogService", () => {
       parentEventId: "evt-start",
       toolName: "cli_get",
       result: resultPayload,
+      durationMs: 12,
     });
     const exception = service.recordToolException({
       toolCallId: "tool-call-2",
@@ -225,6 +242,7 @@ describe("ExperimentLogService", () => {
       toolName: "cli_set",
       actionInput: { parameter: "bias_v", value: 2.5 },
       error: new Error("driver failed"),
+      durationMs: 34,
     });
     const step = service.recordPlanStepResult({
       toolCallId: "tool-call-3",
@@ -240,11 +258,17 @@ describe("ExperimentLogService", () => {
     expect(started).toMatchObject({ ok: true, event: { event_kind: "tool_invocation_started", tool_call_id: "tool-call-1" } });
     expect(result).toMatchObject({
       ok: true,
-      event: { event_kind: "tool_result", tool_call_id: "tool-call-1", parent_event_id: "evt-start", result: resultPayload },
+      event: { event_kind: "tool_result", tool_call_id: "tool-call-1", parent_event_id: "evt-start", result: resultPayload, duration_ms: 12 },
     });
     expect(exception).toMatchObject({
       ok: true,
-      event: { event_kind: "tool_exception", tool_call_id: "tool-call-2", parent_event_id: "evt-start", input: { parameter: "bias_v", value: 2.5 } },
+      event: {
+        event_kind: "tool_exception",
+        tool_call_id: "tool-call-2",
+        parent_event_id: "evt-start",
+        action_input: { parameter: "bias_v", value: 2.5 },
+        duration_ms: 34,
+      },
     });
     expect(step).toMatchObject({
       ok: true,

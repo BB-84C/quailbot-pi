@@ -181,7 +181,7 @@ export class ExperimentLogService {
       this.buildEvent("tool_invocation_started", this.now().toISOString(), {
         tool_call_id: input.toolCallId,
         tool_name: input.toolName,
-        input: input.actionInput,
+        action_input: input.actionInput,
       }),
     );
   }
@@ -197,6 +197,7 @@ export class ExperimentLogService {
         ...withDefined("parent_event_id", input.parentEventId),
         tool_name: input.toolName,
         result: input.result,
+        ...withDefined("duration_ms", input.durationMs),
         outcome: classifyToolOutcome(input.result),
       }),
     );
@@ -213,7 +214,8 @@ export class ExperimentLogService {
         tool_call_id: input.toolCallId,
         ...withDefined("parent_event_id", input.parentEventId),
         tool_name: input.toolName,
-        input: input.actionInput,
+        action_input: input.actionInput,
+        ...withDefined("duration_ms", input.durationMs),
         outcome: "exception" as const,
         error,
         error_message: error.message,

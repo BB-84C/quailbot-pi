@@ -56,7 +56,7 @@ export type ExperimentOpenEvent = ExperimentLogEventBase<"experiment_open"> & {
 export type ToolInvocationStartedEvent = ExperimentLogEventBase<"tool_invocation_started"> & {
   tool_call_id: string;
   tool_name: string;
-  input: unknown;
+  action_input: unknown;
 };
 
 export type ToolResultEvent = ExperimentLogEventBase<"tool_result"> & {
@@ -64,6 +64,7 @@ export type ToolResultEvent = ExperimentLogEventBase<"tool_result"> & {
   parent_event_id?: string;
   tool_name: string;
   result: QuailbotToolResult;
+  duration_ms?: number;
   outcome: ExperimentOutcome;
 };
 
@@ -71,7 +72,8 @@ export type ToolExceptionEvent = ExperimentLogEventBase<"tool_exception"> & {
   tool_call_id: string;
   parent_event_id?: string;
   tool_name: string;
-  input: unknown;
+  action_input: unknown;
+  duration_ms?: number;
   outcome: "exception";
   error: {
     name: string;

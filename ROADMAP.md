@@ -235,7 +235,7 @@ Date: 2026-06-15
 
 - Parser hardening for prefixed JSON or non-standard tokens should be considered separately from A5 projection so driver contract violations stay visible.
 - A7 experiment logs should reuse the full raw result preserved in `details` rather than inventing a second action/readback schema.
-- A6 context accounting should measure summary-vs-full projection savings for Quailbot tool results.
+- A6 context component accounting was skipped: Pi already exposes aggregate context pressure in the TUI footer, and a provider-token component breakdown is not credible at the quailbot-pi plugin layer without Pi core/provider instrumentation.
 - Future real TUI acceptance should use the live terminal surface when the task explicitly asks for visual proof; A5's preserved local artifacts cover the contract/output substrate for this implementation round.
 
 ## Future investigation phases: Quailbot behavior still missing from Pi
@@ -305,19 +305,15 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 **Recommended default:** First implement a Quailbot-owned projection service and per-tool renderers. Default `recentFullCliResultCount` to `2`. Preserve full raw results in `details`; leave durable disk-backed experiment evidence to A7. Escalate to Pi core only if plugin-level projection/rendering cannot satisfy real TUI acceptance.
 
-### Phase A6: Context usage by component and hierarchy
+### Phase A6: Context usage diagnostics [SKIPPED]
 
-**Concise spec:** Add a context usage view that shows both aggregate usage and a component hierarchy for diagnosing prompt/cache pressure. It should resemble the Claude Code `/context` view in the screenshot: total tokens/free space, high-level buckets, and drill-down for Quailbot-introduced components such as operator system-prompt append, workspace summary, plan context, last action observation, and tool-result payloads.
+**Decision:** Do not implement A6 as a Quailbot plugin feature.
 
-**Feasibility:** Medium. Pi exposes aggregate `getContextUsage()` and RPC `get_session_stats`, but the SDK surface currently reports tokens/window/percent rather than a full system/tools/skills/messages hierarchy. Quailbot can measure its own generated strings and emitted tool-result payloads; exact global attribution likely needs Pi core instrumentation.
+**Reason:** Pi already exposes the useful aggregate context-pressure signal in the TUI footer, for example `0.0%/1.1M (auto)`. A Claude-Code-style component token breakdown is not credible at the quailbot-pi plugin layer because final payload packing and provider-specific tokenization happen below the plugin boundary. Quailbot can count its own generated strings and projection payload characters, but presenting that as a system/tools/messages/workspace token hierarchy would be false precision.
 
-**Options / trade-offs:**
+**Deferred condition:** If exact component breakdown becomes important later, build it in Pi core/provider instrumentation where the final request assembly and provider token-counting semantics are available. Do not add a Quailbot plugin dashboard that duplicates Pi's aggregate footer and guesses per-component token buckets.
 
-- Plugin-estimated Quailbot hierarchy: feasible now; labels estimates honestly; cannot explain Pi-owned buckets exactly.
-- Hybrid view: exact Pi aggregate plus estimated Quailbot subcomponents inside the messages/context the plugin owns; best near-term diagnostic value.
-- Pi core component accounting: most accurate and closest to the screenshot; highest scope because it requires core message/system/tool accounting support.
-
-**Recommended default:** Start hybrid. Show Quailbot-owned component estimates clearly, and reserve Pi core work for exact system/tool/skills/message hierarchy.
+**Next active phase:** A7 experiment log subsystem.
 
 ### Phase A7: Experiment log subsystem
 
@@ -353,7 +349,7 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 - A1 should land first so later behavior runs under the right instrument-operator identity.
 - A2 should land before A3 because calibration/editing must share one workspace selection, validation, write, revision, and reload contract.
-- A5 and A6 are the next operability phases and can run once real sessions produce enough tool/context volume to justify them.
+- A5 is complete and A6 is skipped; A7 is the next active operability phase.
 - A7 should add the durable experiment evidence substrate before the remote host so remote jobs do not invent a second logging contract.
 - A8 is the deferred remote-host architecture phase after A5/A6/A7; it must reuse A2 for workspace validation/activation and A7 for experiment evidence.
 - Every future implementation phase still needs semantic Pi-session acceptance; the ROADMAP is only a guide, not the detailed spec.

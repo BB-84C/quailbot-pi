@@ -238,6 +238,32 @@ Date: 2026-06-15
 - A6 context component accounting was skipped: Pi already exposes aggregate context pressure in the TUI footer, and a provider-token component breakdown is not credible at the quailbot-pi plugin layer without Pi core/provider instrumentation.
 - Future real TUI acceptance should use the live terminal surface when the task explicitly asks for visual proof; A5's preserved local artifacts cover the contract/output substrate for this implementation round.
 
+## Implementation round: A7 experiment log subsystem
+
+Date: 2026-06-16
+
+### Delivered
+
+- Added an append-only `.quailbot-pi/experiments/YYYY/MM/DD/<experiment_id>/events.jsonl` subsystem under `src/experiment-log/`, with typed event envelopes (`experiment_open`, `tool_invocation_started`, `tool_result`, `tool_exception`, `plan_step_result`, `experiment_close`) and an outcome classifier covering `applied`, `measured`, `mutation_denied`, `validation_failed`, `step_failed`, `driver_failure`, `readback_failure`, `gui_backend_unavailable`, `exception`, and `interrupted_unknown`.
+- Added a read-only `/quailbot-experiments list|show|where` command adapter that lists local experiments, shows compact timelines with `ignored_tail`/`ignored_lines` diagnostics for malformed JSONL, and locates the experiment root from `ctx.cwd`.
+- Wired Pi extension lifecycle so `startup`/`new`/`resume`/`fork` opens a fresh experiment, `reload` with the same workspace hash continues the current experiment, `reload` with a changed workspace hash closes the prior log with `workspace_changed` and opens a new one, and `session_shutdown` closes the current log with `session_shutdown`. Headless contexts surface logging warnings via `console.warn`.
+- Added a narrow `executeQuailbotPlanAndExecute({ onStepResult })` recorder callback (fail-soft on sync throw and async rejection) and a top-level tool logging wrapper that records started/result/exception with `duration_ms`, `tool_call_id`, and `parent_event_id` correlation for `cli_get`, `cli_set`, `cli_ramp`, `cli_action`, `observe`, `click_anchor`, `set_field`, and `quailbot_plan_and_execute`.
+- Excluded `quailbot_planwrite` and direct `sleep_seconds` from logging in the first slice. Plan-step `sleep_seconds` inside `quailbot_plan_and_execute` is still recorded as a `plan_step_result`.
+- Preserved real readback evidence at `.opencode/artifacts/a7-experiment-log/product-log-readback.jsonl` (driven by `harness.mjs`): `experiment_open` first; `observe` `gui_backend_unavailable`; `plan_step_result` precedes the aggregate plan `tool_result`; denied `cli_set` outcome `mutation_denied`; `experiment_close` last with `session_shutdown`; workspace snapshot present on open; full `result.primary_result` preserved separately from `linked_observation`.
+
+### Now known
+
+- JSONL is sufficient for first-slice local audit/readback. Missing close events are visible as `interrupted_unknown`, and partial trailing lines/malformed complete lines are surfaced as `ignored_tail` / `ignored_lines` without poisoning the timeline.
+- Logging failures are warning-only and never mutate tool results or rethrow shape. Recorder callbacks are advisory; their sync throws and async rejections are both swallowed by the plan executor.
+- The full `QuailbotToolResult.details` is reused inside `tool_result` events; experiment evidence does not invent a second action/readback schema.
+- Pi session resume semantics (`startup`/`new`/`resume`/`fork` vs `reload` continuation vs `reload` rollover) are observable through `experiment_open.session_start_reason` and `experiment_close.reason`.
+
+### Later phases must do differently
+
+- A8 can replay or correlate by `(experiment_id, sequence)` without changing the event envelope; remote replication, auth, and retention remain explicit non-goals until a later phase.
+- Future tool additions should reuse `executeLoggedTool` and `recordPlanStep`; new event kinds must keep the optional `parent_event_id` and `duration_ms` correlation fields stable.
+- Real instrument acceptance should record per-step linked-observable readback alongside `primary_result` so future inspection tooling can distinguish driver state from instrument state without re-parsing raw stdout.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

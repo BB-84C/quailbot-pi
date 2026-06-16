@@ -48,7 +48,10 @@ export type ExperimentLogEventBase<TKind extends ExperimentLogEventKind = Experi
   mutation_policy?: MutationPolicySnapshot;
 };
 
-export type ExperimentOpenEvent = ExperimentLogEventBase<"experiment_open">;
+export type ExperimentOpenEvent = ExperimentLogEventBase<"experiment_open"> & {
+  session_start_reason: string;
+  previous_session_file?: string;
+};
 
 export type ToolInvocationStartedEvent = ExperimentLogEventBase<"tool_invocation_started"> & {
   tool_name: string;
@@ -63,6 +66,12 @@ export type ToolResultEvent = ExperimentLogEventBase<"tool_result"> & {
 export type ToolExceptionEvent = ExperimentLogEventBase<"tool_exception"> & {
   tool_name: string;
   input: unknown;
+  outcome: "exception";
+  error: {
+    name: string;
+    message: string;
+    stack?: string;
+  };
   error_message: string;
 };
 
@@ -83,6 +92,8 @@ export type ExperimentCloseReason = "session_shutdown" | "session_restarted" | "
 
 export type ExperimentCloseEvent = ExperimentLogEventBase<"experiment_close"> & {
   reason: ExperimentCloseReason;
+  event_count: number;
+  last_sequence: number;
 };
 
 export type ExperimentLogEvent =
@@ -93,17 +104,19 @@ export type ExperimentLogEvent =
   | PlanStepResultEvent
   | ExperimentCloseEvent;
 
-export type ExperimentLogWriteResult =
+export type ExperimentLogWriteResult<TEvent extends ExperimentLogEvent = ExperimentLogEvent> =
   | {
       ok: true;
       path: string;
       event_id: string;
       sequence: number;
+      event: TEvent;
     }
   | {
       ok: false;
       path?: string;
       error: string;
+      event?: TEvent;
     };
 
 export function workspaceSnapshot(value: LoadedWorkspace | undefined): WorkspaceSnapshot | undefined {

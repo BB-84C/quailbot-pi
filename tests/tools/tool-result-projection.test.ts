@@ -110,6 +110,17 @@ describe("tool result projection", () => {
     expect(text).not.toContain('"exit_code": 3');
   });
 
+  it("keeps readback and parse diagnostics for nested plan cli failures", () => {
+    const text = buildQuailbotToolContent(planWithNestedCliActionParseFailureAndReadback());
+
+    expect(text).toContain("#0 cli_action [fail]");
+    expect(text).toContain("readback nqctl:bias_v=0.18");
+    expect(text).toContain("payload_parse_failed_non_json_prefix");
+    expect(text).toContain("Start action timeout");
+    expect(text).not.toContain("NanonisProtocolError");
+    expect(text).not.toContain('"exit_code": 3');
+  });
+
   it("keeps failed plan primary diagnostics when linked readback exists", () => {
     const text = buildQuailbotToolContent(planWithFailedPrimaryAndLinkedReadback());
 
@@ -408,6 +419,22 @@ function planWithNestedCliActionParseFailure(): QuailbotToolResult {
       ],
     },
   };
+}
+
+function planWithNestedCliActionParseFailureAndReadback(): QuailbotToolResult {
+  const result = planWithNestedCliActionParseFailure();
+  const primary = result.primary_result as { steps: Array<Record<string, unknown>> };
+  primary.steps[0].linked_observation = {
+    channels: {
+      cli: {
+        results: {
+          "nqctl:bias_v": { ok: true, payload: { value: 0.18 } },
+        },
+      },
+    },
+  };
+
+  return result;
 }
 
 function planWithFailedLinkedReadbackStep(): QuailbotToolResult {

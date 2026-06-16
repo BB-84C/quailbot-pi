@@ -355,7 +355,7 @@ function planStepStatus(primary: Record<string, unknown>): ProjectionStatus {
 function planStepResultSummary(kind: string, primary: Record<string, unknown>, linkedObservation: unknown): string {
   const readbacks = linkedCliReadbackLines(record(linkedObservation), "=").map(stripReadbackParseStatus);
   if (readbacks.length > 0) {
-    const diagnosticParts = structuredDiagnosticParts(primary);
+    const diagnosticParts = [...structuredDiagnosticParts(primary), ...parseFailureDiagnosticParts(primary)];
     const diagnosticSuffix = diagnosticParts.length > 0 ? ` ${diagnosticParts.join(" ")}` : "";
     return `readback ${readbacks.join(" ")}${diagnosticSuffix}`;
   }
@@ -400,7 +400,7 @@ function parseFailureDiagnosticParts(primary: Record<string, unknown>): string[]
 
   const parts = [`parse=${parseStatus}`];
   const stdoutDiagnostic = compactStdoutDiagnostic(primary.stdout);
-  if (stdoutDiagnostic !== undefined) {
+  if (stdoutDiagnostic !== undefined && !hasHumanDiagnostic(primary)) {
     parts.push(`stdout_diagnostic=${stdoutDiagnostic}`);
   }
 
@@ -438,6 +438,13 @@ function hasStructuredError(primary: Record<string, unknown>): boolean {
     stringValue(primary.error_message) !== undefined ||
     stringValue(primary.message) !== undefined
   );
+}
+
+function hasHumanDiagnostic(primary: Record<string, unknown>): boolean {
+  return [primary.error_message, primary.message, primary.stderr].some((value) => {
+    const text = stringValue(value);
+    return text !== undefined && text.length > 0;
+  });
 }
 
 function previewLines(primary: Record<string, unknown>): string[] {

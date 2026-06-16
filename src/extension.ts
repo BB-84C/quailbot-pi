@@ -171,7 +171,17 @@ function sessionStartReason(event: { reason?: unknown }): string {
 }
 
 function notifyExperimentLogWarning(ctx: ExtensionContext, message: string): void {
-  notifyWarning(ctx, `Quailbot experiment log warning: ${message}`);
+  const warningMessage = `Quailbot experiment log warning: ${message}`;
+  if (!ctx.hasUI) {
+    console.warn(warningMessage);
+    return;
+  }
+
+  try {
+    ctx.ui.notify(warningMessage, "warning");
+  } catch {
+    console.warn(warningMessage);
+  }
 }
 
 function notifyWarning(ctx: ExtensionContext, message: string): void {

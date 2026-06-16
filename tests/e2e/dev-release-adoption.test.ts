@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   BeforeAgentStartEvent,
   BuildSystemPromptOptions,
@@ -121,6 +121,29 @@ describe("local Pi dev release adoption", () => {
     const fileText = readFileSync(eventsPath, "utf8");
     expect(fileText).toContain('"session_start_reason":"resume"');
     expect(fileText).toContain('"reason":"session_shutdown"');
+  });
+
+  it("reports experiment-log open failures to console warnings when UI is unavailable", async () => {
+    const tempCwd = makeTempDir();
+    mkdirSync(join(tempCwd, ".quailbot-pi"), { recursive: true });
+    writeFileSync(join(tempCwd, ".quailbot-pi", "experiments"), "not a directory", "utf8");
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      const { handlers } = await loadBuiltExtensionWithPiStub();
+      const extensionContext = createExtensionContextStub(tempCwd);
+
+      await handlers.get("session_start")?.(
+        { type: "session_start", reason: "startup" } satisfies SessionStartEvent,
+        extensionContext,
+      );
+
+      expect(consoleWarn).toHaveBeenCalledWith(
+        expect.stringContaining("Quailbot experiment log warning: experiment log open failed"),
+      );
+    } finally {
+      consoleWarn.mockRestore();
+    }
   });
 
   it("continues the experiment log on same-workspace reload and rolls logs when the workspace hash changes", async () => {

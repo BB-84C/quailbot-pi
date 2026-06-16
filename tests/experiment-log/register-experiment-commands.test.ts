@@ -109,7 +109,7 @@ describe("registerExperimentCommands", () => {
     expect(summary.status).toBe("closed");
   });
 
-  it("show <id> returns timeline event kinds and summary for an interrupted experiment", async () => {
+  it("show <id> returns event-specific timeline diagnostics for an interrupted experiment", async () => {
     const { commands } = registerWithFakePi();
     const command = commands[0]!;
     const cwd = makeTempDir();
@@ -122,13 +122,35 @@ describe("registerExperimentCommands", () => {
         event_kind: "experiment_open",
       }),
       event({
-        event_id: "evt-result",
+        event_id: "evt-exception",
         experiment_id: "exp_interrupted",
         sequence: 2,
         timestamp_utc: "2026-06-16T06:31:00.000Z",
-        event_kind: "tool_result",
-        outcome: "measured",
-        result: { ok: true, action: "cli_get", action_input: {}, primary_result: { ok: true } },
+        event_kind: "tool_exception",
+        tool_call_id: "call-exception",
+        parent_event_id: "evt-open",
+        tool_name: "cli_get",
+        action_input: { parameter: "bias" },
+        duration_ms: 123,
+        outcome: "exception",
+        error: { name: "Error", message: "driver exploded" },
+        error_message: "driver exploded",
+      }),
+      event({
+        event_id: "evt-step",
+        experiment_id: "exp_interrupted",
+        sequence: 3,
+        timestamp_utc: "2026-06-16T06:32:00.000Z",
+        event_kind: "plan_step_result",
+        tool_call_id: "call-plan",
+        parent_event_id: "evt-exception",
+        outcome: "step_failed",
+        step: {
+          index: 4,
+          kind: "cli_action",
+          args: { command: "pulse" },
+          primary_result: { ok: false },
+        },
       }),
     ]);
 
@@ -142,8 +164,27 @@ describe("registerExperimentCommands", () => {
     const payload = parseJsonAfterTitle(entry.message) as Record<string, unknown>;
     expect(payload.summary).toMatchObject({ experiment_id: "exp_interrupted", status: "interrupted_unknown" });
     const timeline = payload.timeline as Array<Record<string, unknown>>;
-    expect(timeline.map((step) => step.event_kind)).toEqual(["experiment_open", "tool_result"]);
-    expect(timeline[1]).toMatchObject({ event_kind: "tool_result", outcome: "measured" });
+    expect(timeline.map((step) => step.event_kind)).toEqual([
+      "experiment_open",
+      "tool_exception",
+      "plan_step_result",
+    ]);
+    expect(timeline[1]).toMatchObject({
+      event_kind: "tool_exception",
+      tool_call_id: "call-exception",
+      tool_name: "cli_get",
+      outcome: "exception",
+      parent_event_id: "evt-open",
+      duration_ms: 123,
+      error_message: "driver exploded",
+    });
+    expect(timeline[2]).toMatchObject({
+      event_kind: "plan_step_result",
+      tool_call_id: "call-plan",
+      outcome: "step_failed",
+      parent_event_id: "evt-exception",
+      step: { index: 4, kind: "cli_action" },
+    });
   });
 
   it("show <id> surfaces ignored_tail when the experiment log has a partial trailing line", async () => {
@@ -175,6 +216,46 @@ describe("registerExperimentCommands", () => {
     expect(ctx.notifications).toHaveLength(1);
     const payload = parseJsonAfterTitle(ctx.notifications[0]!.message) as Record<string, unknown>;
     expect(payload.ignored_tail).toBe("{\"event_kind\":\"tool_result\"");
+  });
+
+  it("show <id> surfaces ignored_lines for malformed complete JSONL lines", async () => {
+    const { commands } = registerWithFakePi();
+    const command = commands[0]!;
+    const cwd = makeTempDir();
+    const eventsRoot = join(cwd, ".quailbot-pi", "experiments", "2026", "06", "16", "exp_malformed");
+    mkdirSync(eventsRoot, { recursive: true });
+    const malformedLine = "{bad json}";
+    writeFileSync(
+      join(eventsRoot, "events.jsonl"),
+      [
+        JSON.stringify(
+          event({
+            event_id: "evt-open",
+            experiment_id: "exp_malformed",
+            sequence: 1,
+            timestamp_utc: "2026-06-16T06:30:00.000Z",
+            event_kind: "experiment_open",
+          }),
+        ),
+        malformedLine,
+        "{\"event_kind\":\"tool_result\"",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const ctx = makeCtx(cwd);
+    await command.handler("show exp_malformed", ctx);
+
+    expect(ctx.notifications).toHaveLength(1);
+    const payload = parseJsonAfterTitle(ctx.notifications[0]!.message) as Record<string, unknown>;
+    expect(payload.ignored_tail).toBe("{\"event_kind\":\"tool_result\"");
+    expect(payload.ignored_lines).toEqual([
+      expect.objectContaining({
+        lineNumber: 2,
+        line: malformedLine,
+        error: expect.any(String),
+      }),
+    ]);
   });
 
   it("show without an id emits a usage warning and does not mutate logs", async () => {

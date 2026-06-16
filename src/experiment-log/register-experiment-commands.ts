@@ -100,6 +100,9 @@ function buildShowPayload(detail: ReadExperimentResult): Record<string, unknown>
   if (detail.ignoredTail !== undefined) {
     payload.ignored_tail = detail.ignoredTail;
   }
+  if (detail.ignoredLines !== undefined) {
+    payload.ignored_lines = detail.ignoredLines;
+  }
   return payload;
 }
 
@@ -110,19 +113,63 @@ function toTimelineStep(event: ExperimentLogEvent): Record<string, unknown> {
     timestamp_utc: event.timestamp_utc,
     event_kind: event.event_kind,
   };
-  if ("tool_name" in event) {
-    base.tool_name = event.tool_name;
+
+  switch (event.event_kind) {
+    case "experiment_open":
+      return {
+        ...base,
+        session_start_reason: event.session_start_reason,
+        previous_session_file: event.previous_session_file,
+      };
+
+    case "tool_invocation_started":
+      return {
+        ...base,
+        tool_call_id: event.tool_call_id,
+        tool_name: event.tool_name,
+      };
+
+    case "tool_result":
+      return {
+        ...base,
+        tool_call_id: event.tool_call_id,
+        parent_event_id: event.parent_event_id,
+        tool_name: event.tool_name,
+        outcome: event.outcome,
+        duration_ms: event.duration_ms,
+      };
+
+    case "tool_exception":
+      return {
+        ...base,
+        tool_call_id: event.tool_call_id,
+        parent_event_id: event.parent_event_id,
+        tool_name: event.tool_name,
+        outcome: event.outcome,
+        duration_ms: event.duration_ms,
+        error_message: event.error_message,
+      };
+
+    case "plan_step_result":
+      return {
+        ...base,
+        tool_call_id: event.tool_call_id,
+        parent_event_id: event.parent_event_id,
+        outcome: event.outcome,
+        step: {
+          index: event.step.index,
+          kind: event.step.kind,
+        },
+      };
+
+    case "experiment_close":
+      return {
+        ...base,
+        reason: event.reason,
+        event_count: event.event_count,
+        last_sequence: event.last_sequence,
+      };
   }
-  if ("tool_call_id" in event) {
-    base.tool_call_id = event.tool_call_id;
-  }
-  if ("outcome" in event) {
-    base.outcome = event.outcome;
-  }
-  if ("reason" in event) {
-    base.reason = event.reason;
-  }
-  return base;
 }
 
 function notifyJson(ctx: ExtensionCommandContext, title: string, value: unknown): void {

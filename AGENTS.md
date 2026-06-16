@@ -51,3 +51,7 @@
 - Map `context[0].text`, renderResult output, and retained `details` only to information that is actually parsed or preserved by current tool results; treat noisy or unparsable raw stdout as bounded diagnostics, not as semantic fields.
 - Default `recentFullCliResultCount` to `2`: keep full `details` in model-visible context only for the most recent two `cli_*` tool results; older results should degrade to summary-only context while retaining full local details elsewhere.
 - For the current quailbot-pi redesign track, use a subagent-driven feature-branch workflow with best-of-N sampling and frequent small commit/push steps.
+## Branch Hygiene (2026-06-16)
+- A3-era worktree guidance is obsolete. For ordinary feature work in this repo, use normal local feature branches in the main checkout.
+- Reserve local `.worktrees` for best-of-N sampling or explicitly authorized isolation only.
+- Do not leave stale milestone-specific guidance in `AGENTS.md`; remove it when it stops being live.

@@ -9,13 +9,13 @@ export function classifyToolOutcome(result: QuailbotToolResult): ExperimentOutco
     return primaryOutcome;
   }
 
+  if (result.ok === false || isPrimaryDriverFailure(primary)) {
+    return "driver_failure";
+  }
+
   const readbackOutcome = classifyToolReadbackOutcome(result, primary);
   if (readbackOutcome !== undefined) {
     return readbackOutcome;
-  }
-
-  if (result.ok === false || isPrimaryDriverFailure(primary)) {
-    return "driver_failure";
   }
 
   if (result.action === "quailbot_plan_and_execute") {
@@ -32,13 +32,13 @@ export function classifyPlanStepOutcome(step: PlanStepResultPayload): Experiment
     return primaryOutcome;
   }
 
+  if (isPrimaryDriverFailure(primary)) {
+    return "driver_failure";
+  }
+
   const readbackOutcome = classifyLinkedObservationOutcome(step.linked_observation);
   if (readbackOutcome !== undefined) {
     return readbackOutcome;
-  }
-
-  if (isPrimaryDriverFailure(primary)) {
-    return "driver_failure";
   }
 
   return isMutatingToolKind(step.kind) ? "applied" : "measured";

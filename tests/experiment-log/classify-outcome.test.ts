@@ -99,6 +99,17 @@ describe("classifyToolOutcome", () => {
     ).toBe("gui_backend_unavailable");
   });
 
+  it("classifies failed primary mutating commands as driver failures before linked readback failures", () => {
+    expect(
+      classifyToolOutcome(
+        toolResult("cli_set", { ok: false, exit_code: 1 }, false, {
+          channels: { cli: { results: { "nqctl:current_a": { ok: false } } } },
+          unresolved: [],
+        }),
+      ),
+    ).toBe("driver_failure");
+  });
+
   it("classifies nested plan step readback failures before successful plan measured/applied labels", () => {
     expect(
       classifyToolOutcome(
@@ -151,6 +162,33 @@ describe("classifyPlanStepOutcome", () => {
           kind: "observe",
           primary_result: { ok: false, error_type: "roi_backend_unavailable" },
           linked_observation: { unresolved: ["roi:scope"] },
+        }),
+      ),
+    ).toBe("gui_backend_unavailable");
+  });
+
+  it("classifies failed plan step primaries as driver failures before linked ROI unavailability", () => {
+    const roiUnavailableLinkedObservation = {
+      channels: { roi: { unavailable: ["scope"], results: { scope: { ok: false, error_type: "roi_backend_unavailable" } } } },
+      unresolved: [],
+    };
+
+    expect(
+      classifyPlanStepOutcome(
+        planStep({
+          kind: "cli_set",
+          primary_result: { ok: false, exit_code: 1 },
+          linked_observation: roiUnavailableLinkedObservation,
+        }),
+      ),
+    ).toBe("driver_failure");
+
+    expect(
+      classifyPlanStepOutcome(
+        planStep({
+          kind: "observe",
+          primary_result: { ok: false, error_type: "roi_backend_unavailable" },
+          linked_observation: roiUnavailableLinkedObservation,
         }),
       ),
     ).toBe("gui_backend_unavailable");

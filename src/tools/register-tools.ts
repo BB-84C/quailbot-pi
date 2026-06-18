@@ -12,6 +12,7 @@ import { executeObserve } from "./observe.js";
 import { executeQuailbotPlanAndExecute, type PlanStepResultRecord } from "./quailbot_plan_and_execute.js";
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
 import { executeQuailbotSkill } from "./quailbot_skill.js";
+import { executeQuailbotSkillWrite } from "./quailbot_skill_write.js";
 import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
 import { createToolContext } from "./tool-context.js";
@@ -119,6 +120,28 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       return piToolResult(
         await executeLoggedTool(runtime, toolCallId, "quailbot_skill", params, async () =>
           executeQuailbotSkill(runtime.workspace, runtime.knowledge.cwd, runtime.knowledge.skillCache, params),
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_skill_write",
+    label: "Quailbot skill write",
+    description: "Create a new Quailbot skill (SKILL.md) registered against one or more workspace CLI drivers. Fails if the skill already exists; use quailbot_skill_edit to consolidate an existing skill.",
+    renderCall: makeQuailbotRenderCall("quailbot_skill_write"),
+    renderResult: renderQuailbotToolResult,
+    parameters: Type.Object({
+      name: Type.String({ minLength: 1 }),
+      description: Type.String({ minLength: 1 }),
+      drivers: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, description: "Required CLI driver name(s)." }),
+      domain: Type.Optional(Type.String({ minLength: 1, description: "Optional memory domain link." })),
+      body: Type.String({ minLength: 1, description: "The general procedure (markdown)." }),
+    }),
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_skill_write", params, async () =>
+          executeQuailbotSkillWrite(runtime.knowledge.cwd, params),
         ),
       );
     },

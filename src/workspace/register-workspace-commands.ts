@@ -216,7 +216,7 @@ function workspaceWriteReadback(result: {
   };
 }
 
-function splitCommandArgs(input: string): string[] {
+export function splitCommandArgs(input: string): string[] {
   const result: string[] = [];
   let current = "";
   let quote: '"' | "'" | undefined;

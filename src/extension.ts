@@ -3,6 +3,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { registerExperimentCommands } from "./experiment-log/register-experiment-commands.js";
 import { ExperimentLogService, experimentLogRoot } from "./experiment-log/experiment-log-service.js";
 import type { ExperimentCloseReason } from "./experiment-log/experiment-log-types.js";
+import { registerKnowledgeCommands } from "./knowledge/register-knowledge-commands.js";
 import { createKnowledgeRuntime, hydrateKnowledgeRuntime, renderKnowledgePrefixFromRuntime } from "./knowledge/knowledge-runtime.js";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime.js";
 import { buildQuailbotSystemPrompt } from "./prompt/quailbot-system-prompt.js";
@@ -37,6 +38,7 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
 
   registerQuailbotTools(pi, runtime);
   registerWorkspaceCommands(pi, runtime);
+  registerKnowledgeCommands(pi, runtime);
   registerExperimentCommands(pi);
 
   pi.on("session_start", (event, ctx) => {

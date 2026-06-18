@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ExperimentLogService } from "../../src/experiment-log/experiment-log-service.js";
 import type { ExperimentLogEvent } from "../../src/experiment-log/experiment-log-types.js";
 import type { QuailbotRuntime } from "../../src/extension.js";
+import { createKnowledgeRuntime } from "../../src/knowledge/knowledge-runtime.js";
 import { PlanContextStore } from "../../src/prompt/plan-context.js";
 import { registerQuailbotTools } from "../../src/tools/register-tools.js";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
@@ -208,6 +209,7 @@ function runtimeWithExperimentLog(experimentLog: ExperimentLogService, workspace
     workspace,
     experimentLog,
     planStore: new PlanContextStore(),
+    knowledge: createKnowledgeRuntime(),
   };
 }
 

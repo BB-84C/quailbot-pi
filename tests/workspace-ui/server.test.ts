@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { QuailbotRuntime } from "../../src/extension.js";
+import { createKnowledgeRuntime } from "../../src/knowledge/knowledge-runtime.js";
 import { PlanContextStore } from "../../src/prompt/plan-context.js";
 import {
   isWorkspaceUiFetchBlockedPort,
@@ -393,7 +394,7 @@ async function startServerWithWorkspace(
   const workspacePath = join(cwd, ".quailbot-pi", "workspace.json");
   mkdirSync(join(cwd, ".quailbot-pi"), { recursive: true });
   writeFileSync(workspacePath, `${JSON.stringify(minimalWorkspace(cliName), null, 2)}\n`, "utf8");
-  const runtime: QuailbotRuntime = { planStore: new PlanContextStore() };
+  const runtime: QuailbotRuntime = { planStore: new PlanContextStore(), knowledge: createKnowledgeRuntime() };
   const server = await startWorkspaceUiServer({ cwd, runtime, refreshCaptureFrame });
   servers.push(server);
   return { cwd, runtime, server, workspacePath };
@@ -401,7 +402,7 @@ async function startServerWithWorkspace(
 
 async function startServerWithoutWorkspace(): Promise<{ cwd: string; runtime: QuailbotRuntime; server: WorkspaceUiServer }> {
   const cwd = makeTempDir();
-  const runtime: QuailbotRuntime = { planStore: new PlanContextStore() };
+  const runtime: QuailbotRuntime = { planStore: new PlanContextStore(), knowledge: createKnowledgeRuntime() };
   const server = await startWorkspaceUiServer({ cwd, runtime });
   servers.push(server);
   return { cwd, runtime, server };

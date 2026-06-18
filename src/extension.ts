@@ -3,6 +3,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { registerExperimentCommands } from "./experiment-log/register-experiment-commands.js";
 import { ExperimentLogService, experimentLogRoot } from "./experiment-log/experiment-log-service.js";
 import type { ExperimentCloseReason } from "./experiment-log/experiment-log-types.js";
+import { createKnowledgeRuntime, hydrateKnowledgeRuntime, renderKnowledgePrefixFromRuntime } from "./knowledge/knowledge-runtime.js";
+import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime.js";
 import { buildQuailbotSystemPrompt } from "./prompt/quailbot-system-prompt.js";
 import { buildWorkspaceContextText } from "./prompt/workspace-summary.js";
 import { PlanContextStore } from "./prompt/plan-context.js";
@@ -24,11 +26,13 @@ export type QuailbotRuntime = {
   workspaceUiServer?: WorkspaceUiServer;
   experimentLog?: ExperimentLogService;
   planStore: PlanContextStore;
+  knowledge: KnowledgeRuntime;
 };
 
 export default function quailbotExtension(pi: ExtensionAPI): void {
   const runtime: QuailbotRuntime = {
     planStore: new PlanContextStore(),
+    knowledge: createKnowledgeRuntime(),
   };
 
   registerQuailbotTools(pi, runtime);
@@ -50,6 +54,7 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
       notifyWarning(ctx, `Quailbot workspace unavailable: ${errorMessage(error)}`);
     }
 
+    hydrateKnowledgeRuntime(runtime.knowledge, ctx.cwd);
     synchronizeExperimentLog(runtime, ctx, sessionStartReason(event), activeWorkspace, mutationPolicyFromEnvironment());
   });
 
@@ -73,7 +78,10 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
       runtime.planStore.render(),
     ].filter((item): item is string => item !== undefined);
 
-    const systemPrompt = buildQuailbotSystemPrompt(event.systemPromptOptions);
+    const knowledgePrefix = renderKnowledgePrefixFromRuntime(runtime.knowledge, runtime.workspace);
+    const systemPrompt = [buildQuailbotSystemPrompt(event.systemPromptOptions), knowledgePrefix]
+      .filter((part) => part.length > 0)
+      .join("\n\n");
 
     if (content.length === 0) {
       return { systemPrompt };

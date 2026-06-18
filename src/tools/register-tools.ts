@@ -12,6 +12,7 @@ import { executeObserve } from "./observe.js";
 import { executeQuailbotPlanAndExecute, type PlanStepResultRecord } from "./quailbot_plan_and_execute.js";
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
 import { executeQuailbotSkill } from "./quailbot_skill.js";
+import { executeQuailbotSkillEdit } from "./quailbot_skill_edit.js";
 import { executeQuailbotSkillWrite } from "./quailbot_skill_write.js";
 import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
@@ -142,6 +143,33 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       return piToolResult(
         await executeLoggedTool(runtime, toolCallId, "quailbot_skill_write", params, async () =>
           executeQuailbotSkillWrite(runtime.knowledge.cwd, params),
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_skill_edit",
+    label: "Quailbot skill edit",
+    description:
+      "Consolidate an existing skill: read it, then submit the rewritten body with expected_old_hash (the contentHash of the current SKILL.md). Rejects stale hashes so changes integrate rather than blindly overwrite.",
+    renderCall: makeQuailbotRenderCall("quailbot_skill_edit"),
+    renderResult: renderQuailbotToolResult,
+    parameters: Type.Object({
+      name: Type.String({ minLength: 1 }),
+      expected_old_hash: Type.String({
+        minLength: 1,
+        description: "contentHash of the current SKILL.md (from loading the skill first).",
+      }),
+      description: Type.String({ minLength: 1 }),
+      drivers: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
+      domain: Type.Optional(Type.String({ minLength: 1 })),
+      body: Type.String({ minLength: 1, description: "The consolidated procedure (full replacement)." }),
+    }),
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_skill_edit", params, async () =>
+          executeQuailbotSkillEdit(runtime.knowledge.cwd, params),
         ),
       );
     },

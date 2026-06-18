@@ -1,6 +1,6 @@
 import type { Workspace } from "../workspace/types.js";
 import { createAgentsFileCache, readDeployedAgentsFile, type AgentsFileCache } from "./agents-file.js";
-import { renderKnowledgePrefix } from "./knowledge-render.js";
+import { renderKnowledgePrefix, renderMemorySection } from "./knowledge-render.js";
 import { DEFAULT_SKILL_BODY_WINDOW, loadKnowledgeState } from "./knowledge-state.js";
 import { createSkillCache, discoverSkills, type SkillCache } from "./skills.js";
 
@@ -32,9 +32,9 @@ export function hydrateKnowledgeRuntime(knowledge: KnowledgeRuntime, cwd: string
 export function renderKnowledgePrefixFromRuntime(
   knowledge: KnowledgeRuntime,
   workspace: Workspace | undefined,
-  memorySection?: string,
 ): string {
   const skills = discoverSkills(knowledge.cwd, knowledge.skillCache);
   const agentsFile = readDeployedAgentsFile(knowledge.cwd, knowledge.agentsCache);
+  const memorySection = renderMemorySection(knowledge.cwd, knowledge.loadedDomains);
   return renderKnowledgePrefix({ agentsFile, skills, workspace, memorySection });
 }

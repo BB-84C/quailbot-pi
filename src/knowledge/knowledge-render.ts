@@ -1,6 +1,7 @@
 import type { Workspace } from "../workspace/types.js";
 import type { AgentsFile } from "./agents-file.js";
 import { evaluateSkillGate } from "./driver-gate.js";
+import { listMemoryDomains, readMemoryDomain } from "./memory.js";
 import type { SkillInfo } from "./skills.js";
 
 export function renderSkillCatalog(skills: SkillInfo[], workspace: Workspace | undefined): string {
@@ -21,6 +22,27 @@ export function renderAgentsSection(agentsFile: AgentsFile | undefined): string 
     return undefined;
   }
   return `QUAILBOT AGENTS GUIDANCE (${agentsFile.path})\n${agentsFile.content}`;
+}
+
+export function renderMemorySection(cwd: string, loadedDomains: Set<string>): string | undefined {
+  const domains = listMemoryDomains(cwd);
+  if (domains.length === 0) {
+    return undefined;
+  }
+  const loaded = [...loadedDomains].filter((domain) => domains.includes(domain)).sort();
+  const lines = [
+    "QUAILBOT MEMORY",
+    `Available domains: ${domains.join(", ")}`,
+    `Loaded: ${loaded.length > 0 ? loaded.join(", ") : "(none)"}`,
+    "Load a domain with /quailbot-memory or quailbot_memory_load; search all with quailbot_memory_search.",
+  ];
+  for (const domain of loaded) {
+    const doc = readMemoryDomain(cwd, domain);
+    if (doc && doc.content.trim().length > 0) {
+      lines.push("", `### memory: ${domain}`, doc.content.trim());
+    }
+  }
+  return lines.join("\n");
 }
 
 export function renderKnowledgePrefix(input: {

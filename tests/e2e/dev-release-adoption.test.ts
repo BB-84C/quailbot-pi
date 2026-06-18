@@ -33,8 +33,15 @@ const expectedToolNames = [
   "cli_ramp",
   "cli_set",
   "observe",
+  "quailbot_memory_load",
+  "quailbot_memory_save",
+  "quailbot_memory_search",
+  "quailbot_memory_unload",
   "quailbot_plan_and_execute",
   "quailbot_planwrite",
+  "quailbot_skill",
+  "quailbot_skill_edit",
+  "quailbot_skill_write",
   "set_field",
   "sleep_seconds",
 ];
@@ -89,6 +96,9 @@ describe("local Pi dev release adoption", () => {
     }
     expect(commands.map((command) => command.name).sort(compareNames)).toEqual([
       "quailbot-experiments",
+      "quailbot-memory",
+      "quailbot-reload",
+      "quailbot-skills",
       "quailbot-workspace",
     ]);
   });

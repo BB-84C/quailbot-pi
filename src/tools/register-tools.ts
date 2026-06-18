@@ -11,6 +11,7 @@ import { executeCliSet } from "./cli_set.js";
 import { executeObserve } from "./observe.js";
 import { executeQuailbotPlanAndExecute, type PlanStepResultRecord } from "./quailbot_plan_and_execute.js";
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
+import { executeQuailbotSkill } from "./quailbot_skill.js";
 import { executeSetField } from "./set_field.js";
 import { executeSleepSeconds } from "./sleep_seconds.js";
 import { createToolContext } from "./tool-context.js";
@@ -102,6 +103,24 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     }),
     async execute(_toolCallId, params) {
       return piToolResult(await executeQuailbotPlanwrite(runtime.planStore, params));
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_skill",
+    label: "Quailbot skill",
+    description: "Load a workspace-registered Quailbot skill by name. Prepends a fixed warning if a required CLI driver is missing from the active workspace.",
+    renderCall: makeQuailbotRenderCall("quailbot_skill"),
+    renderResult: renderQuailbotToolResult,
+    parameters: Type.Object({
+      name: Type.String({ minLength: 1, description: "Skill name from the catalog in the system prompt." }),
+    }),
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_skill", params, async () =>
+          executeQuailbotSkill(runtime.workspace, runtime.knowledge.cwd, runtime.knowledge.skillCache, params),
+        ),
+      );
     },
   });
 

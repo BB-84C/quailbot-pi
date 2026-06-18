@@ -10,6 +10,7 @@ export type SkillInfo = {
   drivers: string[];
   domain?: string;
   body: string;
+  path?: string;
 };
 
 export type SkillCache = { entries: Map<string, { signature: string; skill: SkillInfo }> };
@@ -55,8 +56,9 @@ export function discoverSkills(cwd: string, cache: SkillCache): SkillInfo[] {
         cache.entries.delete(file);
         continue;
       }
-      cache.entries.set(file, { signature, skill: parsed });
-      skills.push(parsed);
+      const skill = { ...parsed, path: file };
+      cache.entries.set(file, { signature, skill });
+      skills.push(skill);
     } catch {
       cache.entries.delete(file);
     }

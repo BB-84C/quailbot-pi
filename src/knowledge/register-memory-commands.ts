@@ -8,6 +8,7 @@ import { splitCommandArgs } from "../workspace/register-workspace-commands.js";
 import type { KnowledgeRuntime } from "./knowledge-runtime.js";
 import { saveKnowledgeState } from "./knowledge-state.js";
 import { listMemoryDomains } from "./memory.js";
+import { isSafeKnowledgeName } from "./safe-name.js";
 
 const LOADED = "loaded";
 const UNLOADED = "unloaded";
@@ -59,6 +60,10 @@ export async function handleMemoryCommand(
         ctx.ui.notify(USAGE, "warning");
         return;
       }
+      if (!isSafeKnowledgeName(domain)) {
+        ctx.ui.notify(`Invalid memory domain name: "${domain}"`, "warning");
+        return;
+      }
       runtime.knowledge.loadedDomains.add(domain);
       persist(runtime.knowledge);
       const known = listMemoryDomains(runtime.knowledge.cwd).includes(domain);
@@ -70,6 +75,10 @@ export async function handleMemoryCommand(
       const [domain] = rest;
       if (!domain) {
         ctx.ui.notify(USAGE, "warning");
+        return;
+      }
+      if (!isSafeKnowledgeName(domain)) {
+        ctx.ui.notify(`Invalid memory domain name: "${domain}"`, "warning");
         return;
       }
       const removed = runtime.knowledge.loadedDomains.delete(domain);

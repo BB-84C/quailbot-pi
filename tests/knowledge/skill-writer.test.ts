@@ -34,6 +34,15 @@ describe("skill-writer", () => {
     });
   });
 
+  it("rejects unsafe editSkill target names", () => {
+    const cwd = tempCwd();
+    expect(editSkill(cwd, "../../x", "anyhash", { name: "x", description: "d", drivers: ["nqctl"], body: "x" })).toEqual({
+      updated: false,
+      path: "",
+      error: "invalid_input",
+    });
+  });
+
   it("edits only when expectedOldHash matches (consolidation, anti-clobber)", () => {
     const cwd = tempCwd();
     writeNewSkill(cwd, { name: "a", description: "d", drivers: ["nqctl"], body: "old" });

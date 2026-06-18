@@ -38,7 +38,8 @@ export function renderKnowledgePrefixFromRuntime(
     const agentsFile = readDeployedAgentsFile(knowledge.cwd, knowledge.agentsCache);
     const memorySection = renderMemorySection(knowledge.cwd, knowledge.loadedDomains);
     return renderKnowledgePrefix({ agentsFile, skills, workspace, memorySection });
-  } catch {
+  } catch (error) {
+    console.warn(`Quailbot knowledge prefix render failed: ${error instanceof Error ? error.message : String(error)}`);
     return "";
   }
 }

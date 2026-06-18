@@ -56,6 +56,9 @@ export function editSkill(
   expectedOldHash: string,
   input: SkillWriteInput,
 ): { updated: boolean; path: string; error?: string; currentHash?: string } {
+  if (!isSafeKnowledgeName(name)) {
+    return { updated: false, path: "", error: "invalid_input" };
+  }
   const path = skillFilePath(cwd, name);
   if (invalid(input)) {
     return { updated: false, path, error: "invalid_input" };

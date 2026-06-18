@@ -43,4 +43,14 @@ describe("handleMemoryCommand", () => {
     await handleMemoryCommand("load", ctx, runtimeFor(tempCwd()));
     expect((ctx as { ui: { notify: ReturnType<typeof vi.fn> } }).ui.notify).toHaveBeenCalledWith(expect.stringContaining("Usage"), "warning");
   });
+
+  it("rejects unsafe load domain names without persisting", async () => {
+    const cwd = tempCwd();
+    const ctx = fakeCtx();
+
+    await handleMemoryCommand("load ../../x", ctx, runtimeFor(cwd));
+
+    expect((ctx as { ui: { notify: ReturnType<typeof vi.fn> } }).ui.notify).toHaveBeenCalledWith('Invalid memory domain name: "../../x"', "warning");
+    expect(loadKnowledgeState(cwd).loadedDomains).toEqual([]);
+  });
 });

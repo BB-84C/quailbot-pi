@@ -14,10 +14,12 @@ function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-skilltool-"));
 }
 
-function writeSkill(cwd: string, name: string, drivers: string): void {
+function writeSkill(cwd: string, name: string, drivers: string, frontmatterName = name): string {
   const dir = join(cwd, ".quailbot-pi", "skills", name);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: d\ndrivers: ${drivers}\n---\nBODY-${name}`, "utf8");
+  const file = join(dir, "SKILL.md");
+  writeFileSync(file, `---\nname: ${frontmatterName}\ndescription: d\ndrivers: ${drivers}\n---\nBODY-${frontmatterName}`, "utf8");
+  return file;
 }
 
 function workspaceWith(driver: string): Workspace {
@@ -64,6 +66,16 @@ describe("executeQuailbotSkill", () => {
     });
     expect((result.primary_result as { hash?: string }).hash).toBe(contentHash(readFileSync(skillFilePath(cwd, "change-tip"), "utf8")));
     expect((result.primary_result as { hash?: string }).hash).toMatch(/^[a-f0-9]+$/);
+  });
+
+  it("hashes the discovered SKILL.md file when directory and frontmatter names differ", () => {
+    const cwd = tempCwd();
+    const file = writeSkill(cwd, "directory-name", "[nqctl]", "frontmatter-name");
+
+    const result = executeQuailbotSkill(workspaceWith("nqctl"), cwd, createSkillCache(), { name: "frontmatter-name" });
+
+    expect(result.ok).toBe(true);
+    expect((result.primary_result as { hash?: string }).hash).toBe(contentHash(readFileSync(file, "utf8")));
   });
 
   it("includes the missing-driver warning when a driver is absent", () => {

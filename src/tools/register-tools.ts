@@ -11,6 +11,7 @@ import { executeCliSet } from "./cli_set.js";
 import { executeObserve } from "./observe.js";
 import { executeQuailbotPlanAndExecute, type PlanStepResultRecord } from "./quailbot_plan_and_execute.js";
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
+import { executeQuailbotMemoryLoad, executeQuailbotMemoryUnload } from "./quailbot_memory_load.js";
 import { executeQuailbotMemorySave } from "./quailbot_memory_save.js";
 import { executeQuailbotSkill } from "./quailbot_skill.js";
 import { executeQuailbotSkillEdit } from "./quailbot_skill_edit.js";
@@ -149,6 +150,38 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       return piToolResult(
         await executeLoggedTool(runtime, toolCallId, "quailbot_memory_save", params, async () =>
           executeQuailbotMemorySave(runtime.knowledge.cwd, params),
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_memory_load",
+    label: "Quailbot memory load",
+    description: "Load a memory domain so its content renders in context. Persists across turns and restart.",
+    renderCall: makeQuailbotRenderCall("quailbot_memory_load"),
+    renderResult: renderQuailbotToolResult,
+    parameters: Type.Object({ domain: Type.String({ minLength: 1 }) }),
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_memory_load", params, async () =>
+          executeQuailbotMemoryLoad(runtime.knowledge, params.domain),
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_memory_unload",
+    label: "Quailbot memory unload",
+    description: "Unload a memory domain from context.",
+    renderCall: makeQuailbotRenderCall("quailbot_memory_unload"),
+    renderResult: renderQuailbotToolResult,
+    parameters: Type.Object({ domain: Type.String({ minLength: 1 }) }),
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_memory_unload", params, async () =>
+          executeQuailbotMemoryUnload(runtime.knowledge, params.domain),
         ),
       );
     },

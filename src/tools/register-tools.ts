@@ -11,6 +11,7 @@ import { executeCliSet } from "./cli_set.js";
 import { executeObserve } from "./observe.js";
 import { executeQuailbotPlanAndExecute, type PlanStepResultRecord } from "./quailbot_plan_and_execute.js";
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
+import { executeQuailbotMemorySave } from "./quailbot_memory_save.js";
 import { executeQuailbotSkill } from "./quailbot_skill.js";
 import { executeQuailbotSkillEdit } from "./quailbot_skill_edit.js";
 import { executeQuailbotSkillWrite } from "./quailbot_skill_write.js";
@@ -121,6 +122,33 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       return piToolResult(
         await executeLoggedTool(runtime, toolCallId, "quailbot_skill", params, async () =>
           executeQuailbotSkill(runtime.workspace, runtime.knowledge.cwd, runtime.knowledge.skillCache, params),
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_memory_save",
+    label: "Quailbot memory save",
+    description:
+      "Save a situated fact into a domain memory file as a `## topic` section. To update an existing topic you MUST pass expected_old_hash (the section hash from reading the domain) and submit a consolidated rewrite — do not append dated ledger entries.",
+    renderCall: makeQuailbotRenderCall("quailbot_memory_save"),
+    renderResult: renderQuailbotToolResult,
+    parameters: Type.Object({
+      domain: Type.String({ minLength: 1, description: "Memory domain, e.g. tip-conditioning." }),
+      topic: Type.String({ minLength: 1, description: "Topical section heading (not a date)." }),
+      body: Type.String({ minLength: 1, description: "The consolidated content for this topic." }),
+      expected_old_hash: Type.Optional(
+        Type.String({
+          minLength: 1,
+          description: "Required to overwrite an existing topic; the section hash from reading the domain first.",
+        }),
+      ),
+    }),
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_memory_save", params, async () =>
+          executeQuailbotMemorySave(runtime.knowledge.cwd, params),
         ),
       );
     },

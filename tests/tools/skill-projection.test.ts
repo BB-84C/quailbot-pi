@@ -35,4 +35,12 @@ describe("skill-body projection", () => {
     expect(textOf(projected[0])).toContain("[QUAILBOT WORKSPACE WARNING]");
     expect(textOf(projected[0])).toContain("BODY-x");
   });
+
+  it("keeps the missing-driver warning in summary mode", () => {
+    const messages = [skillMessage("x", "[QUAILBOT WORKSPACE WARNING] missing awg")];
+    const projected = projectQuailbotContextMessages(messages, { recentFullSkillResultCount: 0 });
+    expect(textOf(projected[0])).toContain("[QUAILBOT WORKSPACE WARNING]");
+    expect(textOf(projected[0])).toContain("re-invoke quailbot_skill");
+    expect(textOf(projected[0])).not.toContain("BODY-x");
+  });
 });

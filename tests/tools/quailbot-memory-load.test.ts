@@ -37,4 +37,20 @@ describe("memory load/unload", () => {
     expect(unloaded.primary_result).toMatchObject({ domain: "ghost", loaded: [] });
     expect(loadKnowledgeState(cwd).loadedDomains).toEqual([]);
   });
+
+  it("rejects unsafe domains without persisting them", () => {
+    const cwd = tempCwd();
+    const knowledge = runtimeFor(cwd);
+    const loaded = executeQuailbotMemoryLoad(knowledge, "../../escape");
+    expect(loaded).toMatchObject({
+      ok: false,
+      primary_result: { domain: "../../escape", error: "invalid_name" },
+    });
+    expect(loadKnowledgeState(cwd).loadedDomains).toEqual([]);
+    const unloaded = executeQuailbotMemoryUnload(knowledge, "../../escape");
+    expect(unloaded).toMatchObject({
+      ok: false,
+      primary_result: { domain: "../../escape", error: "invalid_name" },
+    });
+  });
 });

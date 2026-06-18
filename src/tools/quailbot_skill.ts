@@ -1,4 +1,8 @@
+import { existsSync, readFileSync } from "node:fs";
+
+import { contentHash } from "../knowledge/consolidation.js";
 import { buildMissingDriverWarning, evaluateSkillGate } from "../knowledge/driver-gate.js";
+import { skillFilePath } from "../knowledge/skill-writer.js";
 import { discoverSkills, type SkillCache } from "../knowledge/skills.js";
 import type { Workspace } from "../workspace/types.js";
 import type { QuailbotToolResult } from "./tool-result.js";
@@ -24,11 +28,13 @@ export function executeQuailbotSkill(
 
   const gate = evaluateSkillGate(workspace, skill);
   const warning = gate.missing.length > 0 ? buildMissingDriverWarning(skill.name, gate.required, gate.missing) : undefined;
+  const filePath = skillFilePath(cwd, skill.name);
+  const hash = existsSync(filePath) ? contentHash(readFileSync(filePath, "utf8")) : undefined;
 
   return {
     ok: true,
     action: "quailbot_skill",
     action_input: params,
-    primary_result: { name: skill.name, required: gate.required, missing: gate.missing, warning, body: skill.body },
+    primary_result: { name: skill.name, required: gate.required, missing: gate.missing, warning, body: skill.body, hash },
   };
 }

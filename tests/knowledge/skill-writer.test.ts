@@ -26,6 +26,14 @@ describe("skill-writer", () => {
     expect(writeNewSkill(cwd, { name: "c", description: "d", drivers: [], body: "x" })).toMatchObject({ created: false, error: "invalid_input" });
   });
 
+  it("rejects unsafe skill names", () => {
+    const cwd = tempCwd();
+    expect(writeNewSkill(cwd, { name: "../../x", description: "d", drivers: ["nqctl"], body: "x" })).toMatchObject({
+      created: false,
+      error: "invalid_input",
+    });
+  });
+
   it("edits only when expectedOldHash matches (consolidation, anti-clobber)", () => {
     const cwd = tempCwd();
     writeNewSkill(cwd, { name: "a", description: "d", drivers: ["nqctl"], body: "old" });

@@ -231,7 +231,7 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     name: "quailbot_skill_edit",
     label: "Quailbot skill edit",
     description:
-      "Consolidate an existing skill: read it, then submit the rewritten body with expected_old_hash (the contentHash of the current SKILL.md). Rejects stale hashes so changes integrate rather than blindly overwrite.",
+      "Consolidate an existing skill: load it with quailbot_skill, then submit the rewritten body with expected_old_hash (the hash field from quailbot_skill, computed from the current SKILL.md). Rejects stale hashes so changes integrate rather than blindly overwrite.",
     renderCall: makeQuailbotRenderCall("quailbot_skill_edit"),
     renderResult: renderQuailbotToolResult,
     parameters: Type.Object({

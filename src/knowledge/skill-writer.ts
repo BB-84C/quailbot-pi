@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { contentHash } from "./consolidation.js";
+import { isSafeKnowledgeName } from "./safe-name.js";
 import { skillsRoot } from "./skills.js";
 
 export type SkillWriteInput = {
@@ -28,6 +29,7 @@ export function renderSkillFile(input: SkillWriteInput): string {
 function invalid(input: SkillWriteInput): boolean {
   return (
     !input.name ||
+    !isSafeKnowledgeName(input.name) ||
     !input.description ||
     !Array.isArray(input.drivers) ||
     input.drivers.length === 0 ||

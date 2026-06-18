@@ -33,8 +33,12 @@ export function renderKnowledgePrefixFromRuntime(
   knowledge: KnowledgeRuntime,
   workspace: Workspace | undefined,
 ): string {
-  const skills = discoverSkills(knowledge.cwd, knowledge.skillCache);
-  const agentsFile = readDeployedAgentsFile(knowledge.cwd, knowledge.agentsCache);
-  const memorySection = renderMemorySection(knowledge.cwd, knowledge.loadedDomains);
-  return renderKnowledgePrefix({ agentsFile, skills, workspace, memorySection });
+  try {
+    const skills = discoverSkills(knowledge.cwd, knowledge.skillCache);
+    const agentsFile = readDeployedAgentsFile(knowledge.cwd, knowledge.agentsCache);
+    const memorySection = renderMemorySection(knowledge.cwd, knowledge.loadedDomains);
+    return renderKnowledgePrefix({ agentsFile, skills, workspace, memorySection });
+  } catch {
+    return "";
+  }
 }

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -47,9 +47,20 @@ describe("memory store", () => {
     const cwd = tempCwd();
     saveMemoryTopic(cwd, "approach", "fast approach", "Use coarse steps then fine.");
     saveMemoryTopic(cwd, "tip", "shake", "Ramp gain to maximum.");
+    const hash = readMemoryDomain(cwd, "tip")!.sections[0].hash;
     const matches = searchMemory(cwd, "ramp");
-    expect(matches).toEqual([{ domain: "tip", topic: "shake", snippet: "Ramp gain to maximum." }]);
+    expect(matches).toEqual([{ domain: "tip", topic: "shake", snippet: "Ramp gain to maximum.", hash }]);
     expect(parseMemorySections("## a\n\nbody a\n\n## b\n\nbody b").map((s) => s.topic)).toEqual(["a", "b"]);
     expect(readFileSync(join(cwd, ".quailbot-pi", "memory", "tip.md"), "utf8")).toContain("## shake");
+  });
+
+  it("rejects unsafe domains before writing files", () => {
+    const cwd = tempCwd();
+    const result = saveMemoryTopic(cwd, "../../escape", "topic", "body");
+    expect(result).toMatchObject({ status: "invalid_name", domain: "../../escape", topic: "topic" });
+    expect(existsSync(join(cwd, "escape.md"))).toBe(false);
+    expect(existsSync(join(cwd, ".quailbot-pi", "escape.md"))).toBe(false);
+    expect(listMemoryDomains(cwd)).toEqual([]);
+    expect(readMemoryDomain(cwd, "../../escape")).toBeUndefined();
   });
 });

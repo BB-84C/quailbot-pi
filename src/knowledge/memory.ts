@@ -3,11 +3,12 @@ import { dirname, join } from "node:path";
 
 import { quailbotStateRoot } from "../workspace/workspace-state.js";
 import { contentHash } from "./consolidation.js";
+import { isSafeKnowledgeName } from "./safe-name.js";
 
 export type MemorySection = { topic: string; body: string; hash: string };
 
 export type SaveMemoryResult = {
-  status: "created" | "updated" | "stale_hash" | "missing_hash";
+  status: "created" | "updated" | "stale_hash" | "missing_hash" | "invalid_name";
   domain: string;
   topic: string;
   sectionHash?: string;
@@ -28,9 +29,16 @@ export function listMemoryDomains(cwd: string): string[] {
   if (!existsSync(root)) {
     return [];
   }
-  return readdirSync(root, { withFileTypes: true })
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
     .map((entry) => entry.name.slice(0, -3))
+    .filter(isSafeKnowledgeName)
     .sort();
 }
 
@@ -51,17 +59,25 @@ export function parseMemorySections(content: string): MemorySection[] {
 }
 
 export function readMemoryDomain(cwd: string, domain: string): { content: string; sections: MemorySection[] } | undefined {
+  if (!isSafeKnowledgeName(domain)) {
+    return undefined;
+  }
   const path = memoryFilePath(cwd, domain);
   if (!existsSync(path)) {
     return undefined;
   }
-  const content = readFileSync(path, "utf8");
+  let content;
+  try {
+    content = readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
   return { content, sections: parseMemorySections(content) };
 }
 
-export function searchMemory(cwd: string, query: string): Array<{ domain: string; topic: string; snippet: string }> {
+export function searchMemory(cwd: string, query: string): Array<{ domain: string; topic: string; snippet: string; hash: string }> {
   const needle = query.toLowerCase();
-  const results: Array<{ domain: string; topic: string; snippet: string }> = [];
+  const results: Array<{ domain: string; topic: string; snippet: string; hash: string }> = [];
   for (const domain of listMemoryDomains(cwd)) {
     const doc = readMemoryDomain(cwd, domain);
     if (!doc) {
@@ -69,7 +85,7 @@ export function searchMemory(cwd: string, query: string): Array<{ domain: string
     }
     for (const section of doc.sections) {
       if (`${section.topic}\n${section.body}`.toLowerCase().includes(needle)) {
-        results.push({ domain, topic: section.topic, snippet: section.body.slice(0, 200) });
+        results.push({ domain, topic: section.topic, snippet: section.body.slice(0, 200), hash: section.hash });
       }
     }
   }
@@ -83,6 +99,9 @@ export function saveMemoryTopic(
   body: string,
   expectedOldHash?: string,
 ): SaveMemoryResult {
+  if (!isSafeKnowledgeName(domain)) {
+    return { status: "invalid_name", domain, topic };
+  }
   const doc = readMemoryDomain(cwd, domain) ?? { content: "", sections: [] as MemorySection[] };
   const existing = doc.sections.find((section) => section.topic === topic);
   const trimmed = body.trim();

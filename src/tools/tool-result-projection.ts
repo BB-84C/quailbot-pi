@@ -165,7 +165,13 @@ function skillSummaryLines(result: QuailbotToolResult, primary: Record<string, u
   }
 
   if (mode !== "recent-full") {
-    return [`skill body omitted; re-invoke quailbot_skill("${name}") to reload it.`];
+    const lines: string[] = [];
+    const warning = stringValue(primary.warning);
+    if (warning !== undefined) {
+      lines.push(warning);
+    }
+    lines.push(`skill body omitted; re-invoke quailbot_skill("${name}") to reload it.`);
+    return lines;
   }
 
   const lines: string[] = [];

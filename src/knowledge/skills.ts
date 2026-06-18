@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { quailbotStateRoot } from "../workspace/workspace-state.js";
+import { isSafeKnowledgeName } from "./safe-name.js";
 
 export type SkillInfo = {
   name: string;
@@ -27,7 +28,13 @@ export function discoverSkills(cwd: string, cache: SkillCache): SkillInfo[] {
     return [];
   }
   const skills: SkillInfo[] = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  for (const entry of entries) {
     if (!entry.isDirectory()) {
       continue;
     }
@@ -35,20 +42,24 @@ export function discoverSkills(cwd: string, cache: SkillCache): SkillInfo[] {
     if (!existsSync(file)) {
       continue;
     }
-    const stats = statSync(file);
-    const signature = `${stats.mtimeMs}:${stats.size}`;
-    const cached = cache.entries.get(file);
-    if (cached && cached.signature === signature) {
-      skills.push(cached.skill);
-      continue;
-    }
-    const parsed = parseSkillFile(readFileSync(file, "utf8"));
-    if (!parsed) {
+    try {
+      const stats = statSync(file);
+      const signature = `${stats.mtimeMs}:${stats.size}`;
+      const cached = cache.entries.get(file);
+      if (cached && cached.signature === signature) {
+        skills.push(cached.skill);
+        continue;
+      }
+      const parsed = parseSkillFile(readFileSync(file, "utf8"));
+      if (!parsed) {
+        cache.entries.delete(file);
+        continue;
+      }
+      cache.entries.set(file, { signature, skill: parsed });
+      skills.push(parsed);
+    } catch {
       cache.entries.delete(file);
-      continue;
     }
-    cache.entries.set(file, { signature, skill: parsed });
-    skills.push(parsed);
   }
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -63,7 +74,7 @@ export function parseSkillFile(content: string): SkillInfo | undefined {
   const name = fields.name;
   const description = fields.description;
   const drivers = fields.drivers;
-  if (typeof name !== "string" || name.length === 0) {
+  if (typeof name !== "string" || !isSafeKnowledgeName(name)) {
     return undefined;
   }
   if (typeof description !== "string" || description.length === 0) {

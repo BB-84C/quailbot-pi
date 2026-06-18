@@ -1,9 +1,11 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { contentHash } from "../../src/knowledge/consolidation.js";
+import { skillFilePath } from "../../src/knowledge/skill-writer.js";
 import { createSkillCache } from "../../src/knowledge/skills.js";
 import { executeQuailbotSkill } from "../../src/tools/quailbot_skill.js";
 import type { CliParameter, Workspace } from "../../src/workspace/types.js";
@@ -60,6 +62,8 @@ describe("executeQuailbotSkill", () => {
       warning: undefined,
       body: "BODY-change-tip",
     });
+    expect((result.primary_result as { hash?: string }).hash).toBe(contentHash(readFileSync(skillFilePath(cwd, "change-tip"), "utf8")));
+    expect((result.primary_result as { hash?: string }).hash).toMatch(/^[a-f0-9]+$/);
   });
 
   it("includes the missing-driver warning when a driver is absent", () => {

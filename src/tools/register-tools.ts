@@ -13,6 +13,7 @@ import { executeQuailbotPlanAndExecute, type PlanStepResultRecord } from "./quai
 import { executeQuailbotPlanwrite } from "./quailbot_planwrite.js";
 import { executeQuailbotMemoryLoad, executeQuailbotMemoryUnload } from "./quailbot_memory_load.js";
 import { executeQuailbotMemorySave } from "./quailbot_memory_save.js";
+import { executeQuailbotMemorySearch } from "./quailbot_memory_search.js";
 import { executeQuailbotSkill } from "./quailbot_skill.js";
 import { executeQuailbotSkillEdit } from "./quailbot_skill_edit.js";
 import { executeQuailbotSkillWrite } from "./quailbot_skill_write.js";
@@ -150,6 +151,23 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       return piToolResult(
         await executeLoggedTool(runtime, toolCallId, "quailbot_memory_save", params, async () =>
           executeQuailbotMemorySave(runtime.knowledge.cwd, params),
+        ),
+      );
+    },
+  });
+
+  pi.registerTool({
+    name: "quailbot_memory_search",
+    label: "Quailbot memory search",
+    description:
+      "Search all memory domains by keyword; returns matching domain, topic, and a snippet. Use before saving to find related sections to consolidate.",
+    renderCall: makeQuailbotRenderCall("quailbot_memory_search"),
+    renderResult: renderQuailbotToolResult,
+    parameters: Type.Object({ query: Type.String({ minLength: 1 }) }),
+    async execute(toolCallId, params) {
+      return piToolResult(
+        await executeLoggedTool(runtime, toolCallId, "quailbot_memory_search", params, async () =>
+          executeQuailbotMemorySearch(runtime.knowledge.cwd, params),
         ),
       );
     },

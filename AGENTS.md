@@ -71,3 +71,10 @@
 - Split reusable know-how into `skills` and context-specific tuning into `memory`: general operational concepts/methods belong in skills, while scenario-specific parameters and empirical effectiveness notes belong in memory.
 - Skills in this repo should register against workspace CLI driver names. A skill may require multiple CLI drivers.
 - If the current workspace does not provide a CLI driver required by a skill, invoking that skill must surface a fixed warning that the required CLI is missing from the current workspace and the user should verify/reset the workspace before relying on the skill.
+
+## Dreaming Updates (2026-06-18)
+- For the Pi-agent memory/skill system here, support runtime load/unload control through slash-command-style UX and a simple CLI/TUI menu rather than treating memory activation as fixed at startup.
+- Memory retrieval v1 should stay domain-oriented and also expose a search tool.
+- The Pi agent itself should be able to create and edit skills, not just consume them.
+- The recent full skill-body window defaults to 3 and should be made user-settable from the Pi agent UI/command surface.
+- The deployed Pi-agent-owned `AGENTS.md` should guide memory/skill maintenance in a know-how-oriented rewrite style: update or rewrite the relevant paragraph when new understanding overlaps prior guidance, rather than growing an append-only ledger.

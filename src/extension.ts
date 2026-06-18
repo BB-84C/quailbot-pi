@@ -68,7 +68,9 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("context", (event) => ({
-    messages: projectQuailbotContextMessages(event.messages),
+    messages: projectQuailbotContextMessages(event.messages, {
+      recentFullSkillResultCount: runtime.knowledge.skillBodyWindow,
+    }),
   }));
 
   pi.on("before_agent_start", (event) => {

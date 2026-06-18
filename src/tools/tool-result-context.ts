@@ -2,12 +2,15 @@ import type { QuailbotToolResult } from "./tool-result.js";
 import {
   buildQuailbotToolContent,
   DEFAULT_RECENT_FULL_CLI_RESULT_COUNT,
+  DEFAULT_RECENT_FULL_SKILL_RESULT_COUNT,
   type ProjectionOptions,
   isDirectCliAction,
+  isSkillAction,
 } from "./tool-result-projection.js";
 
 export type ToolResultContextPolicy = {
   recentFullCliResultCount?: number;
+  recentFullSkillResultCount?: number;
   summaryMaxChars?: number;
   fullMaxChars?: number;
 };
@@ -30,8 +33,13 @@ export function projectQuailbotContextMessages<T>(
   policy: ToolResultContextPolicy = {},
 ): T[] {
   const recentFullLimit = nonNegativeInteger(policy.recentFullCliResultCount, DEFAULT_RECENT_FULL_CLI_RESULT_COUNT);
+  const recentFullSkillLimit = nonNegativeInteger(
+    policy.recentFullSkillResultCount,
+    DEFAULT_RECENT_FULL_SKILL_RESULT_COUNT,
+  );
   const output = [...messages];
   let directCliResultsSeen = 0;
+  let skillResultsSeen = 0;
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -41,9 +49,16 @@ export function projectQuailbotContextMessages<T>(
     }
 
     const directCli = isDirectCliAction(result.action);
-    const mode = directCli && directCliResultsSeen < recentFullLimit ? "recent-full" : "summary";
+    const skill = isSkillAction(result.action);
+    const mode =
+      (directCli && directCliResultsSeen < recentFullLimit) || (skill && skillResultsSeen < recentFullSkillLimit)
+        ? "recent-full"
+        : "summary";
     if (directCli) {
       directCliResultsSeen += 1;
+    }
+    if (skill) {
+      skillResultsSeen += 1;
     }
 
     output[index] = {

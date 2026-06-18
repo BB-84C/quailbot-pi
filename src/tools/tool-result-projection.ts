@@ -1,6 +1,7 @@
 import type { QuailbotToolResult } from "./tool-result.js";
 
 export const DEFAULT_RECENT_FULL_CLI_RESULT_COUNT = 2;
+export const DEFAULT_RECENT_FULL_SKILL_RESULT_COUNT = 3;
 export const DEFAULT_SUMMARY_MAX_CHARS = 2000;
 export const DEFAULT_FULL_MAX_CHARS = 12000;
 
@@ -67,6 +68,10 @@ export function isDirectCliAction(action: string): boolean {
   return action === "cli_get" || action === "cli_set" || action === "cli_ramp" || action === "cli_action";
 }
 
+export function isSkillAction(action: string): boolean {
+  return action === "quailbot_skill";
+}
+
 function buildHeadline(
   action: string,
   target: string | undefined,
@@ -93,6 +98,10 @@ function projectionBodyLines(
 
   if (result.action === "quailbot_planwrite") {
     return [...errorLines, ...planwriteSummaryLines(primary)];
+  }
+
+  if (isSkillAction(result.action)) {
+    return skillSummaryLines(result, primary, mode);
   }
 
   if (parseStatus === "parsed_payload") {
@@ -145,6 +154,35 @@ function planwriteSummaryLines(primary: Record<string, unknown>): string[] {
   }
 
   return lines;
+}
+
+function skillSummaryLines(result: QuailbotToolResult, primary: Record<string, unknown>, mode: ProjectionMode): string[] {
+  const name = skillName(result, primary);
+
+  if (!result.ok) {
+    const available = stringArray(primary.available);
+    return [`skill not found: ${name}; available: ${available.length > 0 ? available.join(", ") : "<none>"}`];
+  }
+
+  if (mode !== "recent-full") {
+    return [`skill body omitted; re-invoke quailbot_skill("${name}") to reload it.`];
+  }
+
+  const lines: string[] = [];
+  const warning = stringValue(primary.warning);
+  const body = stringValue(primary.body) ?? "";
+
+  if (warning !== undefined) {
+    lines.push(warning);
+  }
+
+  lines.push(`<skill_content name="${name}">`, body, "</skill_content>");
+  return lines;
+}
+
+function skillName(result: QuailbotToolResult, primary: Record<string, unknown>): string {
+  const input = record(result.action_input);
+  return stringValue(primary.name) ?? stringValue(input.name) ?? "<unknown>";
 }
 
 function structuredErrorLines(primary: Record<string, unknown>): string[] {

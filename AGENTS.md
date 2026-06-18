@@ -65,3 +65,9 @@
 ## Dreaming Updates (2026-06-16)
 - In best-of-N review/judge prompts, bind stable candidate labels (`A/B/C/...`) and explicitly tell reviewers to ignore directory, branch, and worktree names. Per-judge path permutations are acceptable only if the candidate labels stay stable.
 - For multi-task feature branches, per-task spec/code-quality approvals are not enough by themselves. Before handoff, run one final whole-branch review focused on cross-task integration coherence, fail-soft warning paths, lifecycle reload/close semantics, and schema stability.
+
+## Dreaming Updates (2026-06-18)
+- For the quailbot-pi memory system, default to domain-organized memory rather than date-organized memory unless the user explicitly changes that direction.
+- Split reusable know-how into `skills` and context-specific tuning into `memory`: general operational concepts/methods belong in skills, while scenario-specific parameters and empirical effectiveness notes belong in memory.
+- Skills in this repo should register against workspace CLI driver names. A skill may require multiple CLI drivers.
+- If the current workspace does not provide a CLI driver required by a skill, invoking that skill must surface a fixed warning that the required CLI is missing from the current workspace and the user should verify/reset the workspace before relying on the skill.

@@ -1,8 +1,12 @@
 import { effectiveScale, screenToCanvas } from "../shared/geometry.js";
 import { attachCanvasEvents } from "./events/canvas.js";
+import { attachFormEvents } from "./events/form.js";
 import { attachItemsTreeEvents } from "./events/items-tree.js";
+import { formSelectionChanged, type Action } from "./actions.js";
 import { renderCanvas } from "./render/canvas.js";
+import { renderForm } from "./render/form.js";
 import { renderItemsTree } from "./render/items-tree.js";
+import { selectionSummary } from "./selectors/form.js";
 import { createStore } from "./store.js";
 
 declare global {
@@ -30,16 +34,31 @@ document.addEventListener("DOMContentLoaded", () => {
     canvasRoot.dataset.canvasRoot = "true";
     appRoot.prepend(canvasRoot);
   }
+  let formRoot = appRoot.querySelector<HTMLElement>("[data-form-root]");
+  if (!formRoot) {
+    formRoot = document.createElement("section");
+    formRoot.dataset.formRoot = "true";
+    appRoot.append(formRoot);
+  }
 
   const store = createStore();
+  const dispatch = (action: Action): void => {
+    store.dispatch(action);
+    if (action.type.startsWith("TREE_")) {
+      store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
+    }
+  };
   const render = (): void => {
     renderItemsTree(treeRoot, store.getState());
     renderCanvas(canvasRoot, store.getState());
+    renderForm(formRoot, store.getState());
   };
+  store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
   render();
   store.subscribe(render);
-  attachItemsTreeEvents(treeRoot, store.dispatch);
-  attachCanvasEvents(canvasRoot, store.dispatch, store.getState);
+  attachItemsTreeEvents(treeRoot, dispatch);
+  attachCanvasEvents(canvasRoot, dispatch, store.getState);
+  attachFormEvents(formRoot, dispatch, store.getState);
 
   window.__quailbotWorkspaceUiReady = true;
   window.__quailbotShared = { effectiveScale, screenToCanvas };

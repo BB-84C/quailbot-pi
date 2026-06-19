@@ -1,5 +1,7 @@
 import type { TreeItemKind, TreeItemKey } from "./state.js";
+import type { FormFieldKey } from "./state.js";
 import type { CaptureFrame } from "../shared/geometry.js";
+import type { SelectionSummary } from "./selectors/form.js";
 
 export type TreeClickModifiers = {
   ctrl: boolean;
@@ -45,7 +47,18 @@ export type CanvasAction =
   | { type: "CANVAS_ZOOM_AT_POINTER"; payload: { direction: 1 | -1; pointerCanvasX: number; pointerCanvasY: number } }
   | { type: "CANVAS_PAN_WHEEL"; payload: { deltaX: number; deltaY: number } };
 
-export type Action = TreeAction | CanvasAction;
+export type FormAction =
+  | { type: "FORM_SELECTION_CHANGED"; payload: { selectionSummary: SelectionSummary } }
+  | { type: "FORM_EDIT_FIELD"; payload: { field: FormFieldKey; text: string; cursor: number } }
+  | { type: "FORM_UNDO_FIELD"; payload: { field: FormFieldKey } }
+  | { type: "FORM_REDO_FIELD"; payload: { field: FormFieldKey } }
+  | { type: "FORM_COMMIT_FIELD"; payload: { field: FormFieldKey } }
+  | { type: "FORM_EDIT_GROUP"; payload: { groupName: string } }
+  | { type: "FORM_EDIT_DESCRIPTION"; payload: { text: string; cursor: number } }
+  | { type: "FORM_UNDO_DESCRIPTION" }
+  | { type: "FORM_REDO_DESCRIPTION" };
+
+export type Action = TreeAction | CanvasAction | FormAction;
 
 export function treeClickItem(payload: TreeItemKey & { modifiers: TreeClickModifiers; region: "toggle" | "body" }): Action {
   return { type: "TREE_CLICK_ITEM", payload };
@@ -101,4 +114,40 @@ export function canvasZoomAtPointer(direction: 1 | -1, pointerCanvasX: number, p
 
 export function canvasPanWheel(deltaX: number, deltaY: number): Action {
   return { type: "CANVAS_PAN_WHEEL", payload: { deltaX, deltaY } };
+}
+
+export function formSelectionChanged(selectionSummary: SelectionSummary): Action {
+  return { type: "FORM_SELECTION_CHANGED", payload: { selectionSummary } };
+}
+
+export function formEditField(field: FormFieldKey, text: string, cursor: number): Action {
+  return { type: "FORM_EDIT_FIELD", payload: { field, text, cursor } };
+}
+
+export function formUndoField(field: FormFieldKey): Action {
+  return { type: "FORM_UNDO_FIELD", payload: { field } };
+}
+
+export function formRedoField(field: FormFieldKey): Action {
+  return { type: "FORM_REDO_FIELD", payload: { field } };
+}
+
+export function formCommitField(field: FormFieldKey): Action {
+  return { type: "FORM_COMMIT_FIELD", payload: { field } };
+}
+
+export function formEditGroup(groupName: string): Action {
+  return { type: "FORM_EDIT_GROUP", payload: { groupName } };
+}
+
+export function formEditDescription(text: string, cursor: number): Action {
+  return { type: "FORM_EDIT_DESCRIPTION", payload: { text, cursor } };
+}
+
+export function formUndoDescription(): Action {
+  return { type: "FORM_UNDO_DESCRIPTION" };
+}
+
+export function formRedoDescription(): Action {
+  return { type: "FORM_REDO_DESCRIPTION" };
 }

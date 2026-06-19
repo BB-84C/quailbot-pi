@@ -1,8 +1,9 @@
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../shared/model.js";
 import type { FilterState } from "../shared/filter.js";
 import type { CaptureFrame } from "../shared/geometry.js";
-import type { Action, CanvasAction } from "./actions.js";
+import type { Action, CanvasAction, FormAction } from "./actions.js";
 import { canvasReducer } from "./reducers/canvas.js";
+import { formReducer } from "./reducers/form.js";
 import { treeReducer } from "./reducers/tree.js";
 
 export type TreeItemKind = "roi" | "anchor" | "group" | "cli";
@@ -22,6 +23,24 @@ export interface CanvasState {
   draftDrag: { startCanvas: { x: number; y: number }; currentCanvas: { x: number; y: number } } | null;
 }
 
+export interface FieldHistoryEntry {
+  text: string;
+  cursor: number;
+}
+
+export interface FieldHistory {
+  entries: FieldHistoryEntry[];
+  index: number;
+}
+
+export type FormFieldKey = "name" | "x" | "y" | "w" | "h" | "tags" | "description";
+
+export interface FormState {
+  history: Partial<Record<FormFieldKey, FieldHistory>>;
+  buffers: Partial<Record<FormFieldKey, string>>;
+  lastCycleRejection?: { selectedGroup: string; attemptedParent: string };
+}
+
 export interface AppState {
   workspace: {
     rois: RoiDraft[];
@@ -38,6 +57,7 @@ export interface AppState {
   };
   filter: FilterState;
   canvas: CanvasState;
+  form: FormState;
 }
 
 export function initialState(): AppState {
@@ -69,6 +89,10 @@ export function initialState(): AppState {
       drawingItemName: null,
       draftDrag: null,
     },
+    form: {
+      history: {},
+      buffers: {},
+    },
   };
 }
 
@@ -78,6 +102,9 @@ export function reduceAppState(state: AppState, action: Action): AppState {
   }
   if (action.type.startsWith("CANVAS_")) {
     return canvasReducer(state, action as CanvasAction);
+  }
+  if (action.type.startsWith("FORM_")) {
+    return formReducer(state, action as FormAction);
   }
   return state;
 }

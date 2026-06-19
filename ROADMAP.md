@@ -264,6 +264,31 @@ Date: 2026-06-16
 - Future tool additions should reuse `executeLoggedTool` and `recordPlanStep`; new event kinds must keep the optional `parent_event_id` and `duration_ms` correlation fields stable.
 - Real instrument acceptance should record per-step linked-observable readback alongside `primary_result` so future inspection tooling can distinguish driver state from instrument state without re-parsing raw stdout.
 
+## Implementation round: A3 faithful calibrator items-tree client slice
+
+Date: 2026-06-19
+
+### Delivered
+
+- Added the first browser-client state spine for the faithful calibrator port: immutable `AppState`, discriminated tree actions, a tiny in-memory store, and a tree reducer under `src/workspace-ui/client/`.
+- Added an idempotent DOM renderer and delegated event layer for the items tree, covering group/ROI/anchor/CLI rows, Python-compatible row ordering, indentation, CLI labels, collapse state, selection classes, active-anchor classes, and forced-ROI grey/locked display.
+- Implemented EXTENDED multi-select behavior for body clicks, Ctrl/Cmd toggles, Shift ranges, keyboard ArrowUp/ArrowDown navigation, explicit toggle-region activation, multi-selected toggle fanout, forced-ROI lock selection, and group active cascade through the shared `groups.ts` helper.
+- Wired the skeleton browser entrypoint to create the items-tree root, render from the store, attach events, and preserve the existing bundle test globals.
+- Added three jsdom behavior test files for rendering, DOM event dispatch, and keyboard navigation without source-string inspection.
+
+### Now known
+
+- The tree slice can extend the shared Phase 2/2.5 modules directly from browser code without Node imports; `npm run typecheck:browser` remains clean.
+- The faithful tree order is groups first at each parent, recursive child group contents unless collapsed, then ROIs, anchors, and CLI params for that parent.
+- Forced ROI activation has two surfaces: renderer/reducer display a linked active-anchor ROI as active/locked, while save-time normalization still lives in shared validation. Reducer actions normalize forced ROI active state when tree interactions pass through the store.
+- The Python click handler's forced-ROI special case is tied to the toggle-region path; for the web slice, forced-ROI body clicks are also made selection-only so a forced ROI in a multi-selection clears to a single selected row instead of allowing a locked ROI to behave like an ordinary Ctrl/Shift row.
+
+### Later phases must do differently
+
+- Extend this store/reducer rather than creating separate canvas/form/filter state islands; future UI slices should add actions to the same discriminated union and update `AppState` shallowly.
+- Keep wheel routing out of the items tree: browser default scrolling remains valid here, while canvas/form wheel behavior belongs to the later canvas/form phases.
+- Keep DOM tests event-driven and state/readback-driven. Do not return to `toContain` source-string checks for client behavior.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

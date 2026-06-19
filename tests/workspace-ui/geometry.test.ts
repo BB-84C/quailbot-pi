@@ -1,64 +1,89 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  displayPointToImagePoint,
-  displayRectToImageRoi,
-  imagePointToDisplayPoint,
-  imageRoiToDisplayRect,
+  canvasToScreen,
+  dragToRoi,
+  effectiveScale,
+  fitScale,
+  nextZoom,
+  roiToCanvasRect,
+  screenToCanvas,
   type CaptureFrame,
-  type DisplayViewport,
-} from "../../src/workspace-ui/geometry.js";
+} from "../../src/workspace-ui/shared/geometry.js";
 
 const frame: CaptureFrame = {
   imageWidth: 800,
   imageHeight: 500,
   originX: 0,
   originY: 0,
-  coordinateScaleX: 1,
-  coordinateScaleY: 1,
-  coordinateSpace: "fixture",
+  captureId: "fixture",
 };
 
-const roi = { x: 120, y: 80, w: 240, h: 160 };
-const anchor = { x: 520, y: 300 };
-
-describe("workspace UI geometry transforms", () => {
-  it("round-trips the calibration ROI through a small display viewport", () => {
-    const small: DisplayViewport = { width: 320, height: 200, panX: 0, panY: 0, zoom: 1 };
-
-    expect(imageRoiToDisplayRect(frame, small, roi)).toEqual({ left: 48, top: 32, width: 96, height: 64 });
-    expect(displayRectToImageRoi(frame, small, imageRoiToDisplayRect(frame, small, roi))).toEqual(roi);
+describe("workspace UI shared geometry", () => {
+  it("fits by the minimum viewport ratio and never upscales fit scale", () => {
+    expect(fitScale(frame, { width: 400, height: 400, zoom: 1 })).toBe(0.5);
+    expect(fitScale(frame, { width: 1600, height: 200, zoom: 1 })).toBe(0.4);
+    expect(fitScale(frame, { width: 1600, height: 1000, zoom: 1 })).toBe(1);
   });
 
-  it("round-trips the calibration ROI through a large panned display viewport", () => {
-    const large: DisplayViewport = { width: 1600, height: 1000, panX: 64, panY: -24, zoom: 0.75 };
-
-    expect(imageRoiToDisplayRect(frame, large, roi)).toEqual({ left: 244, top: 96, width: 360, height: 240 });
-    expect(displayRectToImageRoi(frame, large, imageRoiToDisplayRect(frame, large, roi))).toEqual(roi);
+  it("applies zoom while clamping effective scale to a 0.05 minimum", () => {
+    expect(effectiveScale(frame, { width: 400, height: 250, zoom: 2 })).toBe(1);
+    expect(effectiveScale(frame, { width: 10, height: 10, zoom: 0.25 })).toBe(0.05);
   });
 
-  it("converts the calibration anchor point under pan and zoom", () => {
-    const viewport: DisplayViewport = { width: 400, height: 250, panX: -30, panY: 18, zoom: 1.5 };
-    const display = imagePointToDisplayPoint(frame, viewport, anchor);
+  it("round-trips screen and canvas points with expected truncation loss", () => {
+    const scale = 0.5;
+    const screenPoint = { x: 101, y: 51 };
+    const canvasPoint = screenToCanvas(frame, scale, screenPoint);
 
-    expect(display).toEqual({ x: 360, y: 243 });
-    expect(displayPointToImagePoint(frame, viewport, display)).toEqual({ x: 520, y: 300 });
+    expect(canvasPoint).toEqual({ x: 50, y: 25 });
+    const lossyScreen = canvasToScreen(frame, scale, canvasPoint);
+    expect(Math.abs(lossyScreen.x - screenPoint.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(lossyScreen.y - screenPoint.y)).toBeLessThanOrEqual(1);
+    expect(screenToCanvas(frame, scale, lossyScreen)).toEqual(canvasPoint);
   });
 
-  it("applies frame origin and coordinate scale before display conversion", () => {
-    const screenFrame: CaptureFrame = {
-      imageWidth: 800,
-      imageHeight: 500,
-      originX: 100,
-      originY: 50,
-      coordinateScaleX: 2,
-      coordinateScaleY: 4,
-      coordinateSpace: "screen",
+  it("round-trips a negative-origin left-monitor ROI through canvas coordinates", () => {
+    const negativeOriginFrame: CaptureFrame = {
+      imageWidth: 3840,
+      imageHeight: 1080,
+      originX: -1920,
+      originY: 0,
+      captureId: "x",
     };
-    const viewport: DisplayViewport = { width: 800, height: 500, panX: 10, panY: 20, zoom: 1 };
-    const screenPoint = { x: 1140, y: 1250 };
+    const scale = 1.0;
 
-    expect(imagePointToDisplayPoint(screenFrame, viewport, screenPoint)).toEqual({ x: 530, y: 320 });
-    expect(displayPointToImagePoint(screenFrame, viewport, { x: 530, y: 320 })).toEqual(screenPoint);
+    const screenPoint = canvasToScreen(negativeOriginFrame, scale, { x: 0, y: 0 });
+    expect(screenPoint).toEqual({ x: -1920, y: 0 });
+    expect(screenToCanvas(negativeOriginFrame, scale, screenPoint)).toEqual({ x: 0, y: 0 });
+
+    const roi = dragToRoi(negativeOriginFrame, scale, { x: 0, y: 0 }, { x: 100, y: 50 });
+    expect(roi).toEqual({ x: -1920, y: 0, w: 100, h: 50 });
+    expect(roiToCanvasRect(negativeOriginFrame, scale, roi)).toEqual({ left: 0, top: 0, width: 100, height: 50 });
+  });
+
+  it("truncates toward zero instead of flooring negative scaled coordinates", () => {
+    expect(screenToCanvas(frame, 0.5, { x: -3, y: 0 })).toEqual({ x: -1, y: 0 });
+  });
+
+  it("steps zoom by Python's 1.1 factor and clamps both ends", () => {
+    expect(nextZoom(1.0, 1)).toBe(1.1);
+    expect(nextZoom(1.0, -1)).toBeCloseTo(1 / 1.1);
+    expect(nextZoom(6.0, 1)).toBe(6.0);
+    expect(nextZoom(0.25, -1)).toBe(0.25);
+  });
+
+  it("normalizes reversed drags and enforces a one-pixel minimum ROI", () => {
+    expect(dragToRoi(frame, 1, { x: 100, y: 50 }, { x: 0, y: 0 })).toEqual({ x: 0, y: 0, w: 100, h: 50 });
+    expect(dragToRoi(frame, 1, { x: 42, y: 24 }, { x: 42, y: 24 })).toEqual({ x: 42, y: 24, w: 1, h: 1 });
+  });
+
+  it("scales ROI overlays with the current effective scale", () => {
+    expect(roiToCanvasRect(frame, 2, { x: 10, y: 20, w: 30, h: 40 })).toEqual({
+      left: 20,
+      top: 40,
+      width: 60,
+      height: 80,
+    });
   });
 });

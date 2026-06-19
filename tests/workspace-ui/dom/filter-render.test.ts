@@ -8,6 +8,7 @@ function fixtureState(): AppState {
   return {
     ...initialState(),
     workspace: {
+      ...initialState().workspace,
       cliName: "nqctl",
       cliEnabled: true,
       groups: [{ name: "grp", description: "group", tags: "common, beta", active: true, group: "", collapsed: false }],

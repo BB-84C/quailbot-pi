@@ -74,6 +74,19 @@ function appendNotice(rootEl: HTMLElement, state: AppState): void {
 function buildCliImportToolbar(state: AppState): HTMLElement {
   const toolbar = document.createElement("section");
   toolbar.className = "cli-import-toolbar";
+  const loadWorkspace = document.createElement("button");
+  loadWorkspace.type = "button";
+  loadWorkspace.dataset.action = "file-browser-load";
+  loadWorkspace.textContent = "Load workspace…";
+  const saveWorkspace = document.createElement("button");
+  saveWorkspace.type = "button";
+  saveWorkspace.dataset.action = "file-browser-save";
+  saveWorkspace.textContent = "Save";
+  saveWorkspace.disabled = state.workspace.currentPath.trim().length === 0;
+  const exportWorkspace = document.createElement("button");
+  exportWorkspace.type = "button";
+  exportWorkspace.dataset.action = "file-browser-export";
+  exportWorkspace.textContent = "Export…";
   const label = document.createElement("label");
   label.className = "form-row cli-import-name-row";
   const text = document.createElement("span");
@@ -89,7 +102,7 @@ function buildCliImportToolbar(state: AppState): HTMLElement {
   button.dataset.action = "cli-import-load";
   button.disabled = state.cliImport.inFlight;
   button.textContent = state.cliImport.inFlight ? "Loading..." : "Load Param From CLI";
-  toolbar.append(label, button);
+  toolbar.append(loadWorkspace, saveWorkspace, exportWorkspace, label, button);
   if (state.cliImport.lastError) {
     const error = document.createElement("p");
     error.className = "cli-import-error";
@@ -107,6 +120,8 @@ function updateCliImportToolbar(rootEl: HTMLElement, state: AppState): void {
     button.disabled = state.cliImport.inFlight;
     button.textContent = state.cliImport.inFlight ? "Loading..." : "Load Param From CLI";
   }
+  const saveWorkspace = rootEl.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]');
+  if (saveWorkspace) saveWorkspace.disabled = state.workspace.currentPath.trim().length === 0;
   rootEl.querySelector(".cli-import-error")?.remove();
   const toolbar = rootEl.querySelector<HTMLElement>(".cli-import-toolbar");
   if (toolbar && state.cliImport.lastError) {

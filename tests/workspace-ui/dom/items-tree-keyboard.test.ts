@@ -9,6 +9,7 @@ function fixtureState(): AppState {
   return {
     ...initialState(),
     workspace: {
+      ...initialState().workspace,
       cliName: "cli",
       cliEnabled: true,
       groups: [{ name: "grp", description: "", tags: "", active: true, group: "", collapsed: false }],

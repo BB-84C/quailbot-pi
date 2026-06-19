@@ -11,6 +11,7 @@ function fixtureState(): AppState {
   return {
     ...initialState(),
     workspace: {
+      ...initialState().workspace,
       cliName: "nqctl",
       cliEnabled: true,
       groups: [{ name: "group-a", description: "parent", tags: "physics", active: true, group: "", collapsed: false }],

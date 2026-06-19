@@ -2,12 +2,14 @@ import { effectiveScale, screenToCanvas } from "../shared/geometry.js";
 import { attachCanvasEvents } from "./events/canvas.js";
 import { attachCliImportEvents } from "./events/cli-import.js";
 import { attachFilterEvents } from "./events/filter.js";
+import { attachFileBrowserEvents } from "./events/file-browser.js";
 import { attachFormEvents } from "./events/form.js";
 import { attachItemsTreeEvents } from "./events/items-tree.js";
 import { formSelectionChanged, type Action } from "./actions.js";
 import { renderCanvas } from "./render/canvas.js";
 import { renderCliImportModal } from "./render/cli-import-modal.js";
 import { renderFilter } from "./render/filter.js";
+import { renderFileBrowserModal } from "./render/file-browser.js";
 import { renderForm } from "./render/form.js";
 import { renderItemsTree } from "./render/items-tree.js";
 import { selectionSummary } from "./selectors/form.js";
@@ -56,6 +58,12 @@ document.addEventListener("DOMContentLoaded", () => {
     modalRoot.dataset.cliImportModalRoot = "true";
     formRoot.after(modalRoot);
   }
+  let fileBrowserRoot = appRoot.querySelector<HTMLElement>("[data-file-browser-modal-root]");
+  if (!fileBrowserRoot) {
+    fileBrowserRoot = document.createElement("section");
+    fileBrowserRoot.dataset.fileBrowserModalRoot = "true";
+    modalRoot.after(fileBrowserRoot);
+  }
 
   const store = createStore();
   const dispatch = (action: Action): void => {
@@ -70,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCanvas(canvasRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderCliImportModal(modalRoot, store.getState());
+    renderFileBrowserModal(fileBrowserRoot, store.getState());
   };
   store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
   render();
@@ -79,6 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
   attachCanvasEvents(canvasRoot, dispatch, store.getState);
   attachFormEvents(formRoot, dispatch, store.getState);
   attachCliImportEvents({ formRoot, modalRoot, dispatch, getState: store.getState });
+  attachFileBrowserEvents({ formRoot, modalRoot: fileBrowserRoot, dispatch, getState: store.getState });
 
   window.__quailbotWorkspaceUiReady = true;
   window.__quailbotShared = { effectiveScale, screenToCanvas };

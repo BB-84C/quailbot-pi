@@ -5,6 +5,8 @@ import type { SelectionSummary } from "./selectors/form.js";
 import type { CliParamDraft } from "../shared/model.js";
 import type { CliImportConflict, MergeResult } from "../shared/cli-import.js";
 
+export interface BrowseEntry { name: string; kind: "dir" | "file"; path: string }
+
 export type TreeClickModifiers = {
   ctrl: boolean;
   shift: boolean;
@@ -86,7 +88,20 @@ export type CliImportAction =
   | { type: "CLI_IMPORT_RESOLVE_CANCEL" }
   | { type: "CLI_IMPORT_MODAL_OPENED"; payload: { conflicts: CliImportConflict[]; merged: CliParamDraft[] } };
 
-export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction;
+export type FileBrowserAction =
+  | { type: "FILE_BROWSER_OPEN"; payload: { mode: "load" | "export" } }
+  | { type: "FILE_BROWSER_NAV"; payload: { path: string } }
+  | { type: "FILE_BROWSER_BROWSE_RESULT"; payload: { entries: BrowseEntry[]; currentPath: string } }
+  | { type: "FILE_BROWSER_SELECT"; payload: { name: string; path: string } }
+  | { type: "FILE_BROWSER_FILENAME_CHANGED"; payload: { filename: string } }
+  | { type: "FILE_BROWSER_LOAD_STARTED" }
+  | { type: "FILE_BROWSER_LOAD_SUCCEEDED"; payload: { path: string; workspaceJson: Record<string, unknown> } }
+  | { type: "FILE_BROWSER_SAVE_STARTED" }
+  | { type: "FILE_BROWSER_SAVE_SUCCEEDED"; payload: { path: string; updateCurrent: boolean } }
+  | { type: "FILE_BROWSER_FAILED"; payload: { error: string } }
+  | { type: "FILE_BROWSER_CANCEL" };
+
+export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction;
 
 export function treeClickItem(payload: TreeItemKey & { modifiers: TreeClickModifiers; region: "toggle" | "body" }): Action {
   return { type: "TREE_CLICK_ITEM", payload };
@@ -262,4 +277,48 @@ export function cliImportResolveUseLoaded(): Action {
 
 export function cliImportResolveCancel(): Action {
   return { type: "CLI_IMPORT_RESOLVE_CANCEL" };
+}
+
+export function fileBrowserOpen(mode: "load" | "export"): Action {
+  return { type: "FILE_BROWSER_OPEN", payload: { mode } };
+}
+
+export function fileBrowserNav(path: string): Action {
+  return { type: "FILE_BROWSER_NAV", payload: { path } };
+}
+
+export function fileBrowserBrowseResult(entries: BrowseEntry[], currentPath: string): Action {
+  return { type: "FILE_BROWSER_BROWSE_RESULT", payload: { entries, currentPath } };
+}
+
+export function fileBrowserSelect(name: string, path: string): Action {
+  return { type: "FILE_BROWSER_SELECT", payload: { name, path } };
+}
+
+export function fileBrowserFilenameChanged(filename: string): Action {
+  return { type: "FILE_BROWSER_FILENAME_CHANGED", payload: { filename } };
+}
+
+export function fileBrowserLoadStarted(): Action {
+  return { type: "FILE_BROWSER_LOAD_STARTED" };
+}
+
+export function fileBrowserLoadSucceeded(path: string, workspaceJson: Record<string, unknown>): Action {
+  return { type: "FILE_BROWSER_LOAD_SUCCEEDED", payload: { path, workspaceJson } };
+}
+
+export function fileBrowserSaveStarted(): Action {
+  return { type: "FILE_BROWSER_SAVE_STARTED" };
+}
+
+export function fileBrowserSaveSucceeded(path: string, updateCurrent: boolean): Action {
+  return { type: "FILE_BROWSER_SAVE_SUCCEEDED", payload: { path, updateCurrent } };
+}
+
+export function fileBrowserFailed(error: string): Action {
+  return { type: "FILE_BROWSER_FAILED", payload: { error } };
+}
+
+export function fileBrowserCancel(): Action {
+  return { type: "FILE_BROWSER_CANCEL" };
 }

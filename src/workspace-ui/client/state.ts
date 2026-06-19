@@ -3,7 +3,8 @@ import type { CliImportConflict } from "../shared/cli-import.js";
 import { applyCliConflictResolution } from "../shared/cli-import.js";
 import type { FilterState } from "../shared/filter.js";
 import type { CaptureFrame } from "../shared/geometry.js";
-import type { Action, CanvasAction, FormAction } from "./actions.js";
+import { loadWorkspaceData } from "../shared/parse.js";
+import type { Action, BrowseEntry, CanvasAction, FormAction } from "./actions.js";
 import { canvasReducer } from "./reducers/canvas.js";
 import { filterReducer } from "./reducers/filter.js";
 import { formReducer } from "./reducers/form.js";
@@ -74,6 +75,17 @@ export interface CliImportState {
   modalOpen: boolean;
 }
 
+export interface FileBrowserState {
+  open: boolean;
+  mode: "load" | "export";
+  currentPath: string;
+  entries: BrowseEntry[];
+  selectedFile: string | null;
+  typedFilename: string;
+  inFlight: boolean;
+  lastError: string | null;
+}
+
 export interface AppState {
   workspace: {
     rois: RoiDraft[];
@@ -82,6 +94,8 @@ export interface AppState {
     cliParams: CliParamDraft[];
     cliName: string;
     cliEnabled: boolean;
+    raw: Record<string, unknown>;
+    currentPath: string;
   };
   tree: {
     selected: TreeItemKey[];
@@ -92,6 +106,7 @@ export interface AppState {
   canvas: CanvasState;
   form: FormState;
   cliImport: CliImportState;
+  fileBrowser: FileBrowserState;
 }
 
 export function initialState(): AppState {
@@ -103,6 +118,8 @@ export function initialState(): AppState {
       cliParams: [],
       cliName: "cli",
       cliEnabled: false,
+      raw: {},
+      currentPath: "",
     },
     tree: {
       selected: [],
@@ -140,6 +157,16 @@ export function initialState(): AppState {
       loadedDrafts: null,
       usedSubcommand: "",
       modalOpen: false,
+    },
+    fileBrowser: {
+      open: false,
+      mode: "load",
+      currentPath: "",
+      entries: [],
+      selectedFile: null,
+      typedFilename: "",
+      inFlight: false,
+      lastError: null,
     },
   };
 }
@@ -214,7 +241,49 @@ function cliImportReducer(state: AppState, action: Action): AppState {
   }
 }
 
+function fileBrowserReducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case "FILE_BROWSER_OPEN":
+      return { ...state, fileBrowser: { ...state.fileBrowser, open: true, mode: action.payload.mode, selectedFile: null, typedFilename: "", inFlight: true, lastError: null } };
+    case "FILE_BROWSER_NAV":
+      return { ...state, fileBrowser: { ...state.fileBrowser, currentPath: action.payload.path, selectedFile: null, inFlight: true, lastError: null } };
+    case "FILE_BROWSER_BROWSE_RESULT":
+      return { ...state, fileBrowser: { ...state.fileBrowser, open: true, entries: action.payload.entries, currentPath: action.payload.currentPath, selectedFile: null, inFlight: false, lastError: null } };
+    case "FILE_BROWSER_SELECT":
+      return { ...state, fileBrowser: { ...state.fileBrowser, selectedFile: action.payload.path, typedFilename: state.fileBrowser.mode === "export" ? action.payload.name : state.fileBrowser.typedFilename, lastError: null } };
+    case "FILE_BROWSER_FILENAME_CHANGED":
+      return { ...state, fileBrowser: { ...state.fileBrowser, typedFilename: action.payload.filename, lastError: null } };
+    case "FILE_BROWSER_LOAD_STARTED":
+    case "FILE_BROWSER_SAVE_STARTED":
+      return { ...state, fileBrowser: { ...state.fileBrowser, inFlight: true, lastError: null } };
+    case "FILE_BROWSER_LOAD_SUCCEEDED": {
+      const parsed = loadWorkspaceData(action.payload.workspaceJson);
+      return {
+        ...state,
+        workspace: { ...state.workspace, ...parsed, raw: action.payload.workspaceJson, currentPath: action.payload.path },
+        tree: { ...state.tree, selected: [], activeAnchor: null },
+        fileBrowser: { ...state.fileBrowser, open: false, inFlight: false, lastError: null },
+      };
+    }
+    case "FILE_BROWSER_SAVE_SUCCEEDED":
+      return {
+        ...state,
+        workspace: { ...state.workspace, currentPath: action.payload.updateCurrent ? action.payload.path : state.workspace.currentPath },
+        fileBrowser: { ...state.fileBrowser, open: false, inFlight: false, lastError: null },
+      };
+    case "FILE_BROWSER_FAILED":
+      return { ...state, fileBrowser: { ...state.fileBrowser, inFlight: false, lastError: action.payload.error } };
+    case "FILE_BROWSER_CANCEL":
+      return { ...state, fileBrowser: { ...state.fileBrowser, open: false, inFlight: false, lastError: null } };
+    default:
+      return state;
+  }
+}
+
 export function reduceAppState(state: AppState, action: Action): AppState {
+  if (action.type.startsWith("FILE_BROWSER_")) {
+    return fileBrowserReducer(state, action);
+  }
   if (action.type.startsWith("CLI_IMPORT_")) {
     return cliImportReducer(state, action);
   }

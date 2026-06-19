@@ -1,0 +1,5 @@
+# Workspace-format files must check out with LF on every platform so that
+# byte-exact comparisons against Python-generated golden fixtures pass on
+# both Linux CI and Windows dev checkouts regardless of core.autocrlf.
+tests/fixtures/python-golden/*.json text eol=lf
+tests/fixtures/python-golden/*.md text eol=lf

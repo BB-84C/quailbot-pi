@@ -82,5 +82,6 @@ export function buildWorkspaceJson(args: {
 }
 
 export function stringifyWorkspaceJson(obj: Record<string, unknown>): string {
-  return `${JSON.stringify(obj, null, 2)}\n`.replace(/\n/g, "\r\n");
+  // Python parity: json.dumps(indent=2, sort_keys=False, ensure_ascii=False) + "\n" — LF, not CRLF.
+  return `${JSON.stringify(obj, null, 2)}\n`;
 }

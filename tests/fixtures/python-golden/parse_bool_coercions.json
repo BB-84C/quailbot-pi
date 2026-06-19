@@ -1,0 +1,332 @@
+{
+  "parse_active": [
+    {
+      "type": "bool",
+      "repr": "True",
+      "value": true,
+      "result": true
+    },
+    {
+      "type": "bool",
+      "repr": "False",
+      "value": false,
+      "result": false
+    },
+    {
+      "type": "int",
+      "repr": "1",
+      "value": 1,
+      "result": true
+    },
+    {
+      "type": "int",
+      "repr": "0",
+      "value": 0,
+      "result": false
+    },
+    {
+      "type": "float",
+      "repr": "2.5",
+      "value": 2.5,
+      "result": true
+    },
+    {
+      "type": "float",
+      "repr": "0.0",
+      "value": 0.0,
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'true'",
+      "value": "true",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'1'",
+      "value": "1",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'yes'",
+      "value": "yes",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'y'",
+      "value": "y",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'on'",
+      "value": "on",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'false'",
+      "value": "false",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'0'",
+      "value": "0",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'no'",
+      "value": "no",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'n'",
+      "value": "n",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'off'",
+      "value": "off",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'unknown'",
+      "value": "unknown",
+      "result": true
+    },
+    {
+      "type": "NoneType",
+      "repr": "None",
+      "value": null,
+      "result": true
+    }
+  ],
+  "parse_bool_default_true": [
+    {
+      "type": "bool",
+      "repr": "True",
+      "value": true,
+      "result": true
+    },
+    {
+      "type": "bool",
+      "repr": "False",
+      "value": false,
+      "result": false
+    },
+    {
+      "type": "int",
+      "repr": "1",
+      "value": 1,
+      "result": true
+    },
+    {
+      "type": "int",
+      "repr": "0",
+      "value": 0,
+      "result": false
+    },
+    {
+      "type": "float",
+      "repr": "2.5",
+      "value": 2.5,
+      "result": true
+    },
+    {
+      "type": "float",
+      "repr": "0.0",
+      "value": 0.0,
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'true'",
+      "value": "true",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'1'",
+      "value": "1",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'yes'",
+      "value": "yes",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'y'",
+      "value": "y",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'on'",
+      "value": "on",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'false'",
+      "value": "false",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'0'",
+      "value": "0",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'no'",
+      "value": "no",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'n'",
+      "value": "n",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'off'",
+      "value": "off",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'unknown'",
+      "value": "unknown",
+      "result": true
+    },
+    {
+      "type": "NoneType",
+      "repr": "None",
+      "value": null,
+      "result": true
+    }
+  ],
+  "parse_bool_default_false": [
+    {
+      "type": "bool",
+      "repr": "True",
+      "value": true,
+      "result": true
+    },
+    {
+      "type": "bool",
+      "repr": "False",
+      "value": false,
+      "result": false
+    },
+    {
+      "type": "int",
+      "repr": "1",
+      "value": 1,
+      "result": true
+    },
+    {
+      "type": "int",
+      "repr": "0",
+      "value": 0,
+      "result": false
+    },
+    {
+      "type": "float",
+      "repr": "2.5",
+      "value": 2.5,
+      "result": true
+    },
+    {
+      "type": "float",
+      "repr": "0.0",
+      "value": 0.0,
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'true'",
+      "value": "true",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'1'",
+      "value": "1",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'yes'",
+      "value": "yes",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'y'",
+      "value": "y",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'on'",
+      "value": "on",
+      "result": true
+    },
+    {
+      "type": "str",
+      "repr": "'false'",
+      "value": "false",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'0'",
+      "value": "0",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'no'",
+      "value": "no",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'n'",
+      "value": "n",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'off'",
+      "value": "off",
+      "result": false
+    },
+    {
+      "type": "str",
+      "repr": "'unknown'",
+      "value": "unknown",
+      "result": false
+    },
+    {
+      "type": "NoneType",
+      "repr": "None",
+      "value": null,
+      "result": false
+    }
+  ]
+}

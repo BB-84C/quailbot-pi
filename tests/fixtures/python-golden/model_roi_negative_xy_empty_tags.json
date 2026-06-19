@@ -1,0 +1,9 @@
+{
+  "name": "roi-negative",
+  "x": -1920,
+  "y": -12,
+  "w": 5,
+  "h": 6,
+  "description": "negative origin",
+  "active": false
+}

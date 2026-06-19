@@ -1,0 +1,60 @@
+{
+  "rois": [],
+  "anchors": [],
+  "groups": [],
+  "cli_name": "fixturectl",
+  "cli_enabled": true,
+  "cli_params": [
+    {
+      "name": "dict-action",
+      "label": "Dict Action",
+      "action_cmd": {
+        "argv": [
+          "fixturectl",
+          "dict-action"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "enabled": false,
+      "description": "",
+      "safety_mode": "guarded"
+    },
+    {
+      "label": "Dict Param",
+      "name": "dict-param",
+      "readable": true,
+      "get_cmd": {
+        "argv": [
+          "fixturectl",
+          "get",
+          "dict-param"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "writable": false,
+      "has_ramp": false,
+      "enabled": false,
+      "description": "",
+      "safety": null,
+      "actions": {
+        "get": true,
+        "set": false,
+        "ramp": false
+      }
+    },
+    {
+      "name": "legacy-action",
+      "label": "Legacy Action",
+      "action_cmd": {
+        "argv": [
+          "fixturectl",
+          "legacy-action"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "enabled": false,
+      "description": "",
+      "safety_mode": "guarded"
+    }
+  ]
+}

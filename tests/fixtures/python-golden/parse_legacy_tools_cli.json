@@ -1,0 +1,84 @@
+{
+  "rois": [],
+  "anchors": [],
+  "groups": [],
+  "cli_name": "cli",
+  "cli_enabled": true,
+  "cli_params": [
+    {
+      "label": "A",
+      "name": "alpha",
+      "writable": true,
+      "set_cmd": {
+        "argv": [
+          "fixturectl",
+          "set",
+          "alpha"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "readable": false,
+      "has_ramp": false,
+      "enabled": true,
+      "description": "",
+      "safety": null,
+      "actions": {
+        "get": false,
+        "set": true,
+        "ramp": false
+      }
+    },
+    {
+      "label": "B",
+      "name": "beta",
+      "readable": true,
+      "get_cmd": {
+        "argv": [
+          "fixturectl",
+          "get",
+          "beta"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "writable": false,
+      "has_ramp": false,
+      "enabled": true,
+      "description": "",
+      "safety": null,
+      "actions": {
+        "get": true,
+        "set": false,
+        "ramp": false
+      }
+    },
+    {
+      "name": "open",
+      "label": "O",
+      "action_cmd": {
+        "argv": [
+          "fixturectl",
+          "open"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "enabled": true,
+      "description": "",
+      "safety_mode": "guarded"
+    },
+    {
+      "name": "zap",
+      "label": "Z",
+      "action_cmd": {
+        "argv": [
+          "fixturectl",
+          "zap"
+        ],
+        "description": "Zap fallback"
+      },
+      "description": "Zap fallback",
+      "CLI_Name": "fixturectl",
+      "enabled": true,
+      "safety_mode": "guarded"
+    }
+  ]
+}

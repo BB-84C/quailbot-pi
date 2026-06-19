@@ -1,0 +1,24 @@
+{
+  "raw_action": "kept",
+  "CLI_Name": "fixturectl",
+  "name": "do-alwaysallowed",
+  "enabled": true,
+  "description": "run action",
+  "safety_mode": "alwaysAllowed",
+  "action_cmd": {
+    "argv": [
+      "fixturectl",
+      "do",
+      "alwaysallowed"
+    ],
+    "description": "action fallback not used"
+  },
+  "tags": [
+    "action"
+  ],
+  "group": "actions",
+  "linked_observables": [
+    "roi-main",
+    "readback"
+  ]
+}

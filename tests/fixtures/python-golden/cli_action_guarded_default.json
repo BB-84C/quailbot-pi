@@ -1,0 +1,20 @@
+{
+  "raw_action": "kept",
+  "CLI_Name": "fixturectl",
+  "name": "do-guarded_default",
+  "enabled": true,
+  "description": "run action",
+  "safety_mode": "guarded",
+  "action_cmd": {
+    "argv": [
+      "fixturectl",
+      "do",
+      "guarded_default"
+    ],
+    "description": "action fallback not used"
+  },
+  "linked_observables": [
+    "roi-main",
+    "readback"
+  ]
+}

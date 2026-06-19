@@ -1,0 +1,13 @@
+{
+  "name": "roi-main",
+  "x": 10,
+  "y": 20,
+  "w": 30,
+  "h": 40,
+  "description": "normal roi",
+  "active": true,
+  "tags": [
+    "alpha",
+    "beta"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "label": "Readback",
+  "name": "readback",
+  "CLI_Name": "fixturectl",
+  "readable": true,
+  "writable": false,
+  "has_ramp": false,
+  "enabled": true,
+  "description": "readable only",
+  "get_cmd": {
+    "argv": [
+      "fixturectl",
+      "get",
+      "readback"
+    ],
+    "description": "read readback"
+  },
+  "safety": null,
+  "actions": {
+    "get": true,
+    "set": false,
+    "ramp": false
+  }
+}

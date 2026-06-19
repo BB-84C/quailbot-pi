@@ -1,0 +1,34 @@
+{
+  "label": "Height",
+  "name": "height",
+  "CLI_Name": "fixturectl",
+  "readable": true,
+  "writable": true,
+  "has_ramp": true,
+  "enabled": true,
+  "description": "rampable parameter",
+  "get_cmd": {
+    "argv": [
+      "fixturectl",
+      "get",
+      "height"
+    ]
+  },
+  "set_cmd": {
+    "argv": [
+      "fixturectl",
+      "set",
+      "height"
+    ]
+  },
+  "safety": {
+    "ramp_enabled": true,
+    "max_step": 0.5,
+    "cooldown_s": 1
+  },
+  "actions": {
+    "get": true,
+    "set": true,
+    "ramp": true
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "roi-grouped",
+  "x": 1,
+  "y": 2,
+  "w": 3,
+  "h": 4,
+  "description": "grouped",
+  "active": true,
+  "tags": [
+    "tag"
+  ],
+  "group": "geometry"
+}

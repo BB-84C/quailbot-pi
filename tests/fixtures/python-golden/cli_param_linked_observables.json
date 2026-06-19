@@ -1,0 +1,35 @@
+{
+  "label": "Drive",
+  "name": "drive",
+  "CLI_Name": "fixturectl",
+  "readable": true,
+  "writable": true,
+  "has_ramp": false,
+  "enabled": false,
+  "description": "linked parameter",
+  "get_cmd": {
+    "argv": [
+      "fixturectl",
+      "get",
+      "drive"
+    ]
+  },
+  "set_cmd": {
+    "argv": [
+      "fixturectl",
+      "set",
+      "drive"
+    ]
+  },
+  "safety": {},
+  "actions": {
+    "get": true,
+    "set": true,
+    "ramp": false
+  },
+  "linked_observables": [
+    "readback",
+    "height",
+    "readback"
+  ]
+}

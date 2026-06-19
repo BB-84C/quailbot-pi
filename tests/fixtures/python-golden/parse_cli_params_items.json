@@ -1,0 +1,70 @@
+{
+  "rois": [],
+  "anchors": [],
+  "groups": [],
+  "cli_name": "fixturectl",
+  "cli_enabled": false,
+  "cli_params": [
+    {
+      "name": "list-action",
+      "label": "List Action",
+      "action_cmd": {
+        "argv": [
+          "fixturectl",
+          "act"
+        ],
+        "description": "act fallback"
+      },
+      "CLI_Name": "fixturectl",
+      "enabled": false,
+      "description": "act fallback",
+      "safety_mode": "guarded"
+    },
+    {
+      "label": "List Param",
+      "name": "list-param",
+      "readable": true,
+      "get_cmd": {
+        "argv": [
+          "fixturectl",
+          "get",
+          "list-param"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "writable": false,
+      "has_ramp": false,
+      "enabled": false,
+      "description": "",
+      "safety": null,
+      "actions": {
+        "get": true,
+        "set": false,
+        "ramp": false
+      }
+    },
+    {
+      "label": "List Set",
+      "name": "list-set",
+      "writable": true,
+      "set_cmd": {
+        "argv": [
+          "fixturectl",
+          "set",
+          "list-set"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "readable": false,
+      "has_ramp": false,
+      "enabled": false,
+      "description": "",
+      "safety": null,
+      "actions": {
+        "get": false,
+        "set": true,
+        "ramp": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "label": "Bias Voltage",
+  "legacy": "kept",
+  "name": "bias",
+  "CLI_Name": "fixturectl",
+  "readable": true,
+  "writable": true,
+  "has_ramp": false,
+  "enabled": true,
+  "description": "writable parameter",
+  "get_cmd": {
+    "argv": [
+      "fixturectl",
+      "get",
+      "bias"
+    ],
+    "description": "get bias"
+  },
+  "set_cmd": {
+    "argv": [
+      "fixturectl",
+      "set",
+      "bias"
+    ],
+    "description": "set bias"
+  },
+  "safety": null,
+  "actions": {
+    "get": true,
+    "set": true,
+    "ramp": false
+  },
+  "tags": [
+    "control",
+    "voltage"
+  ],
+  "group": "controls"
+}

@@ -1,0 +1,49 @@
+{
+  "rois": [
+    {
+      "name": "gui-roi",
+      "x": -10,
+      "y": 20,
+      "w": 30,
+      "h": 40,
+      "description": "from GUI",
+      "active": false,
+      "tags": [
+        "a",
+        "2"
+      ],
+      "group": "gui-group"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "gui-anchor",
+      "x": 5,
+      "y": 6,
+      "description": "anchor",
+      "active": true,
+      "tags": [
+        "b"
+      ],
+      "linked_observables": [
+        "gui-roi"
+      ],
+      "linked_ROIs": [
+        "gui-roi"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "gui-group",
+      "description": "group",
+      "active": true,
+      "tags": [
+        "g"
+      ]
+    }
+  ],
+  "cli_name": "cli",
+  "cli_enabled": false,
+  "cli_params": []
+}

@@ -1,0 +1,20 @@
+{
+  "raw_action": "kept",
+  "CLI_Name": "fixturectl",
+  "name": "do-blocked",
+  "enabled": true,
+  "description": "run action",
+  "safety_mode": "blocked",
+  "action_cmd": {
+    "argv": [
+      "fixturectl",
+      "do",
+      "blocked"
+    ],
+    "description": "action fallback not used"
+  },
+  "linked_observables": [
+    "roi-main",
+    "readback"
+  ]
+}

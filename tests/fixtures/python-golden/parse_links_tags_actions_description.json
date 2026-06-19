@@ -1,0 +1,98 @@
+{
+  "rois": [],
+  "anchors": [],
+  "groups": [],
+  "cli_name": "fixturectl",
+  "cli_enabled": true,
+  "cli_params": [
+    {
+      "name": "blank-description-action",
+      "label": "Blank Desc",
+      "description": "fallback description",
+      "action_cmd": {
+        "argv": [
+          "fixturectl",
+          "blank"
+        ],
+        "description": "fallback description"
+      },
+      "CLI_Name": "fixturectl",
+      "enabled": false,
+      "safety_mode": "guarded"
+    },
+    {
+      "name": "explicit-description-action",
+      "label": "Explicit Desc",
+      "description": "explicit wins",
+      "action_cmd": {
+        "argv": [
+          "fixturectl",
+          "explicit"
+        ],
+        "description": "ignored fallback"
+      },
+      "CLI_Name": "fixturectl",
+      "enabled": false,
+      "safety_mode": "guarded"
+    },
+    {
+      "label": "Fallback Scalar",
+      "name": "fallback-scalar-link",
+      "tags": [
+        "scalar-tag"
+      ],
+      "readable": true,
+      "get_cmd": {
+        "argv": [
+          "fixturectl",
+          "get",
+          "fallback-scalar-link"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "writable": false,
+      "has_ramp": false,
+      "enabled": false,
+      "description": "",
+      "safety": null,
+      "actions": {
+        "get": true,
+        "set": false,
+        "ramp": false
+      },
+      "linked_observables": [
+        "roi-one"
+      ]
+    },
+    {
+      "label": "Preferred Links",
+      "name": "preferred-links",
+      "tags": [
+        "one",
+        "2"
+      ],
+      "readable": false,
+      "writable": false,
+      "has_ramp": false,
+      "actions": {
+        "get": true,
+        "set": true,
+        "ramp": true
+      },
+      "linked_observables": [
+        "obs-a"
+      ],
+      "set_cmd": {
+        "argv": [
+          "fixturectl",
+          "set",
+          "preferred-links"
+        ]
+      },
+      "CLI_Name": "fixturectl",
+      "enabled": false,
+      "description": "",
+      "safety": null
+    }
+  ]
+}

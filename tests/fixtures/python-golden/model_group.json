@@ -1,0 +1,10 @@
+{
+  "name": "geometry",
+  "description": "spatial things",
+  "active": false,
+  "tags": [
+    "alpha",
+    "nested"
+  ],
+  "group": "root"
+}

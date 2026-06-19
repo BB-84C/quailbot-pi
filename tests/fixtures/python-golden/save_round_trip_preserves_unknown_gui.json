@@ -1,0 +1,139 @@
+{
+  "notes": "x",
+  "GUI": {
+    "stale": "preserve me"
+  },
+  "tools": {
+    "cli": {
+      "legacy_field": "preserved in cli_out",
+      "enabled": true,
+      "parameters": {
+        "zeta": {
+          "label": "Zeta",
+          "name": "zeta",
+          "CLI_Name": "fixturectl",
+          "readable": true,
+          "writable": true,
+          "has_ramp": false,
+          "enabled": true,
+          "description": "sort second",
+          "get_cmd": {
+            "argv": [
+              "fixturectl",
+              "get",
+              "zeta"
+            ]
+          },
+          "safety": null,
+          "actions": {
+            "get": true,
+            "set": false,
+            "ramp": false
+          }
+        }
+      },
+      "actions": {
+        "alpha-action": {
+          "CLI_Name": "fixturectl",
+          "name": "alpha-action",
+          "enabled": true,
+          "description": "sort first action",
+          "safety_mode": "alwaysAllowed",
+          "action_cmd": {
+            "argv": [
+              "fixturectl",
+              "alpha-action"
+            ]
+          }
+        }
+      }
+    },
+    "other": {
+      "kept": true
+    }
+  },
+  "cli_params": {
+    "legacy_cli_params_field": "preserved in cli_out",
+    "cli_name": "fixturectl",
+    "enabled": true,
+    "parameters": {
+      "count": 1,
+      "items": [
+        {
+          "label": "Zeta",
+          "name": "zeta",
+          "CLI_Name": "fixturectl",
+          "readable": true,
+          "writable": true,
+          "has_ramp": false,
+          "enabled": true,
+          "description": "sort second",
+          "get_cmd": {
+            "argv": [
+              "fixturectl",
+              "get",
+              "zeta"
+            ]
+          },
+          "safety": null,
+          "actions": {
+            "get": true,
+            "set": false,
+            "ramp": false
+          }
+        }
+      ]
+    },
+    "action_commands": {
+      "count": 1,
+      "items": [
+        {
+          "CLI_Name": "fixturectl",
+          "name": "alpha-action",
+          "enabled": true,
+          "description": "sort first action",
+          "safety_mode": "alwaysAllowed",
+          "action_cmd": {
+            "argv": [
+              "fixturectl",
+              "alpha-action"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "rois": [
+    {
+      "name": "roi-save",
+      "x": -1,
+      "y": 2,
+      "w": 3,
+      "h": 4,
+      "description": "saved",
+      "active": true
+    }
+  ],
+  "anchors": [
+    {
+      "name": "anchor-save",
+      "x": 5,
+      "y": 6,
+      "description": "saved",
+      "active": true,
+      "linked_observables": [
+        "roi-save"
+      ],
+      "linked_ROIs": [
+        "roi-save"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "save-group",
+      "description": "saved group",
+      "active": true
+    }
+  ]
+}

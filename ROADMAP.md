@@ -312,6 +312,29 @@ Date: 2026-06-19
 - Real browser acceptance should still cover the visual canvas beyond jsdom, especially non-zero-origin physical capture and pixel-backed overlay alignment.
 - Server capture/refresh work should honor the existing capture URL and `CaptureFrame` metadata contract rather than changing the canvas renderer surface.
 
+## Implementation round: A3 CLI import shared/server/client slice
+
+Date: 2026-06-19
+
+### Delivered
+
+- Added `shared/cli-import.ts` as the browser-safe faithful port of CLI capability extraction, draft merge, conflict resolution, field diffs, and markdown conflict reporting, with golden tests against the committed Python outputs.
+- Added a Node-only CLI probe seam under `server/cli-import.ts` using `spawnSync(cliName, [subcommand], shell:false)` with CLI-name regex validation, workspace-declared-name gating, 90s per-attempt timeout, and `capabilities`→`capacities` fallback only after non-zero/spawn failure.
+- Added the client CLI import state/actions, POST helper, form-panel trigger, conflict modal, Escape/backdrop cancellation, and use-loaded/keep-existing resolution paths on the existing browser `AppState`/store pattern.
+- Added unit and jsdom coverage for golden merge/report parity, probe hardening without real subprocesses, modal rendering, conflict-only rows, resolution flow, and cancel behavior.
+
+### Now known
+
+- The committed `cli_import_conflict_report.md` fixture includes the extra final newline, so the TypeScript report formatter must preserve byte-exact fixture text rather than relying on an intuitive single trailing newline.
+- Existing form DOM tests treat `input[data-field]` and even broad `input, textarea` selectors as selection-editor controls; always-visible utility controls in the form panel need a distinct surface that does not masquerade as item fields.
+- Client-side import can update the draft CLI name before probing to avoid the blank-workspace first-import deadlock, but the authoritative subprocess gate still belongs server-side with a provider-derived declared-name set.
+
+### Later phases must do differently
+
+- Phase 9 route wiring should derive declared CLI names from the server's current workspace draft, not trust the client-supplied helper list; the client list is only request context.
+- Keep CLI import merge/report logic in `shared/cli-import.ts`; do not duplicate report formatting inside modal or route code.
+- When styling the modal/toolbar later, preserve the modal's conflict-only semantics and safe default focus on Cancel.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

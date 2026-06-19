@@ -1,10 +1,12 @@
 import { effectiveScale, screenToCanvas } from "../shared/geometry.js";
 import { attachCanvasEvents } from "./events/canvas.js";
+import { attachCliImportEvents } from "./events/cli-import.js";
 import { attachFilterEvents } from "./events/filter.js";
 import { attachFormEvents } from "./events/form.js";
 import { attachItemsTreeEvents } from "./events/items-tree.js";
 import { formSelectionChanged, type Action } from "./actions.js";
 import { renderCanvas } from "./render/canvas.js";
+import { renderCliImportModal } from "./render/cli-import-modal.js";
 import { renderFilter } from "./render/filter.js";
 import { renderForm } from "./render/form.js";
 import { renderItemsTree } from "./render/items-tree.js";
@@ -48,6 +50,12 @@ document.addEventListener("DOMContentLoaded", () => {
     formRoot.dataset.formRoot = "true";
     appRoot.append(formRoot);
   }
+  let modalRoot = appRoot.querySelector<HTMLElement>("[data-cli-import-modal-root]");
+  if (!modalRoot) {
+    modalRoot = document.createElement("section");
+    modalRoot.dataset.cliImportModalRoot = "true";
+    formRoot.after(modalRoot);
+  }
 
   const store = createStore();
   const dispatch = (action: Action): void => {
@@ -61,6 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderFilter(filterRoot, store.getState());
     renderCanvas(canvasRoot, store.getState());
     renderForm(formRoot, store.getState());
+    renderCliImportModal(modalRoot, store.getState());
   };
   store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
   render();
@@ -69,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
   attachFilterEvents(filterRoot, dispatch);
   attachCanvasEvents(canvasRoot, dispatch, store.getState);
   attachFormEvents(formRoot, dispatch, store.getState);
+  attachCliImportEvents({ formRoot, modalRoot, dispatch, getState: store.getState });
 
   window.__quailbotWorkspaceUiReady = true;
   window.__quailbotShared = { effectiveScale, screenToCanvas };

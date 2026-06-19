@@ -1,4 +1,6 @@
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../shared/model.js";
+import type { CliImportConflict } from "../shared/cli-import.js";
+import { applyCliConflictResolution } from "../shared/cli-import.js";
 import type { FilterState } from "../shared/filter.js";
 import type { CaptureFrame } from "../shared/geometry.js";
 import type { Action, CanvasAction, FormAction } from "./actions.js";
@@ -60,6 +62,18 @@ export interface FormState {
   lastCycleRejection?: { selectedGroup: string; attemptedParent: string };
 }
 
+export interface CliImportState {
+  cliName: string;
+  inFlight: boolean;
+  lastError: string | null;
+  conflicts: CliImportConflict[];
+  merged: CliParamDraft[] | null;
+  identicalSkipCount: number;
+  loadedDrafts: CliParamDraft[] | null;
+  usedSubcommand: "capabilities" | "capacities" | "";
+  modalOpen: boolean;
+}
+
 export interface AppState {
   workspace: {
     rois: RoiDraft[];
@@ -77,6 +91,7 @@ export interface AppState {
   filter: FilterState;
   canvas: CanvasState;
   form: FormState;
+  cliImport: CliImportState;
 }
 
 export function initialState(): AppState {
@@ -115,10 +130,94 @@ export function initialState(): AppState {
       cliMeta: {},
       linkedObs: { searchText: "", pickerValue: "" },
     },
+    cliImport: {
+      cliName: "cli",
+      inFlight: false,
+      lastError: null,
+      conflicts: [],
+      merged: null,
+      identicalSkipCount: 0,
+      loadedDrafts: null,
+      usedSubcommand: "",
+      modalOpen: false,
+    },
   };
 }
 
+function applyCliImportResolution(state: AppState, preferLoaded: boolean): AppState {
+  const merged = state.cliImport.merged ?? state.workspace.cliParams;
+  const resolved = applyCliConflictResolution(merged, state.cliImport.conflicts, preferLoaded);
+  return {
+    ...state,
+    workspace: {
+      ...state.workspace,
+      cliParams: resolved,
+      cliName: state.cliImport.cliName,
+      cliEnabled: true,
+    },
+    cliImport: {
+      ...state.cliImport,
+      modalOpen: false,
+      inFlight: false,
+      lastError: null,
+    },
+  };
+}
+
+function cliImportReducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case "CLI_IMPORT_NAME_CHANGED":
+      return {
+        ...state,
+        workspace: { ...state.workspace, cliName: action.payload.text },
+        cliImport: { ...state.cliImport, cliName: action.payload.text, lastError: null },
+      };
+    case "CLI_IMPORT_PROBE_STARTED":
+      return { ...state, cliImport: { ...state.cliImport, inFlight: true, lastError: null, modalOpen: false } };
+    case "CLI_IMPORT_PROBE_FAILED":
+      return { ...state, cliImport: { ...state.cliImport, inFlight: false, lastError: action.payload.error, modalOpen: false } };
+    case "CLI_IMPORT_PROBE_SUCCEEDED": {
+      const nextImport: CliImportState = {
+        ...state.cliImport,
+        cliName: action.payload.cliName,
+        inFlight: false,
+        lastError: null,
+        conflicts: action.payload.mergeResult.conflicts,
+        merged: action.payload.mergeResult.merged,
+        identicalSkipCount: action.payload.mergeResult.identicalSkipCount,
+        loadedDrafts: action.payload.loadedDrafts,
+        usedSubcommand: action.payload.usedSubcommand,
+        modalOpen: action.payload.mergeResult.conflicts.length > 0,
+      };
+      const nextState = { ...state, cliImport: nextImport };
+      if (action.payload.mergeResult.conflicts.length === 0) {
+        return {
+          ...nextState,
+          workspace: {
+            ...nextState.workspace,
+            cliParams: [...action.payload.mergeResult.merged],
+            cliName: action.payload.cliName,
+            cliEnabled: true,
+          },
+        };
+      }
+      return nextState;
+    }
+    case "CLI_IMPORT_RESOLVE_KEEP_EXISTING":
+      return applyCliImportResolution(state, false);
+    case "CLI_IMPORT_RESOLVE_USE_LOADED":
+      return applyCliImportResolution(state, true);
+    case "CLI_IMPORT_RESOLVE_CANCEL":
+      return { ...state, cliImport: { ...state.cliImport, modalOpen: false, inFlight: false } };
+    default:
+      return state;
+  }
+}
+
 export function reduceAppState(state: AppState, action: Action): AppState {
+  if (action.type.startsWith("CLI_IMPORT_")) {
+    return cliImportReducer(state, action);
+  }
   if (action.type.startsWith("TREE_")) {
     return treeReducer(state, action);
   }

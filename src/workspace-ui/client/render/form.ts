@@ -71,6 +71,52 @@ function appendNotice(rootEl: HTMLElement, state: AppState): void {
   rootEl.prepend(notice);
 }
 
+function buildCliImportToolbar(state: AppState): HTMLElement {
+  const toolbar = document.createElement("section");
+  toolbar.className = "cli-import-toolbar";
+  const label = document.createElement("label");
+  label.className = "form-row cli-import-name-row";
+  const text = document.createElement("span");
+  text.textContent = "CLI Name";
+  const input = document.createElement("span");
+  input.dataset.cliImportName = "true";
+  input.setAttribute("role", "textbox");
+  input.contentEditable = "true";
+  input.textContent = state.cliImport.cliName || state.workspace.cliName || "";
+  label.append(text, input);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.action = "cli-import-load";
+  button.disabled = state.cliImport.inFlight;
+  button.textContent = state.cliImport.inFlight ? "Loading..." : "Load Param From CLI";
+  toolbar.append(label, button);
+  if (state.cliImport.lastError) {
+    const error = document.createElement("p");
+    error.className = "cli-import-error";
+    error.textContent = state.cliImport.lastError;
+    toolbar.append(error);
+  }
+  return toolbar;
+}
+
+function updateCliImportToolbar(rootEl: HTMLElement, state: AppState): void {
+  const input = rootEl.querySelector<HTMLElement>('[data-cli-import-name="true"]');
+  if (input && input.textContent !== state.cliImport.cliName) input.textContent = state.cliImport.cliName;
+  const button = rootEl.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]');
+  if (button) {
+    button.disabled = state.cliImport.inFlight;
+    button.textContent = state.cliImport.inFlight ? "Loading..." : "Load Param From CLI";
+  }
+  rootEl.querySelector(".cli-import-error")?.remove();
+  const toolbar = rootEl.querySelector<HTMLElement>(".cli-import-toolbar");
+  if (toolbar && state.cliImport.lastError) {
+    const error = document.createElement("p");
+    error.className = "cli-import-error";
+    error.textContent = state.cliImport.lastError;
+    toolbar.append(error);
+  }
+}
+
 function renderGroupSelect(select: HTMLSelectElement, state: AppState): void {
   const options = groupComboboxOptions(state);
   select.replaceChildren();
@@ -388,6 +434,7 @@ function updateCliMetadata(rootEl: HTMLElement, state: AppState, cli: CliParamDr
 }
 
 function updateExisting(rootEl: HTMLElement, state: AppState, summary: SelectionSummary): boolean {
+  updateCliImportToolbar(rootEl, state);
   if (summary.kind === "none") return false;
   if (summary.kind === "multi") {
     const header = rootEl.querySelector<HTMLElement>(".form-header");
@@ -419,6 +466,7 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
   rootEl.dataset.formKey = key;
   rootEl.classList.add("selected-form");
   rootEl.replaceChildren();
+  rootEl.append(buildCliImportToolbar(state));
 
   if (summary.kind === "none") {
     const empty = document.createElement("p");

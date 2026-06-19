@@ -2,6 +2,8 @@ import type { TreeItemKind, TreeItemKey } from "./state.js";
 import type { CliSafetyField, FormFieldKey } from "./state.js";
 import type { CaptureFrame } from "../shared/geometry.js";
 import type { SelectionSummary } from "./selectors/form.js";
+import type { CliParamDraft } from "../shared/model.js";
+import type { CliImportConflict, MergeResult } from "../shared/cli-import.js";
 
 export type TreeClickModifiers = {
   ctrl: boolean;
@@ -74,7 +76,17 @@ export type FilterAction =
   | { type: "FILTER_TOGGLE_LOGIC" }
   | { type: "FILTER_CLEAR" };
 
-export type Action = TreeAction | CanvasAction | FormAction | FilterAction;
+export type CliImportAction =
+  | { type: "CLI_IMPORT_NAME_CHANGED"; payload: { text: string } }
+  | { type: "CLI_IMPORT_PROBE_STARTED" }
+  | { type: "CLI_IMPORT_PROBE_SUCCEEDED"; payload: { cliName: string; usedSubcommand: "capabilities" | "capacities" | ""; mergeResult: MergeResult; loadedDrafts: CliParamDraft[] } }
+  | { type: "CLI_IMPORT_PROBE_FAILED"; payload: { error: string } }
+  | { type: "CLI_IMPORT_RESOLVE_KEEP_EXISTING" }
+  | { type: "CLI_IMPORT_RESOLVE_USE_LOADED" }
+  | { type: "CLI_IMPORT_RESOLVE_CANCEL" }
+  | { type: "CLI_IMPORT_MODAL_OPENED"; payload: { conflicts: CliImportConflict[]; merged: CliParamDraft[] } };
+
+export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction;
 
 export function treeClickItem(payload: TreeItemKey & { modifiers: TreeClickModifiers; region: "toggle" | "body" }): Action {
   return { type: "TREE_CLICK_ITEM", payload };
@@ -222,4 +234,32 @@ export function filterToggleLogic(): Action {
 
 export function filterClear(): Action {
   return { type: "FILTER_CLEAR" };
+}
+
+export function cliImportNameChanged(text: string): Action {
+  return { type: "CLI_IMPORT_NAME_CHANGED", payload: { text } };
+}
+
+export function cliImportProbeStarted(): Action {
+  return { type: "CLI_IMPORT_PROBE_STARTED" };
+}
+
+export function cliImportProbeSucceeded(payload: { cliName: string; usedSubcommand: "capabilities" | "capacities" | ""; mergeResult: MergeResult; loadedDrafts: CliParamDraft[] }): Action {
+  return { type: "CLI_IMPORT_PROBE_SUCCEEDED", payload };
+}
+
+export function cliImportProbeFailed(error: string): Action {
+  return { type: "CLI_IMPORT_PROBE_FAILED", payload: { error } };
+}
+
+export function cliImportResolveKeepExisting(): Action {
+  return { type: "CLI_IMPORT_RESOLVE_KEEP_EXISTING" };
+}
+
+export function cliImportResolveUseLoaded(): Action {
+  return { type: "CLI_IMPORT_RESOLVE_USE_LOADED" };
+}
+
+export function cliImportResolveCancel(): Action {
+  return { type: "CLI_IMPORT_RESOLVE_CANCEL" };
 }

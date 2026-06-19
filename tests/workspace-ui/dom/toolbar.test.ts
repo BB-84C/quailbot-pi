@@ -83,4 +83,63 @@ describe("workspace toolbar events", () => {
     expect(store.getState().tree.selected).toEqual([]);
     confirm.mockRestore();
   });
+
+  it("clicking Add Anchor appends and selects a deduped anchor", () => {
+    const { root, store, off } = mount();
+    const before = store.getState().workspace.anchors.length;
+
+    click(root, "Add Anchor");
+
+    expect(store.getState().workspace.anchors).toHaveLength(before + 1);
+    expect(store.getState().workspace.anchors.at(-1)?.name).toBe("new_anchor");
+    expect(store.getState().tree.selected).toEqual([{ kind: "anchor", name: "new_anchor" }]);
+    off();
+  });
+
+  it("clicking Add Group appends and selects a deduped group", () => {
+    const { root, store, off } = mount();
+    const before = store.getState().workspace.groups.length;
+
+    click(root, "Add Group");
+
+    expect(store.getState().workspace.groups).toHaveLength(before + 1);
+    expect(store.getState().workspace.groups.at(-1)?.name).toBe("new_group");
+    expect(store.getState().tree.selected).toEqual([{ kind: "group", name: "new_group" }]);
+    off();
+  });
+
+  it("Draw ROI box dispatches CANVAS_BEGIN_DRAW_ROI when a single ROI is selected", () => {
+    const state = fixtureState();
+    state.tree.selected = [{ kind: "roi", name: "roi-1" }];
+    state.canvas.frame = { imageWidth: 100, imageHeight: 100, originX: 0, originY: 0, captureId: "x" };
+    const { root, store, off } = mount(state);
+
+    click(root, "Draw ROI box");
+
+    expect(store.getState().canvas.mode).toBe("draw_roi");
+    expect(store.getState().canvas.drawingItemName).toBe("roi-1");
+    off();
+  });
+
+  it("Pick anchor point dispatches CANVAS_BEGIN_PICK_ANCHOR when a single Anchor is selected", () => {
+    const state = fixtureState();
+    state.tree.selected = [{ kind: "anchor", name: "anchor-1" }];
+    state.canvas.frame = { imageWidth: 100, imageHeight: 100, originX: 0, originY: 0, captureId: "x" };
+    const { root, store, off } = mount(state);
+
+    click(root, "Pick anchor point");
+
+    expect(store.getState().canvas.mode).toBe("pick_anchor");
+    expect(store.getState().canvas.drawingItemName).toBe("anchor-1");
+    off();
+  });
+
+  it("Pick anchor point is disabled when no single Anchor is selected", () => {
+    const state = fixtureState();
+    state.tree.selected = [];
+    const { root } = mount(state);
+
+    const button = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Pick anchor point");
+    expect(button?.disabled).toBe(true);
+  });
 });

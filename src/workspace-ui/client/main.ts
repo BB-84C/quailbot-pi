@@ -1,9 +1,11 @@
 import { effectiveScale, screenToCanvas } from "../shared/geometry.js";
 import { attachCanvasEvents } from "./events/canvas.js";
+import { attachFilterEvents } from "./events/filter.js";
 import { attachFormEvents } from "./events/form.js";
 import { attachItemsTreeEvents } from "./events/items-tree.js";
 import { formSelectionChanged, type Action } from "./actions.js";
 import { renderCanvas } from "./render/canvas.js";
+import { renderFilter } from "./render/filter.js";
 import { renderForm } from "./render/form.js";
 import { renderItemsTree } from "./render/items-tree.js";
 import { selectionSummary } from "./selectors/form.js";
@@ -26,6 +28,12 @@ document.addEventListener("DOMContentLoaded", () => {
     treeRoot = document.createElement("section");
     treeRoot.dataset.itemsTreeRoot = "true";
     appRoot.append(treeRoot);
+  }
+  let filterRoot = appRoot.querySelector<HTMLElement>("[data-filter-root]");
+  if (!filterRoot) {
+    filterRoot = document.createElement("section");
+    filterRoot.dataset.filterRoot = "true";
+    treeRoot.after(filterRoot);
   }
   let canvasRoot = appRoot.querySelector<HTMLElement>("#canvas-root, [data-canvas-root]");
   if (!canvasRoot) {
@@ -50,6 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   const render = (): void => {
     renderItemsTree(treeRoot, store.getState());
+    renderFilter(filterRoot, store.getState());
     renderCanvas(canvasRoot, store.getState());
     renderForm(formRoot, store.getState());
   };
@@ -57,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
   render();
   store.subscribe(render);
   attachItemsTreeEvents(treeRoot, dispatch);
+  attachFilterEvents(filterRoot, dispatch);
   attachCanvasEvents(canvasRoot, dispatch, store.getState);
   attachFormEvents(formRoot, dispatch, store.getState);
 

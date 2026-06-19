@@ -3,6 +3,7 @@ import type { FilterState } from "../shared/filter.js";
 import type { CaptureFrame } from "../shared/geometry.js";
 import type { Action, CanvasAction, FormAction } from "./actions.js";
 import { canvasReducer } from "./reducers/canvas.js";
+import { filterReducer } from "./reducers/filter.js";
 import { formReducer } from "./reducers/form.js";
 import { treeReducer } from "./reducers/tree.js";
 
@@ -95,6 +96,7 @@ export function initialState(): AppState {
     },
     filter: {
       selectedTags: [],
+      keywordRaw: "",
       terms: [],
       logic: "AND",
     },
@@ -125,6 +127,9 @@ export function reduceAppState(state: AppState, action: Action): AppState {
   }
   if (action.type.startsWith("FORM_") || action.type.startsWith("LINKED_")) {
     return formReducer(state, action as FormAction);
+  }
+  if (action.type.startsWith("FILTER_")) {
+    return filterReducer(state, action);
   }
   return state;
 }

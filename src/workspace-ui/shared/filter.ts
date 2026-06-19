@@ -16,6 +16,7 @@ export function filterTerms(keyword: string): string[] {
 
 export type FilterState = {
   selectedTags: string[];
+  keywordRaw?: string;
   terms: string[];
   logic: "AND" | "OR";
 };

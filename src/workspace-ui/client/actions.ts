@@ -68,7 +68,13 @@ export type FormAction =
   | { type: "LINKED_ADD" }
   | { type: "LINKED_REMOVE"; payload: { value: string } };
 
-export type Action = TreeAction | CanvasAction | FormAction;
+export type FilterAction =
+  | { type: "FILTER_TOGGLE_TAG"; payload: { tag: string } }
+  | { type: "FILTER_KEYWORD_CHANGED"; payload: { text: string } }
+  | { type: "FILTER_TOGGLE_LOGIC" }
+  | { type: "FILTER_CLEAR" };
+
+export type Action = TreeAction | CanvasAction | FormAction | FilterAction;
 
 export function treeClickItem(payload: TreeItemKey & { modifiers: TreeClickModifiers; region: "toggle" | "body" }): Action {
   return { type: "TREE_CLICK_ITEM", payload };
@@ -200,4 +206,20 @@ export function linkedAdd(): Action {
 
 export function linkedRemove(value: string): Action {
   return { type: "LINKED_REMOVE", payload: { value } };
+}
+
+export function filterToggleTag(tag: string): Action {
+  return { type: "FILTER_TOGGLE_TAG", payload: { tag } };
+}
+
+export function filterKeywordChanged(text: string): Action {
+  return { type: "FILTER_KEYWORD_CHANGED", payload: { text } };
+}
+
+export function filterToggleLogic(): Action {
+  return { type: "FILTER_TOGGLE_LOGIC" };
+}
+
+export function filterClear(): Action {
+  return { type: "FILTER_CLEAR" };
 }

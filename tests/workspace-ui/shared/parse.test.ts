@@ -16,6 +16,7 @@ import {
   parseCliParameterDrafts,
   parseCliParamsBlock,
   parseLinkedValues,
+  safeFloat,
 } from "../../../src/workspace-ui/shared/parse.js";
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "fixtures", "python-golden");
@@ -86,6 +87,14 @@ describe("workspace shared parse logic", () => {
     expect(normalizeSafetyMode("surprise")).toBe("guarded");
     expect(deriveActionsFromItem({ actions: { get: "yes", set: "on", ramp: "off" } })).toEqual({ readable: true, allowSet: true, allowRamp: false });
     expect(deriveActionsFromItem({ readable: true, writable: true, has_ramp: true, safety: { ramp_enabled: false }, set_cmd: {} })).toEqual({ readable: true, allowSet: true, allowRamp: false });
+  });
+
+  it("safeFloat matches Python fallback and integer-preservation behavior", () => {
+    expect(safeFloat("", 7)).toBe(7);
+    expect(safeFloat(" not-a-number ", 7.5)).toBe(7.5);
+    expect(safeFloat(" 4.0 ", 7)).toBe(4);
+    expect(safeFloat(" 4.25 ", 7)).toBe(4.25);
+    expect(safeFloat(" 4.0 ", 7.5)).toBe(4);
   });
 
   it("loads a missing workspace as Python raw data without groups", () => {

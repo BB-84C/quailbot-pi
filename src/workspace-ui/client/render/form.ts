@@ -1,6 +1,6 @@
 import type { CliParamDraft } from "../../shared/model.js";
-import type { AppState, FormFieldKey } from "../state.js";
-import { groupComboboxOptions, selectionSummary, shouldShowField, type SelectionSummary } from "../selectors/form.js";
+import type { AppState, CliSafetyField, FormFieldKey } from "../state.js";
+import { cliMetaVisibility, cliPayloadPreviewText, cliSafetyFields, groupComboboxOptions, selectionSummary, shouldShowField, type SelectionSummary } from "../selectors/form.js";
 
 const fieldOrder: FormFieldKey[] = ["name", "x", "y", "w", "h", "tags", "description"];
 
@@ -26,6 +26,17 @@ function setControlValue(control: HTMLInputElement | HTMLTextAreaElement, value:
   if (control.value !== value) {
     control.value = value;
   }
+}
+
+function setCheckboxValue(control: HTMLInputElement, value: boolean): void {
+  if (control.checked !== value) {
+    control.checked = value;
+  }
+}
+
+function selectedCli(state: AppState, summary: Extract<SelectionSummary, { kind: "single" }>): CliParamDraft | null {
+  if (summary.itemKind !== "cli") return null;
+  return state.workspace.cliParams.find((item) => item.name === summary.name) ?? null;
 }
 
 function appendNotice(rootEl: HTMLElement, state: AppState): void {
@@ -64,6 +75,10 @@ function createGroupRow(state: AppState): HTMLElement {
   return row;
 }
 
+function labelTextForSafetyField(field: CliSafetyField): string {
+  return field;
+}
+
 function buildField(summary: Extract<SelectionSummary, { kind: "single" }>, field: FormFieldKey, value: string, readOnly: boolean): HTMLElement {
   const row = document.createElement("label");
   row.className = "form-row";
@@ -88,6 +103,124 @@ function buildField(summary: Extract<SelectionSummary, { kind: "single" }>, fiel
   return row;
 }
 
+function buildCliTextarea(className: string, metaKey: "getCmdDescription" | "setCmdDescription", labelText: string, value: string): HTMLElement {
+  const row = document.createElement("label");
+  row.className = `form-row ${className}`;
+  const label = document.createElement("span");
+  label.textContent = labelText;
+  const textarea = document.createElement("textarea");
+  textarea.dataset.cliMeta = metaKey;
+  textarea.value = value;
+  row.append(label, textarea);
+  return row;
+}
+
+function buildCliMetadataBlock(state: AppState, cli: CliParamDraft): HTMLElement {
+  const visibility = cliMetaVisibility(cli);
+  const block = document.createElement("section");
+  block.className = "cli-meta-block";
+  const title = document.createElement("h3");
+  title.textContent = "CLI Metadata";
+  block.append(title);
+
+  if (visibility.showWritable) {
+    const row = document.createElement("label");
+    row.className = "form-row cli-meta-writable";
+    const text = document.createElement("span");
+    text.textContent = "Writable";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.dataset.cliMeta = "writable";
+    input.checked = state.form.cliMeta.writable ?? Boolean(cli.writable);
+    row.append(text, input);
+    block.append(row);
+  }
+
+  if (visibility.showSafetyMode) {
+    const row = document.createElement("label");
+    row.className = "form-row cli-meta-safety-mode";
+    const text = document.createElement("span");
+    text.textContent = "Safety mode";
+    const select = document.createElement("select");
+    select.dataset.cliMeta = "safetyMode";
+    for (const value of ["alwaysAllowed", "guarded", "blocked"] as const) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      option.selected = (state.form.cliMeta.safetyMode ?? cli.safety_mode) === value;
+      select.append(option);
+    }
+    row.append(text, select);
+    block.append(row);
+  }
+
+  if (visibility.showGetDesc) {
+    block.append(buildCliTextarea("cli-meta-get-desc", "getCmdDescription", "get_cmd description", state.form.cliMeta.getCmdDescription ?? String(cli.get_cmd?.description ?? "")));
+  }
+
+  if (visibility.showSetDesc) {
+    block.append(buildCliTextarea("cli-meta-set-desc", "setCmdDescription", "set_cmd description", state.form.cliMeta.setCmdDescription ?? String(cli.set_cmd?.description ?? "")));
+  }
+
+  if (!visibility.showSafetyMode) {
+    for (const field of cliSafetyFields) {
+      const row = document.createElement("label");
+      row.className = `form-row cli-meta-safety-${field}`;
+      const text = document.createElement("span");
+      text.textContent = labelTextForSafetyField(field);
+      const input = document.createElement("input");
+      input.type = "number";
+      input.dataset.cliSafetyField = field;
+      input.value = state.form.cliMeta.safety?.[field] ?? String(cli.safety?.[field] ?? "");
+      input.disabled = !visibility.safetyFieldsEnabled[field];
+      row.append(text, input);
+      block.append(row);
+    }
+  }
+
+  if (visibility.rampEnabledVisible) {
+    const row = document.createElement("label");
+    row.className = "form-row cli-meta-ramp-enabled";
+    const text = document.createElement("span");
+    text.textContent = "ramp_enabled";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.dataset.cliMeta = "rampEnabled";
+    input.checked = state.form.cliMeta.safetyRampEnabled ?? Boolean(cli.safety?.ramp_enabled);
+    row.append(text, input);
+    block.append(row);
+  }
+
+  const preview = document.createElement("pre");
+  preview.className = "cli-meta-payload-preview";
+  preview.textContent = cliPayloadPreviewText(cli);
+  block.append(preview);
+
+  return block;
+}
+
+function updateCliMetadata(rootEl: HTMLElement, state: AppState, cli: CliParamDraft): void {
+  const writable = rootEl.querySelector<HTMLInputElement>('input[data-cli-meta="writable"]');
+  if (writable) setCheckboxValue(writable, state.form.cliMeta.writable ?? Boolean(cli.writable));
+  const safetyMode = rootEl.querySelector<HTMLSelectElement>('select[data-cli-meta="safetyMode"]');
+  if (safetyMode) safetyMode.value = state.form.cliMeta.safetyMode ?? String(cli.safety_mode || "guarded");
+  const getDesc = rootEl.querySelector<HTMLTextAreaElement>('textarea[data-cli-meta="getCmdDescription"]');
+  if (getDesc) setControlValue(getDesc, state.form.cliMeta.getCmdDescription ?? String(cli.get_cmd?.description ?? ""));
+  const setDesc = rootEl.querySelector<HTMLTextAreaElement>('textarea[data-cli-meta="setCmdDescription"]');
+  if (setDesc) setControlValue(setDesc, state.form.cliMeta.setCmdDescription ?? String(cli.set_cmd?.description ?? ""));
+  const visibility = cliMetaVisibility(cli);
+  for (const field of cliSafetyFields) {
+    const input = rootEl.querySelector<HTMLInputElement>(`input[data-cli-safety-field="${field}"]`);
+    if (!input) continue;
+    setControlValue(input, state.form.cliMeta.safety?.[field] ?? String(cli.safety?.[field] ?? ""));
+    input.disabled = !visibility.safetyFieldsEnabled[field];
+  }
+  const rampEnabled = rootEl.querySelector<HTMLInputElement>('input[data-cli-meta="rampEnabled"]');
+  if (rampEnabled) setCheckboxValue(rampEnabled, state.form.cliMeta.safetyRampEnabled ?? Boolean(cli.safety?.ramp_enabled));
+  const preview = rootEl.querySelector<HTMLElement>(".cli-meta-payload-preview");
+  if (preview) preview.textContent = cliPayloadPreviewText(cli);
+}
+
 function updateExisting(rootEl: HTMLElement, state: AppState, summary: SelectionSummary): boolean {
   if (summary.kind === "none") return false;
   if (summary.kind === "multi") {
@@ -109,6 +242,8 @@ function updateExisting(rootEl: HTMLElement, state: AppState, summary: Selection
   }
   const select = rootEl.querySelector<HTMLSelectElement>('select[data-field="group"]');
   if (select) renderGroupSelect(select, state);
+  const cli = selectedCli(state, summary);
+  if (cli) updateCliMetadata(rootEl, state, cli);
   appendNotice(rootEl, state);
   return true;
 }
@@ -142,15 +277,20 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
   grid.className = "form-grid";
   for (const field of fieldOrder) {
     if (!shouldShowField(summary.itemKind, field)) continue;
-    grid.append(buildField(summary, field, valueFor(state, summary, field), summary.itemKind === "cli"));
+    grid.append(buildField(summary, field, valueFor(state, summary, field), summary.itemKind === "cli" && field === "name"));
   }
   rootEl.append(grid);
 
   if (summary.itemKind === "cli") {
-    const stub = document.createElement("p");
-    stub.className = "form-cli-stub";
-    stub.textContent = "CLI metadata frame in next phase";
-    rootEl.append(stub);
+    rootEl.append(createGroupRow(state));
+    const cli = selectedCli(state, summary);
+    if (cli) {
+      rootEl.append(buildCliMetadataBlock(state, cli));
+      const placeholder = document.createElement("div");
+      placeholder.className = "cli-linked-obs-placeholder";
+      placeholder.textContent = "Linked observables editor: next phase";
+      rootEl.append(placeholder);
+    }
     return;
   }
 
@@ -166,7 +306,7 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
 
 export function renderForm(rootEl: HTMLElement, state: AppState): void {
   const summary = selectionSummary(state);
-  const key = summary.kind === "single" ? `single:${summary.itemKind}` : summary.kind;
+  const key = summary.kind === "single" ? `single:${summary.itemKind}:${summary.name}` : summary.kind;
   if (rootEl.dataset.formKey !== key || !updateExisting(rootEl, state, summary)) {
     buildForm(rootEl, state, summary, key);
   }

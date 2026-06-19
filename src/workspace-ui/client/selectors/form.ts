@@ -1,6 +1,22 @@
 import { groupDescendants, groupDisplayOptions } from "../../shared/groups.js";
+import { cliParamToJson } from "../../shared/model.js";
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../../shared/model.js";
-import type { AppState, FormFieldKey, TreeItemKey } from "../state.js";
+import type { AppState, CliSafetyField, FormFieldKey, TreeItemKey } from "../state.js";
+
+export const cliSafetyFields: CliSafetyField[] = ["cooldown_s", "max_slew_per_s", "max_step", "max_value", "min_value", "ramp_interval_s"];
+
+export interface CliMetaVisibility {
+  showWritable: boolean;
+  showSafetyMode: boolean;
+  showGetDesc: boolean;
+  showSetDesc: boolean;
+  safetyFieldsEnabled: Partial<Record<CliSafetyField, boolean>>;
+  rampEnabledVisible: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 
 export type SelectionSummary =
   | { kind: "none" }
@@ -33,7 +49,7 @@ function fieldsFor(kind: TreeItemKey["kind"], draft: RoiDraft | AnchorDraft | Gr
     return { name: group.name, tags: group.tags, description: group.description };
   }
   const cli = draft as CliParamDraft;
-  return { name: cli.name };
+  return { name: cli.name, tags: cli.tags, description: cli.description };
 }
 
 export function selectionSummary(state: AppState): SelectionSummary {
@@ -81,10 +97,33 @@ export function groupComboboxOptions(state: AppState): Array<{ display: string; 
 }
 
 export function shouldShowField(itemKind: "roi" | "anchor" | "group" | "cli", field: FormFieldKey): boolean {
-  if (field === "description") return itemKind !== "cli";
-  if (field === "tags") return itemKind !== "cli";
+  if (field === "description") return true;
+  if (field === "tags") return true;
   if (field === "name") return true;
   if (itemKind === "roi") return field === "x" || field === "y" || field === "w" || field === "h";
   if (itemKind === "anchor") return field === "x" || field === "y";
   return false;
+}
+
+export function cliMetaVisibility(cli: CliParamDraft): CliMetaVisibility {
+  const hasAction = isRecord(cli.action_cmd);
+  const hasSet = !hasAction && isRecord(cli.set_cmd);
+  const hasGet = !hasAction && isRecord(cli.get_cmd);
+  const hasSafety = !hasAction && isRecord(cli.safety);
+  const safetyFieldsEnabled: Partial<Record<CliSafetyField, boolean>> = {};
+  for (const field of cliSafetyFields) {
+    safetyFieldsEnabled[field] = Boolean(hasSafety && cli.safety?.[field] !== null && cli.safety?.[field] !== undefined);
+  }
+  return {
+    showWritable: hasSet,
+    showSafetyMode: hasAction,
+    showGetDesc: hasGet,
+    showSetDesc: hasSet,
+    safetyFieldsEnabled,
+    rampEnabledVisible: Boolean(hasSafety && cli.safety?.ramp_enabled !== null && cli.safety?.ramp_enabled !== undefined),
+  };
+}
+
+export function cliPayloadPreviewText(cli: CliParamDraft): string {
+  return JSON.stringify(cliParamToJson(cli), null, 2);
 }

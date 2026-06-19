@@ -1,7 +1,10 @@
 import { renameGroupCascade, wouldCreateGroupCycle } from "../../shared/groups.js";
+import { syncActionsFromMetadata } from "../../shared/model.js";
+import { normalizeSafetyMode, safeFloat } from "../../shared/parse.js";
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../../shared/model.js";
 import type { FormAction } from "../actions.js";
-import type { AppState, FieldHistory, FormFieldKey, TreeItemKey } from "../state.js";
+import { cliSafetyFields } from "../selectors/form.js";
+import type { AppState, CliMetaBuffers, CliSafetyField, FieldHistory, FormFieldKey, TreeItemKey } from "../state.js";
 
 type WorkspaceClone = AppState["workspace"];
 
@@ -11,8 +14,24 @@ function cloneWorkspace(workspace: AppState["workspace"]): WorkspaceClone {
     rois: workspace.rois.map((roi) => ({ ...roi })),
     anchors: workspace.anchors.map((anchor) => ({ ...anchor, linked_rois: [...anchor.linked_rois] })),
     groups: workspace.groups.map((group) => ({ ...group })),
-    cliParams: workspace.cliParams.map((param) => ({ ...param, linked_observables: [...param.linked_observables] })),
+    cliParams: workspace.cliParams.map((param) => ({
+      ...param,
+      safety: cloneNullableRecord(param.safety),
+      get_cmd: cloneNullableRecord(param.get_cmd),
+      set_cmd: cloneNullableRecord(param.set_cmd),
+      action_cmd: cloneNullableRecord(param.action_cmd),
+      raw_item: { ...param.raw_item },
+      linked_observables: [...param.linked_observables],
+    })),
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneNullableRecord(value: Record<string, unknown> | null): Record<string, unknown> | null {
+  return isRecord(value) ? { ...value } : null;
 }
 
 function historyFor(text: string): FieldHistory {
@@ -38,6 +57,34 @@ function selectedDraft(workspace: WorkspaceClone, key: TreeItemKey): RoiDraft | 
   if (key.kind === "anchor") return workspace.anchors.find((item) => item.name === key.name) ?? null;
   if (key.kind === "group") return workspace.groups.find((item) => item.name === key.name) ?? null;
   return workspace.cliParams.find((item) => item.name === key.name) ?? null;
+}
+
+function selectedCli(workspace: WorkspaceClone, key: TreeItemKey | undefined): CliParamDraft | null {
+  if (!key || key.kind !== "cli") return null;
+  return workspace.cliParams.find((item) => item.name === key.name) ?? null;
+}
+
+function cliMetaBuffersForSelection(state: AppState): CliMetaBuffers {
+  if (state.tree.selected.length !== 1) return {};
+  const cli = selectedCli(state.workspace, state.tree.selected[0]);
+  if (!cli) return {};
+  const safety: Partial<Record<CliSafetyField, string>> = {};
+  if (isRecord(cli.safety)) {
+    for (const field of cliSafetyFields) {
+      const value = cli.safety[field];
+      if (value !== null && value !== undefined) {
+        safety[field] = String(value);
+      }
+    }
+  }
+  return {
+    writable: Boolean(cli.writable),
+    safetyMode: normalizeSafetyMode(cli.safety_mode),
+    getCmdDescription: isRecord(cli.get_cmd) ? String(cli.get_cmd.description ?? "") : "",
+    setCmdDescription: isRecord(cli.set_cmd) ? String(cli.set_cmd.description ?? "") : "",
+    safety,
+    safetyRampEnabled: isRecord(cli.safety) ? Boolean(cli.safety.ramp_enabled) : undefined,
+  };
 }
 
 function setGroup(draft: RoiDraft | AnchorDraft | GroupDraft | CliParamDraft, groupName: string): void {
@@ -75,7 +122,6 @@ function applyHistoryMove(state: AppState, field: FormFieldKey, direction: -1 | 
 function commitField(state: AppState, field: FormFieldKey): AppState {
   if (state.tree.selected.length !== 1) return state;
   const key = state.tree.selected[0]!;
-  if (key.kind === "cli") return state;
   const workspace = cloneWorkspace(state.workspace);
   const draft = selectedDraft(workspace, key);
   if (!draft) return state;
@@ -89,6 +135,7 @@ function commitField(state: AppState, field: FormFieldKey): AppState {
     draft.tags = text;
     return { ...state, workspace };
   }
+  if (key.kind === "cli") return state;
   if (field === "name") {
     const nextName = text.trim();
     if (!nextName) return state;
@@ -122,6 +169,41 @@ function commitField(state: AppState, field: FormFieldKey): AppState {
   return state;
 }
 
+function withCliMetaBuffer(state: AppState, cliMeta: CliMetaBuffers): AppState {
+  return { ...state, form: { ...state.form, cliMeta: { ...state.form.cliMeta, ...cliMeta } } };
+}
+
+function applyCliMetaChange(state: AppState, mutate: (cli: CliParamDraft) => void, cliMeta?: CliMetaBuffers): AppState {
+  if (state.tree.selected.length !== 1) return state;
+  const workspace = cloneWorkspace(state.workspace);
+  const cli = selectedCli(workspace, state.tree.selected[0]);
+  if (!cli) return state;
+  mutate(cli);
+  syncActionsFromMetadata(cli);
+  return { ...state, workspace, form: { ...state.form, cliMeta: { ...state.form.cliMeta, ...(cliMeta ?? {}) } } };
+}
+
+function previousNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function editCliSafetyField(state: AppState, field: CliSafetyField, text: string, commit: boolean | undefined): AppState {
+  const nextSafetyBuffer = { ...(state.form.cliMeta.safety ?? {}), [field]: text };
+  if (!commit) {
+    return withCliMetaBuffer(state, { safety: nextSafetyBuffer });
+  }
+  return applyCliMetaChange(
+    state,
+    (cli) => {
+      if (!isRecord(cli.safety) || cli.safety[field] === null || cli.safety[field] === undefined) return;
+      cli.safety[field] = safeFloat(text, previousNumber(cli.safety[field]));
+    },
+    { safety: nextSafetyBuffer },
+  );
+}
+
 function editGroup(state: AppState, groupName: string): AppState {
   if (groupName === "(mixed)") return state;
   const selected = state.tree.selected;
@@ -146,7 +228,7 @@ export function formReducer(state: AppState, action: FormAction): AppState {
       const summary = action.payload.selectionSummary;
       const buffers = summary.kind === "single" ? { ...summary.fields } : {};
       const history = Object.fromEntries(Object.entries(buffers).map(([field, text]) => [field, historyFor(String(text ?? ""))]));
-      return { ...state, form: { buffers, history } };
+      return { ...state, form: { buffers, history, cliMeta: cliMetaBuffersForSelection(state) } };
     }
     case "FORM_EDIT_FIELD": {
       if (state.tree.selected.length > 1) return state;
@@ -169,6 +251,54 @@ export function formReducer(state: AppState, action: FormAction): AppState {
       return commitField(state, action.payload.field);
     case "FORM_EDIT_GROUP":
       return editGroup(state, action.payload.groupName);
+    case "FORM_EDIT_CLI_WRITABLE":
+      return applyCliMetaChange(
+        state,
+        (cli) => {
+          cli.writable = isRecord(cli.set_cmd) ? action.payload.value : false;
+        },
+        { writable: action.payload.value },
+      );
+    case "FORM_EDIT_CLI_SAFETY_MODE":
+      return applyCliMetaChange(
+        state,
+        (cli) => {
+          if (isRecord(cli.action_cmd)) {
+            cli.safety_mode = normalizeSafetyMode(action.payload.value);
+          }
+        },
+        { safetyMode: normalizeSafetyMode(action.payload.value) },
+      );
+    case "FORM_EDIT_CLI_GET_DESC":
+      if (!action.payload.commit) return withCliMetaBuffer(state, { getCmdDescription: action.payload.text });
+      return applyCliMetaChange(
+        state,
+        (cli) => {
+          if (isRecord(cli.get_cmd)) cli.get_cmd.description = action.payload.text;
+        },
+        { getCmdDescription: action.payload.text },
+      );
+    case "FORM_EDIT_CLI_SET_DESC":
+      if (!action.payload.commit) return withCliMetaBuffer(state, { setCmdDescription: action.payload.text });
+      return applyCliMetaChange(
+        state,
+        (cli) => {
+          if (isRecord(cli.set_cmd)) cli.set_cmd.description = action.payload.text;
+        },
+        { setCmdDescription: action.payload.text },
+      );
+    case "FORM_EDIT_CLI_SAFETY_FIELD":
+      return editCliSafetyField(state, action.payload.field, action.payload.text, action.payload.commit);
+    case "FORM_EDIT_CLI_RAMP_ENABLED":
+      return applyCliMetaChange(
+        state,
+        (cli) => {
+          if (isRecord(cli.safety) && cli.safety.ramp_enabled !== null && cli.safety.ramp_enabled !== undefined) {
+            cli.safety.ramp_enabled = action.payload.value;
+          }
+        },
+        { safetyRampEnabled: action.payload.value },
+      );
     default:
       return state;
   }

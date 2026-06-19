@@ -1,5 +1,11 @@
 import {
   formCommitField,
+  formEditCliGetDesc,
+  formEditCliRampEnabled,
+  formEditCliSafetyField,
+  formEditCliSafetyMode,
+  formEditCliSetDesc,
+  formEditCliWritable,
   formEditDescription,
   formEditField,
   formEditGroup,
@@ -9,10 +15,19 @@ import {
   formUndoField,
   type Action,
 } from "../actions.js";
-import type { AppState, FormFieldKey } from "../state.js";
+import type { AppState, CliSafetyField, FormFieldKey } from "../state.js";
+import { cliSafetyFields } from "../selectors/form.js";
 
 function isField(value: string | undefined): value is FormFieldKey {
   return value === "name" || value === "x" || value === "y" || value === "w" || value === "h" || value === "tags" || value === "description";
+}
+
+function isCliSafetyField(value: string | undefined): value is CliSafetyField {
+  return cliSafetyFields.includes(value as CliSafetyField);
+}
+
+function isSafetyMode(value: string): value is "alwaysAllowed" | "guarded" | "blocked" {
+  return value === "alwaysAllowed" || value === "guarded" || value === "blocked";
 }
 
 function closestWithin<T extends Element>(target: EventTarget | null, selector: string, root: HTMLElement): T | null {
@@ -31,6 +46,20 @@ function restoreCursor(control: HTMLInputElement | HTMLTextAreaElement, state: A
 
 export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action) => void, getState: () => AppState): () => void {
   const onInput = (event: Event): void => {
+    const cliDesc = closestWithin<HTMLTextAreaElement>(event.target, 'textarea[data-cli-meta="getCmdDescription"], textarea[data-cli-meta="setCmdDescription"]', rootEl);
+    if (cliDesc?.dataset.cliMeta === "getCmdDescription") {
+      dispatch(formEditCliGetDesc(cliDesc.value));
+      return;
+    }
+    if (cliDesc?.dataset.cliMeta === "setCmdDescription") {
+      dispatch(formEditCliSetDesc(cliDesc.value));
+      return;
+    }
+    const safety = closestWithin<HTMLInputElement>(event.target, "input[data-cli-safety-field]", rootEl);
+    if (safety && isCliSafetyField(safety.dataset.cliSafetyField)) {
+      dispatch(formEditCliSafetyField(safety.dataset.cliSafetyField, safety.value));
+      return;
+    }
     const control = closestWithin<HTMLInputElement | HTMLTextAreaElement>(event.target, "input[data-field], textarea[data-field]", rootEl);
     if (!control || !isField(control.dataset.field)) return;
     const cursor = control.selectionStart ?? control.value.length;
@@ -42,6 +71,20 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
   };
 
   const onBlur = (event: FocusEvent): void => {
+    const cliDesc = closestWithin<HTMLTextAreaElement>(event.target, 'textarea[data-cli-meta="getCmdDescription"], textarea[data-cli-meta="setCmdDescription"]', rootEl);
+    if (cliDesc?.dataset.cliMeta === "getCmdDescription") {
+      dispatch(formEditCliGetDesc(cliDesc.value, true));
+      return;
+    }
+    if (cliDesc?.dataset.cliMeta === "setCmdDescription") {
+      dispatch(formEditCliSetDesc(cliDesc.value, true));
+      return;
+    }
+    const safety = closestWithin<HTMLInputElement>(event.target, "input[data-cli-safety-field]", rootEl);
+    if (safety && isCliSafetyField(safety.dataset.cliSafetyField)) {
+      dispatch(formEditCliSafetyField(safety.dataset.cliSafetyField, safety.value, true));
+      return;
+    }
     const control = closestWithin<HTMLInputElement | HTMLTextAreaElement>(event.target, "input[data-field], textarea[data-field]", rootEl);
     if (!control || !isField(control.dataset.field)) return;
     dispatch(formCommitField(control.dataset.field));
@@ -62,6 +105,20 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
   };
 
   const onChange = (event: Event): void => {
+    const cliCheckbox = closestWithin<HTMLInputElement>(event.target, 'input[data-cli-meta="writable"], input[data-cli-meta="rampEnabled"]', rootEl);
+    if (cliCheckbox?.dataset.cliMeta === "writable") {
+      dispatch(formEditCliWritable(cliCheckbox.checked));
+      return;
+    }
+    if (cliCheckbox?.dataset.cliMeta === "rampEnabled") {
+      dispatch(formEditCliRampEnabled(cliCheckbox.checked));
+      return;
+    }
+    const safetyMode = closestWithin<HTMLSelectElement>(event.target, 'select[data-cli-meta="safetyMode"]', rootEl);
+    if (safetyMode && isSafetyMode(safetyMode.value)) {
+      dispatch(formEditCliSafetyMode(safetyMode.value));
+      return;
+    }
     const select = closestWithin<HTMLSelectElement>(event.target, 'select[data-field="group"]', rootEl);
     if (!select) return;
     dispatch(formEditGroup(select.value));

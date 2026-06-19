@@ -42,9 +42,11 @@ describe("right-panel form render", () => {
 
     renderForm(root, selectedState("cli", "bias"));
     expect(root.querySelector(".form-header")?.textContent).toContain("CLI Parameter");
-    expect(fields(root)).toEqual(["name"]);
+    expect(fields(root)).toEqual(["name", "tags", "description", "group"]);
     expect(root.querySelector<HTMLInputElement>('input[data-field="name"]')?.readOnly).toBe(true);
-    expect(root.querySelector(".form-cli-stub")?.textContent).toContain("CLI metadata frame in next phase");
+    expect(root.querySelector(".form-cli-stub")).toBeNull();
+    expect(root.querySelector(".cli-meta-block")?.textContent).toContain("CLI Metadata");
+    expect(root.querySelector(".cli-linked-obs-placeholder")?.textContent).toContain("Linked observables editor: next phase");
   });
 
   it("renders group combobox options from the selector with group descendants excluded", () => {

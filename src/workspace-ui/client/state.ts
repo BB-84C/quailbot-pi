@@ -35,9 +35,21 @@ export interface FieldHistory {
 
 export type FormFieldKey = "name" | "x" | "y" | "w" | "h" | "tags" | "description";
 
+export type CliSafetyField = "cooldown_s" | "max_slew_per_s" | "max_step" | "max_value" | "min_value" | "ramp_interval_s";
+
+export interface CliMetaBuffers {
+  writable?: boolean;
+  safetyMode?: "alwaysAllowed" | "guarded" | "blocked";
+  getCmdDescription?: string;
+  setCmdDescription?: string;
+  safety?: Partial<Record<CliSafetyField, string>>;
+  safetyRampEnabled?: boolean;
+}
+
 export interface FormState {
   history: Partial<Record<FormFieldKey, FieldHistory>>;
   buffers: Partial<Record<FormFieldKey, string>>;
+  cliMeta: CliMetaBuffers;
   lastCycleRejection?: { selectedGroup: string; attemptedParent: string };
 }
 
@@ -92,6 +104,7 @@ export function initialState(): AppState {
     form: {
       history: {},
       buffers: {},
+      cliMeta: {},
     },
   };
 }

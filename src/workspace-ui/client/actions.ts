@@ -1,5 +1,5 @@
 import type { TreeItemKind, TreeItemKey } from "./state.js";
-import type { FormFieldKey } from "./state.js";
+import type { CliSafetyField, FormFieldKey } from "./state.js";
 import type { CaptureFrame } from "../shared/geometry.js";
 import type { SelectionSummary } from "./selectors/form.js";
 
@@ -56,7 +56,13 @@ export type FormAction =
   | { type: "FORM_EDIT_GROUP"; payload: { groupName: string } }
   | { type: "FORM_EDIT_DESCRIPTION"; payload: { text: string; cursor: number } }
   | { type: "FORM_UNDO_DESCRIPTION" }
-  | { type: "FORM_REDO_DESCRIPTION" };
+  | { type: "FORM_REDO_DESCRIPTION" }
+  | { type: "FORM_EDIT_CLI_WRITABLE"; payload: { value: boolean } }
+  | { type: "FORM_EDIT_CLI_SAFETY_MODE"; payload: { value: "alwaysAllowed" | "guarded" | "blocked" } }
+  | { type: "FORM_EDIT_CLI_GET_DESC"; payload: { text: string; commit?: boolean } }
+  | { type: "FORM_EDIT_CLI_SET_DESC"; payload: { text: string; commit?: boolean } }
+  | { type: "FORM_EDIT_CLI_SAFETY_FIELD"; payload: { field: CliSafetyField; text: string; commit?: boolean } }
+  | { type: "FORM_EDIT_CLI_RAMP_ENABLED"; payload: { value: boolean } };
 
 export type Action = TreeAction | CanvasAction | FormAction;
 
@@ -150,4 +156,28 @@ export function formUndoDescription(): Action {
 
 export function formRedoDescription(): Action {
   return { type: "FORM_REDO_DESCRIPTION" };
+}
+
+export function formEditCliWritable(value: boolean): Action {
+  return { type: "FORM_EDIT_CLI_WRITABLE", payload: { value } };
+}
+
+export function formEditCliSafetyMode(value: "alwaysAllowed" | "guarded" | "blocked"): Action {
+  return { type: "FORM_EDIT_CLI_SAFETY_MODE", payload: { value } };
+}
+
+export function formEditCliGetDesc(text: string, commit = false): Action {
+  return { type: "FORM_EDIT_CLI_GET_DESC", payload: { text, commit } };
+}
+
+export function formEditCliSetDesc(text: string, commit = false): Action {
+  return { type: "FORM_EDIT_CLI_SET_DESC", payload: { text, commit } };
+}
+
+export function formEditCliSafetyField(field: CliSafetyField, text: string, commit = false): Action {
+  return { type: "FORM_EDIT_CLI_SAFETY_FIELD", payload: { field, text, commit } };
+}
+
+export function formEditCliRampEnabled(value: boolean): Action {
+  return { type: "FORM_EDIT_CLI_RAMP_ENABLED", payload: { value } };
 }

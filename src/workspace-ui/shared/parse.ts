@@ -147,6 +147,21 @@ export function normalizeSafetyMode(value: unknown): "alwaysAllowed" | "blocked"
   return "guarded";
 }
 
+export function safeFloat(text: string, fallback: number): number {
+  const stripped = text.trim();
+  if (!stripped) {
+    return fallback;
+  }
+  const value = Number.parseFloat(stripped);
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  if (Number.isInteger(fallback) && Number.isInteger(value)) {
+    return Math.trunc(value);
+  }
+  return value;
+}
+
 export function deriveActionsFromItem(item: Record<string, unknown>): { readable: boolean; allowSet: boolean; allowRamp: boolean } {
   const actionsRaw = item.actions;
   if (isRecord(actionsRaw)) {

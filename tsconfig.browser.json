@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "node:*": ["./src/workspace-ui/browser-forbidden-node-import"],
+      "fs": ["./src/workspace-ui/browser-forbidden-node-import"],
+      "path": ["./src/workspace-ui/browser-forbidden-node-import"],
+      "child_process": ["./src/workspace-ui/browser-forbidden-node-import"]
+    },
+    "typeRoots": [],
+    "types": [],
+    "noUncheckedSideEffectImports": true,
+    "noEmit": true
+  },
+  "include": ["src/workspace-ui/shared/**/*.ts", "src/workspace-ui/client/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".opencode", ".pi-state"]
+}

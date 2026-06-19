@@ -4,7 +4,9 @@
   "scripts": {
     "test": "vitest --run",
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.json",
+    "typecheck:browser": "tsc -p tsconfig.browser.json --noEmit",
+    "build:workspace-ui-client": "node scripts/build-workspace-ui-client.mjs",
+    "build": "tsc -p tsconfig.json && npm run typecheck:browser && node scripts/build-workspace-ui-client.mjs",
     "test:e2e": "vitest --run tests/e2e/semantic-e2e.test.ts",
     "dev:release": "npm run build",
     "pi": "npm run dev:release && npm exec -- pi --session-dir .pi-state/sessions",
@@ -18,7 +20,9 @@
   "private": true,
   "type": "module",
   "pi": {
-    "extensions": ["./dist/src/extension.js"]
+    "extensions": [
+      "./dist/src/extension.js"
+    ]
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.74.2",
@@ -26,7 +30,10 @@
     "typebox": "^1.1.39"
   },
   "devDependencies": {
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^24.3.0",
+    "esbuild": "^0.25.5",
+    "jsdom": "^26.1.0",
     "typescript": "^5.7.3",
     "vitest": "^3.2.4"
   }

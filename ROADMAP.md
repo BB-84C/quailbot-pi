@@ -289,6 +289,29 @@ Date: 2026-06-19
 - Keep wheel routing out of the items tree: browser default scrolling remains valid here, while canvas/form wheel behavior belongs to the later canvas/form phases.
 - Keep DOM tests event-driven and state/readback-driven. Do not return to `toContain` source-string checks for client behavior.
 
+## Implementation round: A3 faithful calibrator canvas client slice
+
+Date: 2026-06-19
+
+### Delivered
+
+- Added the faithful calibrator canvas state slice, actions, reducer, renderer, and event layer on top of the Phase 3 client store instead of forking a separate UI state path.
+- Rendered capture screenshots through `/assets/workspace-capture?captureId=...` with ROI rectangles, anchor crosshairs, selected overlay classes, draft rubber-band ROI previews, scaled image dimensions, and pan transforms.
+- Implemented draw-ROI drag, pick-anchor click, Ctrl+wheel zoom-on-pointer, plain/Shift/Alt wheel pan, passive-false wheel handling, viewport resize dispatch, and pan clamping through shared `geometry.ts` transforms.
+- Added four jsdom behavior test files covering DOM render structure, reducer-driven pointer workflows, zoom-on-pointer stability/suppression/clamping, and wheel pan routing/clamping.
+
+### Now known
+
+- Canvas coordinate/event tests can remain source-string-free by dispatching real DOM events into the store and comparing readback against direct imports from `shared/geometry.ts`.
+- The zoom reducer must re-derive `effectiveScale(...)` after computing the candidate zoom before computing the new pan; using only the zoom ratio is not enough when fit-scale changes with viewport/frame state.
+- Pointer-stability assertions need to account for `Math.trunc` pan clamping tolerance and cannot expect impossible stability when the requested pan exceeds rendered-image bounds.
+
+### Later phases must do differently
+
+- Keep form/filter/capture triggers on the same `AppState`/action/reducer/store pattern; do not introduce a parallel client state island.
+- Real browser acceptance should still cover the visual canvas beyond jsdom, especially non-zero-origin physical capture and pixel-backed overlay alignment.
+- Server capture/refresh work should honor the existing capture URL and `CaptureFrame` metadata contract rather than changing the canvas renderer surface.
+
 ## Future investigation phases: Quailbot behavior still missing from Pi
 
 Date: 2026-06-03

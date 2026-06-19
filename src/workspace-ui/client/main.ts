@@ -1,5 +1,7 @@
 import { effectiveScale, screenToCanvas } from "../shared/geometry.js";
+import { attachCanvasEvents } from "./events/canvas.js";
 import { attachItemsTreeEvents } from "./events/items-tree.js";
+import { renderCanvas } from "./render/canvas.js";
 import { renderItemsTree } from "./render/items-tree.js";
 import { createStore } from "./store.js";
 
@@ -21,12 +23,23 @@ document.addEventListener("DOMContentLoaded", () => {
     treeRoot.dataset.itemsTreeRoot = "true";
     appRoot.append(treeRoot);
   }
+  let canvasRoot = appRoot.querySelector<HTMLElement>("#canvas-root, [data-canvas-root]");
+  if (!canvasRoot) {
+    canvasRoot = document.createElement("section");
+    canvasRoot.id = "canvas-root";
+    canvasRoot.dataset.canvasRoot = "true";
+    appRoot.prepend(canvasRoot);
+  }
 
   const store = createStore();
-  const render = (): void => renderItemsTree(treeRoot, store.getState());
+  const render = (): void => {
+    renderItemsTree(treeRoot, store.getState());
+    renderCanvas(canvasRoot, store.getState());
+  };
   render();
   store.subscribe(render);
   attachItemsTreeEvents(treeRoot, store.dispatch);
+  attachCanvasEvents(canvasRoot, store.dispatch, store.getState);
 
   window.__quailbotWorkspaceUiReady = true;
   window.__quailbotShared = { effectiveScale, screenToCanvas };

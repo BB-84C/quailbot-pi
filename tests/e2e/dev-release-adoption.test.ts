@@ -22,8 +22,6 @@ import type {
   SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
 
-import { workspaceFileHash } from "../../src/workspace/workspace-service.js";
-
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const tempDirs: string[] = [];
 const expectedToolNames = [
@@ -52,6 +50,7 @@ type RegisteredTool = { name: string; renderCall?: unknown; renderResult?: unkno
 type RegisteredCommand = {
   name: string;
   description?: string;
+  getArgumentCompletions?: (prefix: string) => Array<{ value: string; label: string }>;
   handler: (args: string, ctx: ExtensionContext & { reload: () => Promise<void> }) => Promise<void>;
 };
 
@@ -397,48 +396,27 @@ describe("local Pi dev release adoption", () => {
     await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, createExtensionContextStub(tempCwd));
   });
 
-  it("warns when activating without a pending workspace activation", async () => {
-    const tempCwd = makeTempDir();
+  it("omits dropped pending-activation commands from workspace command completions", async () => {
     const { commands } = await loadBuiltExtensionWithPiStub();
-    const workspaceCommand = commands.find((command) => command.name === "quailbot-workspace");
-    expect(workspaceCommand).toBeDefined();
-    if (!workspaceCommand) {
-      throw new Error("workspace command was not registered");
-    }
+    const workspaceCommand = requireWorkspaceCommand(commands);
 
-    const commandContext = createCommandContextStub(tempCwd);
-    await workspaceCommand.handler("activate-pending", commandContext);
+    const completions = workspaceCommand.getArgumentCompletions?.("") ?? [];
 
-    expect(commandContext.reloads).toBe(0);
-    expect(commandContext.notifications.join("\n")).toContain("no pending workspace activation");
+    expect(completions.map((item) => item.value)).toEqual(["show", "read", "validate", "load", "write", "open"]);
+    expect(completions.map((item) => item.value)).not.toContain("activate-pending");
   });
 
-  it("activates a pending workspace after validating its expected hash, reloads, then clears the pending activation", async () => {
+  it("treats the old activate-pending command as an unknown dropped-C surface", async () => {
     const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
-    mkdirSync(dirname(candidatePath), { recursive: true });
-    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
-    const expectedHash = workspaceFileHash(candidatePath);
-
-    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
+    const { commands } = await loadBuiltExtensionWithPiStub();
     const workspaceCommand = requireWorkspaceCommand(commands);
     const commandContext = createCommandContextStub(tempCwd);
 
-    await workspaceCommand.handler("open", commandContext);
-    const { url, token } = await workspaceUiSession(commandContext.notifications);
-    await requestPendingActivation(url, token, candidatePath, expectedHash);
-
     await workspaceCommand.handler("activate-pending", commandContext);
 
-    expect(commandContext.reloads).toBe(1);
-    expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(candidatePath);
-    expect(commandContext.notifications.join("\n")).toContain("pending workspace activated");
-    expect(commandContext.notifications.join("\n")).toContain(expectedHash);
-
-    await workspaceCommand.handler("activate-pending", commandContext);
-    expect(commandContext.notifications.join("\n")).toContain("no pending workspace activation");
-
-    await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, createExtensionContextStub(tempCwd));
+    expect(commandContext.reloads).toBe(0);
+    expect(commandContext.notifications.join("\n")).toContain("unknown workspace command: activate-pending");
+    expect(commandContext.notifications.join("\n")).toContain("show|read|validate|load|write|open");
   });
 
   it("round-trips a web-edited workspace into the active hidden WORKSPACE context", async () => {
@@ -447,9 +425,9 @@ describe("local Pi dev release adoption", () => {
     mkdirSync(dirname(workspacePath), { recursive: true });
     const workspaceJson = readJson(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"));
     workspaceJson.groups = [{ name: "spectroscopy", active: true }];
-    workspaceJson.rois = [{ name: "current", group: "spectroscopy", active: true, x: 120, y: 80, w: 240, h: 160 }];
+    workspaceJson.rois = [{ name: "current_roi", group: "spectroscopy", active: true, x: 120, y: 80, w: 240, h: 160 }];
     workspaceJson.anchors = [
-      { name: "bias-field", group: "spectroscopy", active: true, linked_ROIs: ["current"], x: 520, y: 300 },
+      { name: "bias-field", group: "spectroscopy", active: true, linked_ROIs: ["current_roi"], x: 520, y: 300 },
     ];
     workspaceJson.tools = representativeRealWorkspaceTools();
     writeFileSync(workspacePath, `${JSON.stringify(workspaceJson, null, 2)}\n`, "utf8");
@@ -461,29 +439,35 @@ describe("local Pi dev release adoption", () => {
     await workspaceCommand.handler("open", commandContext);
     const { url, token } = await workspaceUiSession(commandContext.notifications);
 
-    const loadedResponse = await fetch(`${url}/api/workspace?token=${encodeURIComponent(token)}`);
+    const loadedResponse = await fetch(`${url}/api/workspace`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-quailbot-workspace-ui-token": token },
+      body: "{}",
+    });
     const loaded = (await loadedResponse.json()) as { ok: true; workspaceJson: any };
     expect(loadedResponse.status).toBe(200);
-    expect(loaded.workspaceJson.tools).toEqual(representativeRealWorkspaceTools());
+    expect(loaded.workspaceJson.tools.SetBias).toEqual(representativeRealWorkspaceTools().SetBias);
+    expect(loaded.workspaceJson.tools.StartScan).toEqual(representativeRealWorkspaceTools().StartScan);
 
     loaded.workspaceJson.rois[0].x = 321;
     loaded.workspaceJson.rois[0].y = 222;
     loaded.workspaceJson.anchors[0].x = 444;
 
-    const writeResponse = await fetch(`${url}/api/write?token=${encodeURIComponent(token)}`, {
+    const writeResponse = await fetch(`${url}/api/save`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-quailbot-workspace-ui-token": token,
       },
-      body: JSON.stringify({ workspaceJson: loaded.workspaceJson, targetPath: workspacePath }),
+      body: JSON.stringify({ workspaceJson: loaded.workspaceJson, path: workspacePath, updateCurrent: true }),
     });
     const written = (await writeResponse.json()) as { ok: true; hash: string };
     expect(writeResponse.status).toBe(200);
-    expect(readJson(workspacePath).tools).toEqual(representativeRealWorkspaceTools());
+    expect(written.ok).toBe(true);
+    expect(readJson(workspacePath).tools.SetBias).toEqual(representativeRealWorkspaceTools().SetBias);
+    expect(readJson(workspacePath).tools.StartScan).toEqual(representativeRealWorkspaceTools().StartScan);
 
-    await requestPendingActivation(url, token, workspacePath, written.hash);
-    await workspaceCommand.handler("activate-pending", commandContext);
+    await workspaceCommand.handler(`load "${workspacePath}"`, commandContext);
 
     expect(commandContext.reloads).toBe(1);
     expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(workspacePath);
@@ -513,94 +497,11 @@ describe("local Pi dev release adoption", () => {
 
     expect(summary.workspace_path).toBe(workspacePath);
     expect(summary.active_rois).toContainEqual(
-      expect.objectContaining({ name: "current", schema: expect.objectContaining({ x: 321, y: 222 }) }),
+      expect.objectContaining({ name: "current_roi", schema: expect.objectContaining({ x: 321, y: 222 }) }),
     );
     expect(summary.active_anchors).toContainEqual(
       expect.objectContaining({ name: "bias-field", schema: expect.objectContaining({ x: 444 }) }),
     );
-  });
-
-  it("rejects pending activation hash mismatches and keeps the pending activation for a later retry", async () => {
-    const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
-    const workspaceFixturePath = join(root, "tests", "workspaces", "nanonis-minimal.workspace.json");
-    const originalWorkspaceJson = readFileSync(workspaceFixturePath, "utf8");
-    mkdirSync(dirname(candidatePath), { recursive: true });
-    copyFileSync(workspaceFixturePath, candidatePath);
-    const expectedHash = workspaceFileHash(candidatePath);
-
-    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
-    const workspaceCommand = requireWorkspaceCommand(commands);
-    const commandContext = createCommandContextStub(tempCwd);
-
-    await workspaceCommand.handler("open", commandContext);
-    const { url, token } = await workspaceUiSession(commandContext.notifications);
-    await requestPendingActivation(url, token, candidatePath, expectedHash);
-    writeFileSync(candidatePath, originalWorkspaceJson.replace('"nqctl"', '"dirtyctl"'), "utf8");
-
-    await workspaceCommand.handler("activate-pending", commandContext);
-
-    expect(commandContext.reloads).toBe(0);
-    expect(commandContext.notifications.join("\n")).toContain("hash mismatch");
-    expect(commandContext.notifications.join("\n")).toContain(expectedHash);
-
-    writeFileSync(candidatePath, originalWorkspaceJson, "utf8");
-    await workspaceCommand.handler("activate-pending", commandContext);
-    expect(commandContext.reloads).toBe(1);
-    expect(commandContext.notifications.join("\n")).toContain("pending workspace activated");
-
-    await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, createExtensionContextStub(tempCwd));
-  });
-
-  it("retains pending activation when reload fails so the activation can be retried", async () => {
-    const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
-    mkdirSync(dirname(candidatePath), { recursive: true });
-    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
-    const expectedHash = workspaceFileHash(candidatePath);
-
-    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
-    const workspaceCommand = requireWorkspaceCommand(commands);
-    const failingContext = createCommandContextStub(tempCwd, new Error("reload containment breach"));
-
-    await workspaceCommand.handler("open", failingContext);
-    const { url, token } = await workspaceUiSession(failingContext.notifications);
-    await requestPendingActivation(url, token, candidatePath, expectedHash);
-
-    await workspaceCommand.handler("activate-pending", failingContext);
-
-    expect(failingContext.reloads).toBe(1);
-    expect(failingContext.notifications.join("\n")).toContain("pending workspace activation failed during reload");
-    expect(failingContext.notifications.join("\n")).toContain("reload containment breach");
-
-    const retryContext = createCommandContextStub(tempCwd);
-    await workspaceCommand.handler("activate-pending", retryContext);
-    expect(retryContext.reloads).toBe(1);
-    expect(retryContext.notifications.join("\n")).toContain("pending workspace activated");
-
-    await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, createExtensionContextStub(tempCwd));
-  });
-
-  it("clears pending workspace activation during session shutdown", async () => {
-    const tempCwd = makeTempDir();
-    const candidatePath = join(tempCwd, ".quailbot-pi", "candidate.workspace.json");
-    mkdirSync(dirname(candidatePath), { recursive: true });
-    copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
-    const expectedHash = workspaceFileHash(candidatePath);
-
-    const { commands, handlers } = await loadBuiltExtensionWithPiStub();
-    const workspaceCommand = requireWorkspaceCommand(commands);
-    const commandContext = createCommandContextStub(tempCwd);
-
-    await workspaceCommand.handler("open", commandContext);
-    const { url, token } = await workspaceUiSession(commandContext.notifications);
-    await requestPendingActivation(url, token, candidatePath, expectedHash);
-
-    await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, createExtensionContextStub(tempCwd));
-
-    await workspaceCommand.handler("activate-pending", commandContext);
-    expect(commandContext.reloads).toBe(0);
-    expect(commandContext.notifications.join("\n")).toContain("no pending workspace activation");
   });
 
   it("surfaces write --activate reload failures without reporting activation success", async () => {
@@ -812,28 +713,11 @@ async function workspaceUiSession(notifications: string[]): Promise<{ url: strin
   }
   const response = await fetch(url);
   const html = await response.text();
-  const token = html.match(/data-token="([^"]+)"/)?.[1];
+  const token = html.match(/<meta name="quailbot-workspace-ui-token" content="([^"]+)">/)?.[1];
   if (!token) {
     throw new Error("workspace calibrator token was not rendered");
   }
   return { url, token };
-}
-
-async function requestPendingActivation(
-  url: string,
-  token: string,
-  targetPath: string,
-  expectedHash: string,
-): Promise<void> {
-  const response = await fetch(`${url}/api/request-activation?token=${encodeURIComponent(token)}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-quailbot-workspace-ui-token": token,
-    },
-    body: JSON.stringify({ targetPath, expectedHash }),
-  });
-  expect(response.status).toBe(200);
 }
 
 function makeTempDir(): string {

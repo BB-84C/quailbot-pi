@@ -16,7 +16,7 @@ export function registerWorkspaceCommands(pi: ExtensionAPI, runtime: QuailbotRun
   pi.registerCommand("quailbot-workspace", {
     description: "Show, validate, select, or write the active Quailbot workspace",
     getArgumentCompletions(prefix) {
-      const commands = ["show", "read", "validate", "load", "write", "open", "activate-pending"];
+      const commands = ["show", "read", "validate", "load", "write", "open"];
       const matches = commands.filter((command) => command.startsWith(prefix.trim()));
       return matches.map((command) => ({ value: command, label: command }));
     },
@@ -132,47 +132,9 @@ async function handleWorkspaceCommand(
       return;
     }
 
-    case "activate-pending": {
-      const pending = runtime.pendingWorkspaceActivation;
-      if (pending === undefined) {
-        ctx.ui.notify("no pending workspace activation; open the workspace calibrator and request activation first", "warning");
-        return;
-      }
-
-      const validation = validateWorkspaceCandidate(pending.targetPath, { cwd: ctx.cwd });
-      if (!validation.ok) {
-        ctx.ui.notify(`pending workspace activation failed validation: ${validation.error}`, "warning");
-        return;
-      }
-      if (validation.hash !== pending.expectedHash) {
-        ctx.ui.notify(
-          `pending workspace activation hash mismatch: expected ${pending.expectedHash}, got ${validation.hash}`,
-          "warning",
-        );
-        return;
-      }
-
-      const selection = selectWorkspace(pending.targetPath, { cwd: ctx.cwd });
-      if (!selection.ok) {
-        ctx.ui.notify(`pending workspace activation failed selection: ${selection.error}`, "warning");
-        return;
-      }
-
-      try {
-        await ctx.reload();
-      } catch (error) {
-        ctx.ui.notify(`pending workspace activation failed during reload: ${errorMessage(error)}`, "warning");
-        return;
-      }
-
-      runtime.pendingWorkspaceActivation = undefined;
-      ctx.ui.notify(`pending workspace activated: ${selection.summary.path}\nsha256: ${selection.hash}`, "info");
-      return;
-    }
-
     default:
       ctx.ui.notify(
-        `unknown workspace command: ${command}\nusage: /quailbot-workspace show|read|validate|load|write|open|activate-pending`,
+        `unknown workspace command: ${command}\nusage: /quailbot-workspace show|read|validate|load|write|open`,
         "warning",
       );
   }

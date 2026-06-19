@@ -3,6 +3,12 @@ import type { AppState, TreeItemKey } from "../state.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+declare global {
+  interface Window {
+    __quailbotToken?: string;
+  }
+}
+
 function svgEl<K extends keyof SVGElementTagNameMap>(tag: K): SVGElementTagNameMap[K] {
   return document.createElementNS(SVG_NS, tag);
 }
@@ -51,7 +57,7 @@ export function renderCanvas(rootEl: HTMLElement, state: AppState): void {
   const image = svgEl("image");
   image.classList.add("canvas-image");
   setAttrs(image, { x: 0, y: 0, width: renderedWidth, height: renderedHeight });
-  image.setAttribute("href", `/assets/workspace-capture?captureId=${encodeURIComponent(frame.captureId)}`);
+  image.setAttribute("href", captureAssetHref(frame.captureId));
   content.append(image);
 
   for (const roi of state.workspace.rois) {
@@ -103,4 +109,11 @@ export function renderCanvas(rootEl: HTMLElement, state: AppState): void {
   svg.append(content);
   viewport.append(svg);
   rootEl.append(viewport);
+}
+
+function captureAssetHref(captureId: string): string {
+  const token = window.__quailbotToken ?? "";
+  const params = new URLSearchParams({ captureId });
+  if (token) params.set("token", token);
+  return `/assets/workspace-capture?${params.toString()}`;
 }

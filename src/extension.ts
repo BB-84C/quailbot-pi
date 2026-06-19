@@ -19,12 +19,9 @@ import type { LoadedWorkspace } from "./workspace/workspace-service.js";
 import type { Workspace } from "./workspace/types.js";
 import { stopWorkspaceUiServer, type WorkspaceUiServer } from "./workspace-ui/server.js";
 
-export type PendingWorkspaceActivation = { targetPath: string; expectedHash: string };
-
 export type QuailbotRuntime = {
   workspace?: Workspace;
   activeWorkspace?: LoadedWorkspace;
-  pendingWorkspaceActivation?: PendingWorkspaceActivation;
   workspaceUiServer?: WorkspaceUiServer;
   experimentLog?: ExperimentLogService;
   planStore: PlanContextStore;
@@ -45,7 +42,6 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
 
   pi.on("session_start", (event, ctx) => {
     runtime.planStore.clear();
-    runtime.pendingWorkspaceActivation = undefined;
 
     let activeWorkspace: LoadedWorkspace | undefined;
     try {
@@ -63,12 +59,8 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
-    try {
-      closeExperimentLog(runtime, ctx, "session_shutdown");
-      await stopWorkspaceUiServer(runtime);
-    } finally {
-      runtime.pendingWorkspaceActivation = undefined;
-    }
+    closeExperimentLog(runtime, ctx, "session_shutdown");
+    await stopWorkspaceUiServer(runtime);
   });
 
   pi.on("context", (event) => ({

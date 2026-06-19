@@ -36,6 +36,7 @@ describe("canvas render", () => {
 
   it("renders the scaled capture image without overlays", () => {
     const root = document.createElement("div");
+    window.__quailbotToken = "asset-token";
     const state = stateWithCanvas();
     state.workspace.rois = [];
     state.workspace.anchors = [];
@@ -47,7 +48,7 @@ describe("canvas render", () => {
 
     expect(root.innerHTML).toBe(firstMarkup);
     const image = root.querySelector("image");
-    expect(image?.getAttribute("href")).toBe("/assets/workspace-capture?captureId=cap-123");
+    expect(image?.getAttribute("href")).toBe("/assets/workspace-capture?captureId=cap-123&token=asset-token");
     expect(num(image, "width")).toBe(frame.imageWidth * scale);
     expect(num(image, "height")).toBe(frame.imageHeight * scale);
     expect(root.querySelector("svg")?.getAttribute("viewBox")).toBe(`0 0 ${frame.imageWidth * scale} ${frame.imageHeight * scale}`);

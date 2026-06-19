@@ -1,0 +1,362 @@
+{
+  "cases": [
+    {
+      "name": "single ROI deletion cleans anchor links",
+      "input": {
+        "groups": [],
+        "rois": [
+          {
+            "name": "roi-a",
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": ""
+          },
+          {
+            "name": "roi-b",
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": ""
+          }
+        ],
+        "anchors": [
+          {
+            "name": "anchor",
+            "x": 0,
+            "y": 0,
+            "description": "",
+            "tags": "",
+            "linked_rois": [
+              "roi-a",
+              "roi-b"
+            ],
+            "active": true,
+            "group": ""
+          }
+        ],
+        "cli_params": [],
+        "selected": [
+          {
+            "kind": "roi",
+            "idx": 0
+          }
+        ]
+      },
+      "expected": {
+        "groups": [],
+        "rois": [
+          {
+            "name": "roi-b",
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": ""
+          }
+        ],
+        "anchors": [
+          {
+            "name": "anchor",
+            "x": 0,
+            "y": 0,
+            "description": "",
+            "tags": "",
+            "linked_rois": [
+              "roi-b"
+            ],
+            "active": true,
+            "group": ""
+          }
+        ],
+        "cli_params": []
+      }
+    },
+    {
+      "name": "single group deletion rehomes children",
+      "input": {
+        "groups": [
+          {
+            "name": "root",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "",
+            "collapsed": false
+          },
+          {
+            "name": "deleted",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "root",
+            "collapsed": false
+          },
+          {
+            "name": "child",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "deleted",
+            "collapsed": false
+          }
+        ],
+        "rois": [
+          {
+            "name": "roi",
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "deleted"
+          }
+        ],
+        "anchors": [],
+        "cli_params": [],
+        "selected": [
+          {
+            "kind": "group",
+            "idx": 1
+          }
+        ]
+      },
+      "expected": {
+        "groups": [
+          {
+            "name": "root",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "",
+            "collapsed": false
+          },
+          {
+            "name": "child",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "root",
+            "collapsed": false
+          }
+        ],
+        "rois": [
+          {
+            "name": "roi",
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "root"
+          }
+        ],
+        "anchors": [],
+        "cli_params": []
+      }
+    },
+    {
+      "name": "nested deletion rehomes grandchild to nearest surviving ancestor",
+      "input": {
+        "groups": [
+          {
+            "name": "root",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "",
+            "collapsed": false
+          },
+          {
+            "name": "parent",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "root",
+            "collapsed": false
+          },
+          {
+            "name": "child",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "parent",
+            "collapsed": false
+          },
+          {
+            "name": "grandchild",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "child",
+            "collapsed": false
+          }
+        ],
+        "rois": [
+          {
+            "name": "roi-grandchild",
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "grandchild"
+          }
+        ],
+        "anchors": [],
+        "cli_params": [],
+        "selected": [
+          {
+            "kind": "group",
+            "idx": 1
+          },
+          {
+            "kind": "group",
+            "idx": 2
+          }
+        ]
+      },
+      "expected": {
+        "groups": [
+          {
+            "name": "root",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "",
+            "collapsed": false
+          },
+          {
+            "name": "grandchild",
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "root",
+            "collapsed": false
+          }
+        ],
+        "rois": [
+          {
+            "name": "roi-grandchild",
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "description": "",
+            "tags": "",
+            "active": true,
+            "group": "grandchild"
+          }
+        ],
+        "anchors": [],
+        "cli_params": []
+      }
+    },
+    {
+      "name": "cli deletion drops selected param",
+      "input": {
+        "groups": [],
+        "rois": [],
+        "anchors": [],
+        "cli_params": [
+          {
+            "cli_name": "fixturectl",
+            "name": "keep",
+            "label": "Keep",
+            "description": "",
+            "tags": "",
+            "enabled": true,
+            "group": "",
+            "allow_get": false,
+            "allow_set": false,
+            "allow_ramp": false,
+            "readable": true,
+            "writable": true,
+            "has_ramp": false,
+            "safety": null,
+            "get_cmd": null,
+            "set_cmd": null,
+            "safety_mode": "guarded",
+            "action_cmd": null,
+            "linked_observables": [],
+            "raw_item": {}
+          },
+          {
+            "cli_name": "fixturectl",
+            "name": "drop",
+            "label": "Drop",
+            "description": "",
+            "tags": "",
+            "enabled": true,
+            "group": "",
+            "allow_get": false,
+            "allow_set": false,
+            "allow_ramp": false,
+            "readable": true,
+            "writable": true,
+            "has_ramp": false,
+            "safety": null,
+            "get_cmd": null,
+            "set_cmd": null,
+            "safety_mode": "guarded",
+            "action_cmd": null,
+            "linked_observables": [],
+            "raw_item": {}
+          }
+        ],
+        "selected": [
+          {
+            "kind": "cli",
+            "idx": 1
+          }
+        ]
+      },
+      "expected": {
+        "groups": [],
+        "rois": [],
+        "anchors": [],
+        "cli_params": [
+          {
+            "cli_name": "fixturectl",
+            "name": "keep",
+            "label": "Keep",
+            "description": "",
+            "tags": "",
+            "enabled": true,
+            "group": "",
+            "allow_get": false,
+            "allow_set": false,
+            "allow_ramp": false,
+            "readable": true,
+            "writable": true,
+            "has_ramp": false,
+            "safety": null,
+            "get_cmd": null,
+            "set_cmd": null,
+            "safety_mode": "guarded",
+            "action_cmd": null,
+            "linked_observables": [],
+            "raw_item": {}
+          }
+        ]
+      }
+    }
+  ]
+}

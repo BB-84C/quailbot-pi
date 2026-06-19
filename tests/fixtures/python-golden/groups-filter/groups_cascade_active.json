@@ -1,0 +1,196 @@
+{
+  "input": {
+    "groups": [
+      {
+        "name": "parent",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      },
+      {
+        "name": "child",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "parent",
+        "collapsed": false
+      },
+      {
+        "name": "grandchild",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "child",
+        "collapsed": false
+      },
+      {
+        "name": "outside",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      }
+    ],
+    "rois": [
+      {
+        "name": "roi-child",
+        "x": 1,
+        "y": 1,
+        "w": 2,
+        "h": 2,
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "child"
+      },
+      {
+        "name": "roi-outside",
+        "x": 1,
+        "y": 1,
+        "w": 2,
+        "h": 2,
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "outside"
+      }
+    ],
+    "anchors": [
+      {
+        "name": "anchor-grandchild",
+        "x": 0,
+        "y": 0,
+        "description": "",
+        "tags": "",
+        "linked_rois": [],
+        "active": true,
+        "group": "grandchild"
+      }
+    ],
+    "cli_params": [
+      {
+        "cli_name": "fixturectl",
+        "name": "cli-child",
+        "label": "Cli Child",
+        "description": "",
+        "tags": "",
+        "enabled": true,
+        "group": "child",
+        "allow_get": false,
+        "allow_set": false,
+        "allow_ramp": false,
+        "readable": true,
+        "writable": true,
+        "has_ramp": false,
+        "safety": null,
+        "get_cmd": null,
+        "set_cmd": null,
+        "safety_mode": "guarded",
+        "action_cmd": null,
+        "linked_observables": [],
+        "raw_item": {}
+      }
+    ],
+    "target": "parent",
+    "active": false
+  },
+  "expected": {
+    "groups": [
+      {
+        "name": "parent",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      },
+      {
+        "name": "child",
+        "description": "",
+        "tags": "",
+        "active": false,
+        "group": "parent",
+        "collapsed": false
+      },
+      {
+        "name": "grandchild",
+        "description": "",
+        "tags": "",
+        "active": false,
+        "group": "child",
+        "collapsed": false
+      },
+      {
+        "name": "outside",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      }
+    ],
+    "rois": [
+      {
+        "name": "roi-child",
+        "x": 1,
+        "y": 1,
+        "w": 2,
+        "h": 2,
+        "description": "",
+        "tags": "",
+        "active": false,
+        "group": "child"
+      },
+      {
+        "name": "roi-outside",
+        "x": 1,
+        "y": 1,
+        "w": 2,
+        "h": 2,
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "outside"
+      }
+    ],
+    "anchors": [
+      {
+        "name": "anchor-grandchild",
+        "x": 0,
+        "y": 0,
+        "description": "",
+        "tags": "",
+        "linked_rois": [],
+        "active": false,
+        "group": "grandchild"
+      }
+    ],
+    "cli_params": [
+      {
+        "cli_name": "fixturectl",
+        "name": "cli-child",
+        "label": "Cli Child",
+        "description": "",
+        "tags": "",
+        "enabled": false,
+        "group": "child",
+        "allow_get": false,
+        "allow_set": false,
+        "allow_ramp": false,
+        "readable": true,
+        "writable": true,
+        "has_ramp": false,
+        "safety": null,
+        "get_cmd": null,
+        "set_cmd": null,
+        "safety_mode": "guarded",
+        "action_cmd": null,
+        "linked_observables": [],
+        "raw_item": {}
+      }
+    ]
+  }
+}

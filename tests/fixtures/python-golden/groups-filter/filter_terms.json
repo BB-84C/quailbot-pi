@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "input": "Bias, Height",
+      "expected": [
+        "bias",
+        "height"
+      ]
+    },
+    {
+      "input": "",
+      "expected": []
+    },
+    {
+      "input": " alpha , , BETA, ",
+      "expected": [
+        "alpha",
+        "beta"
+      ]
+    }
+  ]
+}

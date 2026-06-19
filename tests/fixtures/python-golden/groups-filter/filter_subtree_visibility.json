@@ -1,0 +1,115 @@
+{
+  "input": {
+    "groups": [
+      {
+        "name": "root",
+        "description": "top group",
+        "tags": "top",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      },
+      {
+        "name": "physics",
+        "description": "scan controls",
+        "tags": "experiment",
+        "active": true,
+        "group": "root",
+        "collapsed": false
+      },
+      {
+        "name": "nested",
+        "description": "child scans",
+        "tags": "child",
+        "active": true,
+        "group": "physics",
+        "collapsed": false
+      },
+      {
+        "name": "other",
+        "description": "misc",
+        "tags": "misc",
+        "active": true,
+        "group": "root",
+        "collapsed": false
+      }
+    ],
+    "rois": [
+      {
+        "name": "roi-scan",
+        "x": 1,
+        "y": 2,
+        "w": 3,
+        "h": 4,
+        "description": "scan image",
+        "tags": "image, scan",
+        "active": true,
+        "group": "nested"
+      },
+      {
+        "name": "roi-noise",
+        "x": 5,
+        "y": 6,
+        "w": 7,
+        "h": 8,
+        "description": "background",
+        "tags": "noise",
+        "active": true,
+        "group": "other"
+      }
+    ],
+    "anchors": [
+      {
+        "name": "anchor-tip",
+        "x": 9,
+        "y": 10,
+        "description": "tip locator",
+        "tags": "marker",
+        "linked_rois": [
+          "roi-scan"
+        ],
+        "active": true,
+        "group": "physics"
+      }
+    ],
+    "cli_params": [
+      {
+        "cli_name": "fixturectl",
+        "name": "bias",
+        "label": "Bias",
+        "description": "bias voltage",
+        "tags": "control",
+        "enabled": true,
+        "group": "nested",
+        "allow_get": false,
+        "allow_set": false,
+        "allow_ramp": false,
+        "readable": true,
+        "writable": true,
+        "has_ramp": false,
+        "safety": null,
+        "get_cmd": null,
+        "set_cmd": null,
+        "safety_mode": "guarded",
+        "action_cmd": null,
+        "linked_observables": [
+          "height-readback"
+        ],
+        "raw_item": {}
+      }
+    ],
+    "state": {
+      "selected_tags": [],
+      "terms": [
+        "height-readback"
+      ],
+      "logic": "AND"
+    }
+  },
+  "expected": [
+    "group:root",
+    "group:physics",
+    "group:nested",
+    "cli:bias"
+  ]
+}

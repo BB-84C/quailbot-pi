@@ -1,0 +1,142 @@
+{
+  "input": {
+    "groups": [
+      {
+        "name": "old",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      },
+      {
+        "name": "child",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "old",
+        "collapsed": false
+      }
+    ],
+    "rois": [
+      {
+        "name": "roi",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "old"
+      }
+    ],
+    "anchors": [
+      {
+        "name": "anchor",
+        "x": 0,
+        "y": 0,
+        "description": "",
+        "tags": "",
+        "linked_rois": [],
+        "active": true,
+        "group": "old"
+      }
+    ],
+    "cli_params": [
+      {
+        "cli_name": "fixturectl",
+        "name": "cli",
+        "label": "Cli",
+        "description": "",
+        "tags": "",
+        "enabled": true,
+        "group": "old",
+        "allow_get": false,
+        "allow_set": false,
+        "allow_ramp": false,
+        "readable": true,
+        "writable": true,
+        "has_ramp": false,
+        "safety": null,
+        "get_cmd": null,
+        "set_cmd": null,
+        "safety_mode": "guarded",
+        "action_cmd": null,
+        "linked_observables": [],
+        "raw_item": {}
+      }
+    ],
+    "old_name": "old",
+    "new_name": "new"
+  },
+  "expected": {
+    "groups": [
+      {
+        "name": "new",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      },
+      {
+        "name": "child",
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "new",
+        "collapsed": false
+      }
+    ],
+    "rois": [
+      {
+        "name": "roi",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "description": "",
+        "tags": "",
+        "active": true,
+        "group": "new"
+      }
+    ],
+    "anchors": [
+      {
+        "name": "anchor",
+        "x": 0,
+        "y": 0,
+        "description": "",
+        "tags": "",
+        "linked_rois": [],
+        "active": true,
+        "group": "new"
+      }
+    ],
+    "cli_params": [
+      {
+        "cli_name": "fixturectl",
+        "name": "cli",
+        "label": "Cli",
+        "description": "",
+        "tags": "",
+        "enabled": true,
+        "group": "new",
+        "allow_get": false,
+        "allow_set": false,
+        "allow_ramp": false,
+        "readable": true,
+        "writable": true,
+        "has_ramp": false,
+        "safety": null,
+        "get_cmd": null,
+        "set_cmd": null,
+        "safety_mode": "guarded",
+        "action_cmd": null,
+        "linked_observables": [],
+        "raw_item": {}
+      }
+    ]
+  }
+}

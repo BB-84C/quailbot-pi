@@ -1,0 +1,153 @@
+{
+  "cases": [
+    {
+      "kind": "roi",
+      "selected_tags": [],
+      "terms": [],
+      "logic": "AND",
+      "item": {
+        "name": "scan-window",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "description": "STM scan",
+        "tags": "image, scan",
+        "active": true,
+        "group": ""
+      },
+      "expected_match": true
+    },
+    {
+      "kind": "roi",
+      "selected_tags": [
+        "scan"
+      ],
+      "terms": [],
+      "logic": "AND",
+      "item": {
+        "name": "scan-window",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "description": "STM scan",
+        "tags": "image, scan",
+        "active": true,
+        "group": ""
+      },
+      "expected_match": true
+    },
+    {
+      "kind": "roi",
+      "selected_tags": [
+        "control"
+      ],
+      "terms": [],
+      "logic": "AND",
+      "item": {
+        "name": "scan-window",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "description": "STM scan",
+        "tags": "image, scan",
+        "active": true,
+        "group": ""
+      },
+      "expected_match": false
+    },
+    {
+      "kind": "cli",
+      "selected_tags": [],
+      "terms": [
+        "bias",
+        "voltage"
+      ],
+      "logic": "AND",
+      "item": {
+        "cli_name": "fixturectl",
+        "name": "bias",
+        "label": "Bias",
+        "description": "bias voltage",
+        "tags": "control, voltage",
+        "enabled": true,
+        "group": "",
+        "allow_get": false,
+        "allow_set": false,
+        "allow_ramp": false,
+        "readable": true,
+        "writable": true,
+        "has_ramp": false,
+        "safety": null,
+        "get_cmd": null,
+        "set_cmd": null,
+        "safety_mode": "guarded",
+        "action_cmd": null,
+        "linked_observables": [
+          "height-readback"
+        ],
+        "raw_item": {}
+      },
+      "expected_match": true
+    },
+    {
+      "kind": "anchor",
+      "selected_tags": [],
+      "terms": [
+        "missing",
+        "scan-window"
+      ],
+      "logic": "OR",
+      "item": {
+        "name": "tip-anchor",
+        "x": 0,
+        "y": 0,
+        "description": "tip marker",
+        "tags": "marker",
+        "linked_rois": [
+          "scan-window"
+        ],
+        "active": true,
+        "group": ""
+      },
+      "expected_match": true
+    },
+    {
+      "kind": "cli",
+      "selected_tags": [
+        "control"
+      ],
+      "terms": [
+        "height-readback"
+      ],
+      "logic": "AND",
+      "item": {
+        "cli_name": "fixturectl",
+        "name": "bias",
+        "label": "Bias",
+        "description": "bias voltage",
+        "tags": "control, voltage",
+        "enabled": true,
+        "group": "",
+        "allow_get": false,
+        "allow_set": false,
+        "allow_ramp": false,
+        "readable": true,
+        "writable": true,
+        "has_ramp": false,
+        "safety": null,
+        "get_cmd": null,
+        "set_cmd": null,
+        "safety_mode": "guarded",
+        "action_cmd": null,
+        "linked_observables": [
+          "height-readback"
+        ],
+        "raw_item": {}
+      },
+      "expected_match": true
+    }
+  ]
+}

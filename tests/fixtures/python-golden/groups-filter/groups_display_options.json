@@ -1,0 +1,63 @@
+{
+  "input": {
+    "groups": [
+      {
+        "name": "a",
+        "description": "root A",
+        "tags": "alpha",
+        "active": true,
+        "group": "",
+        "collapsed": false
+      },
+      {
+        "name": "b",
+        "description": "child B",
+        "tags": "beta",
+        "active": true,
+        "group": "a",
+        "collapsed": false
+      },
+      {
+        "name": "c",
+        "description": "grandchild C",
+        "tags": "gamma",
+        "active": true,
+        "group": "b",
+        "collapsed": false
+      },
+      {
+        "name": "d",
+        "description": "child D",
+        "tags": "delta",
+        "active": true,
+        "group": "a",
+        "collapsed": false
+      },
+      {
+        "name": "e",
+        "description": "orphan E",
+        "tags": "epsilon",
+        "active": true,
+        "group": "missing-parent",
+        "collapsed": false
+      }
+    ],
+    "exclude": [
+      "b"
+    ]
+  },
+  "expected": [
+    {
+      "display": "a",
+      "name": "a"
+    },
+    {
+      "display": "  d",
+      "name": "d"
+    },
+    {
+      "display": "e",
+      "name": "e"
+    }
+  ]
+}

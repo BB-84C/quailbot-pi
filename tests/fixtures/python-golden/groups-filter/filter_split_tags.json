@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "input": "alpha, beta,gamma",
+      "expected": [
+        "alpha",
+        "beta",
+        "gamma"
+      ]
+    },
+    {
+      "input": "",
+      "expected": []
+    },
+    {
+      "input": "   ",
+      "expected": []
+    },
+    {
+      "input": " alpha , , beta, ",
+      "expected": [
+        "alpha",
+        "beta"
+      ]
+    }
+  ]
+}

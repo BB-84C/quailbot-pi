@@ -264,6 +264,29 @@ Date: 2026-06-16
 - Future tool additions should reuse `executeLoggedTool` and `recordPlanStep`; new event kinds must keep the optional `parent_event_id` and `duration_ms` correlation fields stable.
 - Real instrument acceptance should record per-step linked-observable readback alongside `primary_result` so future inspection tooling can distinguish driver state from instrument state without re-parsing raw stdout.
 
+## Implementation round: A3 faithful calibrator port closeout
+
+Date: 2026-06-19
+
+### Delivered
+
+- A3 is now complete as a faithful browser calibrator port across the 16-commit branch: the approved spec, Python-golden fixture harness, shared model/parse/serialize/geometry/filter/groups/CLI-import logic, server capture/file-browser/save/load/CLI-import routes, built browser bundle, items tree, canvas interactions, form/link/metadata editing, filter, file browser, route hardening, startup workspace/capture bootstrap, toolbar controls, GUI-wrapped save mirroring, CLI-import request/workspace declared-name union, metadata-before-PNG capture publish ordering, token-gated `/`, bundle path resolution from `import.meta.url`, and this pre-merge fix-up.
+- Refreshed the browser startup path so `/quailbot-workspace open` launches `/?token=...`, the page POSTs `/api/workspace` and `/api/capture`, and the served UI opens with workspace data, a capture frame, a startup-error banner path, and visible Add/Draw/Pick/Delete/Refresh controls instead of an empty editor.
+- Corrected Python parity for `groupDescendants` and regenerated the committed golden fixture so the root group is never included in descendants; audited the group-combobox caller to exclude the selected group explicitly now that the helper is descendants-only.
+- Preserved GUI-wrapped workspace edits by mirroring saved visual arrays into both top-level `rois`/`anchors`/`groups` and `GUI.*`, preventing load-time stale-GUI precedence from losing edits.
+- Hardened cheap P1s that blocked merge confidence: body-declared CLI names are validated and unioned with runtime-declared CLI names before probing, capture metadata is published before PNG bytes, `GET /` is token-gated, and the server reads the bundle relative to its module location rather than `process.cwd()`.
+
+### Now known
+
+- The green-test count moved from 514 to 452 because 70 false-positive legacy tests were deleted; this fix-up brings the suite to 462 tests by adding genuine behavior coverage rather than restoring misleading coverage volume.
+- The prior A3 attempt failed structurally because real browser logic lived in a `String.raw` blob and was “tested” with grep-like assertions. This branch prevents that failure mode from returning through `typecheck:browser`, a built esbuild bundle + metafile audit, real DOM event tests, and Python-golden fixtures generated from the canonical legacy Python substrate.
+- `GUI` preservation in the original §13.3 wording was semantically unsafe for the web save/reload contract because load intentionally prefers `GUI.*`; preserving the block is only safe if the saved visual arrays are mirrored there too.
+
+### Later phases must do differently
+
+- Deferred follow-ups remain explicit: make CLI/capture subprocesses async instead of blocking the HTTP server, add save `expectedHash` protection for two-tab races, pin help-text content with a golden, add a Playwright/real-browser acceptance tier, and revisit allowed-root widening only with a separate user decision.
+- Future A8/remote-host work should reuse the now-proven A2/A3 workspace service and browser calibrator contracts instead of reintroducing raw local write routes or activation surfaces.
+
 ## Implementation round: A3 faithful calibrator items-tree client slice
 
 Date: 2026-06-19
@@ -373,7 +396,9 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 
 **Recommended default:** Build A2 as a workspace control-plane service with Pi commands as the first adapter: validate/load/show/select/write supported updates, persist selection, compute workspace hash/revision, and hard-reload after local switches. Add picker/watch behavior after the service is semantically proven. Let A4 reuse the service from a separate supervised host rather than putting the remote protocol inside the Pi extension.
 
-### Phase A3: Workspace edit/calibration UI
+### Phase A3: Workspace edit/calibration UI [DONE]
+
+**Status:** Done on `feat/a3-faithful-calibrator-port` 2026-06-19. The closeout entry above is authoritative; the notes below preserve the original planning substrate.
 
 **Concise spec:** Bring the legacy calibration tool's behavior into the Pi workflow so users can create/import/edit workspace files without leaving Pi if feasible. Required behavior includes ROI/anchor editing, CLI capability import, load/export workspace, set current agent workspace, validation, and save. Coordinate with A2 so edits update the same selected workspace and trigger the same reload path.
 

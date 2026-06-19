@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { CaptureFrame } from "../shared/geometry.js";
@@ -108,15 +108,26 @@ export function captureVirtualScreen(opts: { stateDir: string }): CaptureResult 
     captureId,
   };
 
-  renameSync(tmpPngPath, finalPngPath);
   writeFileSync(
     tmpMetadataPath,
     `${JSON.stringify({ ...frame, awarenessMode: reported.awarenessMode, capturedAt: new Date().toISOString() }, null, 2)}\n`,
     "utf8",
   );
+  fsyncFile(tmpMetadataPath);
   renameSync(tmpMetadataPath, finalMetadataPath);
+  fsyncFile(tmpPngPath);
+  renameSync(tmpPngPath, finalPngPath);
 
   return { frame, pngPath: finalPngPath };
+}
+
+function fsyncFile(path: string): void {
+  const fd = openSync(path, "r+");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 function runPowerShellCapture(outputPath: string): CaptureScriptResult {

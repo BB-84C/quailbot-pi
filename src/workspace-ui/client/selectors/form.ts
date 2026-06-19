@@ -79,6 +79,7 @@ export function groupComboboxOptions(state: AppState): Array<{ display: string; 
   if (summary.kind === "single") {
     selectedValue = summary.groupValue;
     if (summary.itemKind === "group") {
+      exclude.add(summary.name);
       for (const name of groupDescendants(state.workspace.groups, summary.name)) {
         exclude.add(name);
       }

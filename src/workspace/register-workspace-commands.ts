@@ -127,8 +127,9 @@ async function handleWorkspaceCommand(
 
     case "open": {
       const server = await ensureWorkspaceUiServer(runtime, ctx.cwd);
-      launchWorkspaceCalibrator(server.url, ctx);
-      ctx.ui.notify(`workspace calibrator open\n${server.url}`, "info");
+      const url = `${server.url}/?token=${encodeURIComponent(server.token)}`;
+      launchWorkspaceCalibrator(url, ctx);
+      ctx.ui.notify(`workspace calibrator open\n${url}`, "info");
       return;
     }
 

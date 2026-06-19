@@ -1,5 +1,5 @@
 import { itemMatchesFilter, subtreeVisibility } from "../../shared/filter.js";
-import { setGroupActiveCascade } from "../../shared/groups.js";
+import { dedupeName, deleteItems, setGroupActiveCascade } from "../../shared/groups.js";
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../../shared/model.js";
 import type { Action } from "../actions.js";
 import type { AppState, TreeItemKey, TreeItemKind } from "../state.js";
@@ -65,6 +65,67 @@ function cloneWorkspace(workspace: AppState["workspace"]): WorkspaceClone {
     groups: workspace.groups.map((group) => ({ ...group })),
     cliParams: workspace.cliParams.map((param) => ({ ...param, linked_observables: [...param.linked_observables] })),
   };
+}
+
+function existingNames(workspace: AppState["workspace"]): Set<string> {
+  return new Set([
+    ...workspace.rois.map((item) => item.name),
+    ...workspace.anchors.map((item) => item.name),
+    ...workspace.groups.map((item) => item.name),
+    ...workspace.cliParams.map((item) => item.name),
+  ]);
+}
+
+function selectedGroupName(state: AppState): string {
+  if (state.tree.selected.length !== 1) {
+    return "";
+  }
+  const selected = state.tree.selected[0];
+  if (selected?.kind !== "group") {
+    return "";
+  }
+  return state.workspace.groups.some((group) => group.name === selected.name) ? selected.name : "";
+}
+
+function addItem(state: AppState, kind: "roi" | "anchor" | "group"): AppState {
+  const workspace = cloneWorkspace(state.workspace);
+  const group = selectedGroupName(state);
+  const names = existingNames(workspace);
+  if (kind === "roi") {
+    const name = dedupeName(names, "new_roi");
+    workspace.rois.push({ name, x: 0, y: 0, w: 0, h: 0, description: "", tags: "", active: true, group });
+    return { ...state, workspace, tree: { ...state.tree, selected: [{ kind, name }], activeAnchor: { kind, name } } };
+  }
+  if (kind === "anchor") {
+    const name = dedupeName(names, "new_anchor");
+    workspace.anchors.push({ name, x: 0, y: 0, description: "", tags: "", linked_rois: [], active: true, group });
+    return { ...state, workspace, tree: { ...state.tree, selected: [{ kind, name }], activeAnchor: { kind, name } } };
+  }
+  const name = dedupeName(names, "new_group");
+  workspace.groups.push({ name, description: "", tags: "", active: true, group, collapsed: false });
+  return { ...state, workspace, tree: { ...state.tree, selected: [{ kind, name }], activeAnchor: { kind, name } } };
+}
+
+function selectedIndexes(state: AppState): Array<{ kind: "roi" | "anchor" | "group" | "cli"; idx: number }> {
+  const out: Array<{ kind: "roi" | "anchor" | "group" | "cli"; idx: number }> = [];
+  for (const key of state.tree.selected) {
+    const source = key.kind === "roi" ? state.workspace.rois : key.kind === "anchor" ? state.workspace.anchors : key.kind === "group" ? state.workspace.groups : state.workspace.cliParams;
+    const idx = source.findIndex((item) => item.name === key.name);
+    if (idx >= 0) {
+      out.push({ kind: key.kind, idx });
+    }
+  }
+  return out;
+}
+
+function deleteSelected(state: AppState): AppState {
+  const selected = selectedIndexes(state);
+  if (selected.length === 0) {
+    return state;
+  }
+  const workspace = cloneWorkspace(state.workspace);
+  deleteItems({ groups: workspace.groups, rois: workspace.rois, anchors: workspace.anchors, cliParams: workspace.cliParams, selected });
+  return { ...state, workspace, tree: { ...state.tree, selected: [], activeAnchor: null } };
 }
 
 function withForcedActivation(state: AppState): AppState {
@@ -298,6 +359,10 @@ function keyboardNav(state: AppState, key: "ArrowUp" | "ArrowDown", shift: boole
 
 export function treeReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case "TREE_ADD_ITEM":
+      return addItem(state, action.payload.kind);
+    case "TREE_DELETE_SELECTED":
+      return deleteSelected(state);
     case "TREE_CLICK_ITEM":
       if (action.payload.region === "toggle") {
         return clickToggle(state, action.payload);

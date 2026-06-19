@@ -7,9 +7,10 @@ function cleanName(value: string): string {
 }
 
 export function groupDescendants(groups: GroupDraft[], rootName: string): Set<string> {
+  // Python parity: `_group_descendants` returns descendants only. The root name is
+  // the initial queue seed but is never included in the returned set.
   const out = new Set<string>();
   const root = String(rootName || "");
-  out.add(root);
   const pending = [root];
   while (pending.length > 0) {
     const cur = pending.pop() ?? "";
@@ -21,6 +22,17 @@ export function groupDescendants(groups: GroupDraft[], rootName: string): Set<st
     }
   }
   return out;
+}
+
+export function dedupeName(existing: Set<string>, base: string): string {
+  if (!existing.has(base)) {
+    return base;
+  }
+  let i = 2;
+  while (existing.has(`${base}_${i}`)) {
+    i += 1;
+  }
+  return `${base}_${i}`;
 }
 
 export function groupDisplayOptions(groups: GroupDraft[], exclude: Set<string>): Array<{ display: string; name: string }> {

@@ -1,8 +1,4 @@
-declare global {
-  interface Window {
-    __quailbotToken?: string;
-  }
-}
+import { jsonHeaders } from "./token.js";
 
 export interface CliImportResponse {
   ok: boolean;
@@ -12,13 +8,9 @@ export interface CliImportResponse {
 }
 
 export async function postCliImport(cliName: string, declaredCliNames: string[]): Promise<CliImportResponse> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (window.__quailbotToken) {
-    headers["x-quailbot-token"] = window.__quailbotToken;
-  }
   const response = await fetch("/api/cli-import", {
     method: "POST",
-    headers,
+    headers: jsonHeaders(),
     body: JSON.stringify({ cliName, declaredCliNames }),
   });
   return (await response.json()) as CliImportResponse;

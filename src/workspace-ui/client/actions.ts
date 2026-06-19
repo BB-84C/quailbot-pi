@@ -1,4 +1,4 @@
-import type { TreeItemKind, TreeItemKey } from "./state.js";
+import type { StartupWorkspacePayload, TreeItemKind, TreeItemKey } from "./state.js";
 import type { CliSafetyField, FormFieldKey } from "./state.js";
 import type { CaptureFrame } from "../shared/geometry.js";
 import type { SelectionSummary } from "./selectors/form.js";
@@ -13,6 +13,13 @@ export type TreeClickModifiers = {
 };
 
 export type TreeAction =
+  | {
+      type: "TREE_ADD_ITEM";
+      payload: { kind: "roi" | "anchor" | "group" };
+    }
+  | { type: "TREE_DELETE_SELECTED" }
+  | { type: "STARTUP_WORKSPACE_LOADED"; payload: StartupWorkspacePayload }
+  | { type: "STARTUP_FINISHED"; payload: { error: string | null } }
   | {
       type: "TREE_CLICK_ITEM";
       payload: TreeItemKey & {
@@ -102,6 +109,22 @@ export type FileBrowserAction =
   | { type: "FILE_BROWSER_CANCEL" };
 
 export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction;
+
+export function treeAddItem(kind: "roi" | "anchor" | "group"): Action {
+  return { type: "TREE_ADD_ITEM", payload: { kind } };
+}
+
+export function treeDeleteSelected(): Action {
+  return { type: "TREE_DELETE_SELECTED" };
+}
+
+export function startupWorkspaceLoaded(payload: StartupWorkspacePayload): Action {
+  return { type: "STARTUP_WORKSPACE_LOADED", payload };
+}
+
+export function startupFinished(error: string | null): Action {
+  return { type: "STARTUP_FINISHED", payload: { error } };
+}
 
 export function treeClickItem(payload: TreeItemKey & { modifiers: TreeClickModifiers; region: "toggle" | "body" }): Action {
   return { type: "TREE_CLICK_ITEM", payload };

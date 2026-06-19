@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { cliParamToJson, type CliParamDraft } from "../../../src/workspace-ui/shared/model.js";
+import { loadWorkspaceData } from "../../../src/workspace-ui/shared/parse.js";
 import { buildWorkspaceJson, serializeCliParamsBlock, serializeCliTools, stringifyWorkspaceJson } from "../../../src/workspace-ui/shared/serialize.js";
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "fixtures", "python-golden");
@@ -120,13 +121,13 @@ describe("workspace shared serialization", () => {
     expect(((actual.cli_params as Record<string, Record<string, unknown>>).action_commands.items as Array<Record<string, unknown>>).map((item) => item.name)).toEqual(["alpha-action"]);
   });
 
-  it("matches Python save round-trip fixture and preserves unknown top-level keys plus stale GUI", () => {
+  it("matches Python save round-trip fixture and mirrors visual arrays into an existing GUI block", () => {
     const actual = buildWorkspaceJson(saveFixtureInput());
     const expected = fixture("save_round_trip_preserves_unknown_gui.json");
 
     expect(actual).toEqual(expected);
     expectKeyOrder(actual, expected);
-    expect(actual).toMatchObject({ notes: "x", GUI: { stale: "preserve me" } });
+    expect(actual).toMatchObject({ notes: "x", GUI: { stale: "preserve me", rois: actual.rois, anchors: actual.anchors, groups: actual.groups } });
     expect(actual).toHaveProperty("tools.cli");
     expect(actual).toHaveProperty("cli_params");
     const firstParam = (((actual.cli_params as Record<string, Record<string, unknown>>).parameters.items as Array<Record<string, unknown>>)[0]);
@@ -137,6 +138,24 @@ describe("workspace shared serialization", () => {
     const actual = buildWorkspaceJson(saveFixtureInput());
 
     expect(stringifyWorkspaceJson(actual)).toBe(fixtureText("save_round_trip_preserves_unknown_gui.json"));
+  });
+
+  it("keeps GUI-wrapped visual edits loadable after save and reload", () => {
+    const expected = fixture("save_round_trip_gui_wrapped_arrays.json") as Record<string, unknown>;
+    const raw = {
+      GUI: { rois: [{ name: "old", x: 1, y: 1, w: 2, h: 2, description: "stale", active: true }], anchors: [], groups: [] },
+      rois: [],
+      anchors: [],
+      groups: [],
+      tools: {},
+    };
+    const parsed = loadWorkspaceData(raw);
+    const saved = buildWorkspaceJson({ ...parsed, raw, cliName: "fixturectl", cliEnabled: false, cliParams: [], rois: [{ ...parsed.rois[0]!, name: "new", x: 10, y: 20, w: 30, h: 40, description: "fresh" }] });
+    const reloaded = loadWorkspaceData(saved);
+
+    expect(saved).toEqual(expected);
+    expect(saved.GUI).toEqual({ rois: saved.rois, anchors: saved.anchors, groups: saved.groups });
+    expect(reloaded.rois[0]).toMatchObject({ name: "new", x: 10, y: 20, w: 30, h: 40, description: "fresh" });
   });
 
   it("spot-checks writable cleanup fixture key order and removed fields", () => {

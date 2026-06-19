@@ -2,7 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { QuailbotRuntime } from "../extension.js";
 import { loadActiveWorkspace } from "../workspace/workspace-service.js";
@@ -30,6 +31,11 @@ type ServerContext = {
   token: string;
   port: number;
 };
+
+const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
+const CLIENT_BUNDLE_PATH = resolveClientBundlePath("client.js");
+const CLIENT_BUNDLE_MAP_PATH = resolveClientBundlePath("client.js.map");
+const CLI_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
 
 export async function ensureWorkspaceUiServer(runtime: QuailbotRuntime, cwd: string): Promise<WorkspaceUiServerHandle> {
   if (runtime.workspaceUiServer !== undefined) {
@@ -70,6 +76,10 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
 
     const url = requestUrl(request);
     if (request.method === "GET" && url.pathname === "/") {
+      if (url.searchParams.get("token") !== context.token) {
+        sendText(response, 403, "forbidden\n", "text/plain; charset=utf-8");
+        return;
+      }
       sendText(response, 200, renderWorkspacePage(context.token), "text/html; charset=utf-8");
       return;
     }
@@ -97,11 +107,11 @@ function handleAssetRequest(url: URL, response: ServerResponse, context: ServerC
   }
 
   if (url.pathname === "/assets/client.js") {
-    sendDistAsset(response, join(process.cwd(), "dist", "workspace-ui", "client.js"), "text/javascript; charset=utf-8");
+    sendDistAsset(response, CLIENT_BUNDLE_PATH, "text/javascript; charset=utf-8");
     return;
   }
   if (url.pathname === "/assets/client.js.map") {
-    sendDistAsset(response, join(process.cwd(), "dist", "workspace-ui", "client.js.map"), "application/json; charset=utf-8");
+    sendDistAsset(response, CLIENT_BUNDLE_MAP_PATH, "application/json; charset=utf-8");
     return;
   }
   if (url.pathname === "/assets/styles.css") {
@@ -238,8 +248,28 @@ function handleCliImportApi(response: ServerResponse, context: ServerContext, bo
     cli_params: workspace.canonicalJson.cli_params,
     tools: workspace.canonicalJson.tools,
   });
+  for (const name of bodyDeclaredCliNames(body)) {
+    declaredCliNames.add(name);
+  }
   const result = probeCliCapabilities({ cliName, declaredCliNames });
   sendJson(response, result.ok ? 200 : 400, result);
+}
+
+function bodyDeclaredCliNames(body: JsonRecord): string[] {
+  const value = body.declaredCliNames;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const name = item.trim();
+    if (!CLI_NAME_PATTERN.test(name) || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
 }
 
 function handleCaptureAsset(url: URL, response: ServerResponse, cwd: string): void {
@@ -361,6 +391,14 @@ function sendDistAsset(response: ServerResponse, path: string, contentType: stri
     return;
   }
   sendBinary(response, 200, readFileSync(path), contentType);
+}
+
+function resolveClientBundlePath(fileName: string): string {
+  const compiledLayout = join(SERVER_DIR, "..", "..", "workspace-ui", fileName);
+  if (existsSync(compiledLayout)) {
+    return compiledLayout;
+  }
+  return join(SERVER_DIR, "..", "..", "dist", "workspace-ui", fileName);
 }
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {

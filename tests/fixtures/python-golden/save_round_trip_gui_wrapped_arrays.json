@@ -1,0 +1,49 @@
+{
+  "GUI": {
+    "rois": [
+      {
+        "name": "new",
+        "x": 10,
+        "y": 20,
+        "w": 30,
+        "h": 40,
+        "description": "fresh",
+        "active": true
+      }
+    ],
+    "anchors": [],
+    "groups": []
+  },
+  "rois": [
+    {
+      "name": "new",
+      "x": 10,
+      "y": 20,
+      "w": 30,
+      "h": 40,
+      "description": "fresh",
+      "active": true
+    }
+  ],
+  "anchors": [],
+  "groups": [],
+  "tools": {
+    "cli": {
+      "enabled": false,
+      "parameters": {},
+      "actions": {}
+    }
+  },
+  "cli_params": {
+    "cli_name": "fixturectl",
+    "enabled": false,
+    "parameters": {
+      "count": 0,
+      "items": []
+    },
+    "action_commands": {
+      "count": 0,
+      "items": []
+    }
+  }
+}

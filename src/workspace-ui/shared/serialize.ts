@@ -76,6 +76,9 @@ export function buildWorkspaceJson(args: {
   out.rois = args.rois.map(roiToJson);
   out.anchors = args.anchors.map(anchorToJson);
   out.groups = args.groups.map(groupToJson);
+  if (isRecord(out.GUI)) {
+    out.GUI = { ...cloneRecord(out.GUI), rois: out.rois, anchors: out.anchors, groups: out.groups };
+  }
   out.tools = serializeCliTools({ existingTools: out.tools ?? {}, enabled: Boolean(args.cliEnabled), params: args.cliParams });
   out = serializeCliParamsBlock({ existingRaw: out, cliName: normalizedCliName(args.cliName), enabled: Boolean(args.cliEnabled), params: args.cliParams });
   return out;

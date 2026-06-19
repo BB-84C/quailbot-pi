@@ -36,7 +36,7 @@ describe("canvas render", () => {
 
   it("renders the scaled capture image without overlays", () => {
     const root = document.createElement("div");
-    window.__quailbotToken = "asset-token";
+    document.head.innerHTML = '<meta name="quailbot-workspace-ui-token" content="asset-token">';
     const state = stateWithCanvas();
     state.workspace.rois = [];
     state.workspace.anchors = [];

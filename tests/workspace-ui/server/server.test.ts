@@ -4,12 +4,13 @@ import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { QuailbotRuntime } from "../../../src/extension.js";
 import { createKnowledgeRuntime } from "../../../src/knowledge/knowledge-runtime.js";
 import { PlanContextStore } from "../../../src/prompt/plan-context.js";
 import { ensureWorkspaceUiServer, stopWorkspaceUiServer, type WorkspaceUiServerHandle } from "../../../src/workspace-ui/server.js";
+import { setProbeRunner, type ProbeRunner } from "../../../src/workspace-ui/server/cli-import.js";
 
 const tempDirs: string[] = [];
 const runtimes: QuailbotRuntime[] = [];
@@ -19,6 +20,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+  setProbeRunner(null);
   await Promise.all(runtimes.splice(0).map((runtime) => stopWorkspaceUiServer(runtime)));
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
@@ -29,7 +31,7 @@ describe("integrated workspace UI server", () => {
   it("serves an HTML shell containing the runtime token meta tag", async () => {
     const { server } = await startServerWithWorkspace();
 
-    const response = await fetch(`${server.url}/`);
+    const response = await fetch(`${server.url}/?token=${server.token}`);
     const html = await response.text();
 
     expect(response.status).toBe(200);
@@ -63,6 +65,14 @@ describe("integrated workspace UI server", () => {
     const { server } = await startServerWithWorkspace();
 
     const response = await fetch(`${server.url}/assets/client.js`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("rejects the HTML shell without the query-string token", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/`);
 
     expect(response.status).toBe(403);
   });
@@ -130,11 +140,46 @@ describe("integrated workspace UI server", () => {
     expect(body.canonicalJson.anchors[0]).toMatchObject({ name: "bias-field", x: 520, y: 300 });
   });
 
+  it("allows CLI import when the request body declares a valid CLI absent from runtime workspace", async () => {
+    const runner = vi.fn<ProbeRunner>().mockReturnValue({ status: 0, stdout: '{"ok":true}', stderr: "" });
+    setProbeRunner(runner);
+    const { server } = await startServerWithWorkspace("runtimectl");
+
+    const response = await postJson(server, "/api/cli-import", { cliName: "draftctl", declaredCliNames: ["draftctl"] });
+
+    expect(response.status).toBe(200);
+    expect(runner).toHaveBeenCalledWith("draftctl", ["capabilities"], expect.any(Object));
+  });
+
+  it("drops malformed body-declared CLI names but keeps valid ones", async () => {
+    const runner = vi.fn<ProbeRunner>().mockReturnValue({ status: 0, stdout: '{"ok":true}', stderr: "" });
+    setProbeRunner(runner);
+    const { server } = await startServerWithWorkspace("runtimectl");
+
+    const valid = await postJson(server, "/api/cli-import", { cliName: "draftctl", declaredCliNames: ["bad name", "../bad", "draftctl"] });
+    const malformed = await postJson(server, "/api/cli-import", { cliName: "bad name", declaredCliNames: ["bad name", "draftctl"] });
+
+    expect(valid.status).toBe(200);
+    expect(runner).toHaveBeenCalledWith("draftctl", ["capabilities"], expect.any(Object));
+    expect(malformed.status).toBe(400);
+  });
+
+  it("deduplicates runtime and body-declared CLI names", async () => {
+    const runner = vi.fn<ProbeRunner>().mockReturnValue({ status: 0, stdout: '{"ok":true}', stderr: "" });
+    setProbeRunner(runner);
+    const { server } = await startServerWithWorkspace("nqctl");
+
+    const response = await postJson(server, "/api/cli-import", { cliName: "nqctl", declaredCliNames: ["nqctl", "nqctl"] });
+
+    expect(response.status).toBe(200);
+    expect(runner).toHaveBeenCalledTimes(1);
+  });
+
   it("is closeable through stopWorkspaceUiServer", async () => {
     const { runtime, server } = await startServerWithWorkspace();
     await stopWorkspaceUiServer(runtime);
 
-    await expect(fetch(`${server.url}/`)).rejects.toThrow();
+    await expect(fetch(`${server.url}/?token=${server.token}`)).rejects.toThrow();
     expect(runtime.workspaceUiServer).toBeUndefined();
   });
 

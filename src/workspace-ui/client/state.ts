@@ -86,6 +86,23 @@ export interface FileBrowserState {
   lastError: string | null;
 }
 
+export interface StartupState {
+  ready: boolean;
+  error: string | null;
+}
+
+export interface StartupWorkspacePayload {
+  rois: RoiDraft[];
+  anchors: AnchorDraft[];
+  groups: GroupDraft[];
+  cliName: string;
+  cliEnabled: boolean;
+  cliParams: CliParamDraft[];
+  currentPath: string;
+  lastSavedHash: string;
+  raw: Record<string, unknown>;
+}
+
 export interface AppState {
   workspace: {
     rois: RoiDraft[];
@@ -96,7 +113,9 @@ export interface AppState {
     cliEnabled: boolean;
     raw: Record<string, unknown>;
     currentPath: string;
+    lastSavedHash: string;
   };
+  startup: StartupState;
   tree: {
     selected: TreeItemKey[];
     activeAnchor: TreeItemKey | null;
@@ -120,7 +139,9 @@ export function initialState(): AppState {
       cliEnabled: false,
       raw: {},
       currentPath: "",
+      lastSavedHash: "",
     },
+    startup: { ready: false, error: null },
     tree: {
       selected: [],
       activeAnchor: null,
@@ -281,6 +302,28 @@ function fileBrowserReducer(state: AppState, action: Action): AppState {
 }
 
 export function reduceAppState(state: AppState, action: Action): AppState {
+  if (action.type === "STARTUP_WORKSPACE_LOADED") {
+    return {
+      ...state,
+      workspace: {
+        ...state.workspace,
+        rois: action.payload.rois,
+        anchors: action.payload.anchors,
+        groups: action.payload.groups,
+        cliParams: action.payload.cliParams,
+        cliName: action.payload.cliName,
+        cliEnabled: action.payload.cliEnabled,
+        currentPath: action.payload.currentPath,
+        lastSavedHash: action.payload.lastSavedHash,
+        raw: action.payload.raw,
+      },
+      cliImport: { ...state.cliImport, cliName: action.payload.cliName },
+      tree: { ...state.tree, selected: [], activeAnchor: null },
+    };
+  }
+  if (action.type === "STARTUP_FINISHED") {
+    return { ...state, startup: { ready: true, error: action.payload.error } };
+  }
   if (action.type.startsWith("FILE_BROWSER_")) {
     return fileBrowserReducer(state, action);
   }

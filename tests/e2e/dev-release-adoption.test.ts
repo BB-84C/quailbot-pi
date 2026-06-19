@@ -717,7 +717,8 @@ async function workspaceUiSession(notifications: string[]): Promise<{ url: strin
   if (!token) {
     throw new Error("workspace calibrator token was not rendered");
   }
-  return { url, token };
+  const parsed = new URL(url);
+  return { url: parsed.origin, token };
 }
 
 function makeTempDir(): string {

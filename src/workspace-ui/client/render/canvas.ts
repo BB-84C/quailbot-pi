@@ -1,13 +1,8 @@
 import { effectiveScale, roiToCanvasRect, screenToCanvas } from "../../shared/geometry.js";
+import { workspaceUiToken } from "../api/token.js";
 import type { AppState, TreeItemKey } from "../state.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-
-declare global {
-  interface Window {
-    __quailbotToken?: string;
-  }
-}
 
 function svgEl<K extends keyof SVGElementTagNameMap>(tag: K): SVGElementTagNameMap[K] {
   return document.createElementNS(SVG_NS, tag);
@@ -112,7 +107,7 @@ export function renderCanvas(rootEl: HTMLElement, state: AppState): void {
 }
 
 function captureAssetHref(captureId: string): string {
-  const token = window.__quailbotToken ?? "";
+  const token = workspaceUiToken();
   const params = new URLSearchParams({ captureId });
   if (token) params.set("token", token);
   return `/assets/workspace-capture?${params.toString()}`;

@@ -1,7 +1,40 @@
 {
   "notes": "x",
   "GUI": {
-    "stale": "preserve me"
+    "stale": "preserve me",
+    "rois": [
+      {
+        "name": "roi-save",
+        "x": -1,
+        "y": 2,
+        "w": 3,
+        "h": 4,
+        "description": "saved",
+        "active": true
+      }
+    ],
+    "anchors": [
+      {
+        "name": "anchor-save",
+        "x": 5,
+        "y": 6,
+        "description": "saved",
+        "active": true,
+        "linked_observables": [
+          "roi-save"
+        ],
+        "linked_ROIs": [
+          "roi-save"
+        ]
+      }
+    ],
+    "groups": [
+      {
+        "name": "save-group",
+        "description": "saved group",
+        "active": true
+      }
+    ]
   },
   "tools": {
     "cli": {

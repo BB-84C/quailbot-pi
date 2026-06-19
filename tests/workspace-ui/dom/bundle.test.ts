@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { JSDOM } from "jsdom";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   effectiveScale as directEffectiveScale,
@@ -48,6 +48,44 @@ describe("workspace UI browser bundle", () => {
     const viewport = { width: 500, height: 500, zoom: 1 };
 
     expect(bundledWindow.__quailbotShared?.effectiveScale(frame, viewport)).toBe(directEffectiveScale(frame, viewport));
+  });
+
+  it("bootstraps by POSTing workspace and capture data on DOMContentLoaded", async () => {
+    const dom = new JSDOM(
+      '<!doctype html><html><head><meta name="quailbot-workspace-ui-token" content="bundle-token"></head><body><main data-workspace-ui-root><section data-canvas-root></section><section data-items-tree-root></section><section data-filter-root></section><section data-form-root></section></main></body></html>',
+      { runScripts: "dangerously", url: "http://127.0.0.1:3000/?token=bundle-token" },
+    );
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/workspace") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ok: true,
+              canonicalJson: { rois: [{ name: "startup-roi", x: 1, y: 2, w: 3, h: 4, description: "loaded", active: true }], anchors: [], groups: [] },
+              summary: { path: "workspace.json", hash: "abc123" },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ ok: true, frame: { imageWidth: 100, imageHeight: 50, originX: 0, originY: 0, captureId: "startup-capture" } }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    });
+    Object.defineProperty(dom.window, "fetch", { value: fetchMock, configurable: true });
+    const script = dom.window.document.createElement("script");
+    script.text = readFileSync(bundlePath, "utf8");
+    dom.window.document.head.appendChild(script);
+
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+
+    await vi.waitFor(() => expect(dom.window.document.body.textContent).toContain("startup-roi"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/workspace", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-quailbot-workspace-ui-token": "bundle-token" }) }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/capture", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-quailbot-workspace-ui-token": "bundle-token" }) }));
+    expect(dom.window.document.querySelector('.canvas-image[href*="startup-capture"]')).toBeTruthy();
   });
 });
 

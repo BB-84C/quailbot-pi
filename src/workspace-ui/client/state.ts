@@ -46,10 +46,16 @@ export interface CliMetaBuffers {
   safetyRampEnabled?: boolean;
 }
 
+export interface LinkedObsState {
+  searchText: string;
+  pickerValue: string;
+}
+
 export interface FormState {
   history: Partial<Record<FormFieldKey, FieldHistory>>;
   buffers: Partial<Record<FormFieldKey, string>>;
   cliMeta: CliMetaBuffers;
+  linkedObs: LinkedObsState;
   lastCycleRejection?: { selectedGroup: string; attemptedParent: string };
 }
 
@@ -105,6 +111,7 @@ export function initialState(): AppState {
       history: {},
       buffers: {},
       cliMeta: {},
+      linkedObs: { searchText: "", pickerValue: "" },
     },
   };
 }
@@ -116,7 +123,7 @@ export function reduceAppState(state: AppState, action: Action): AppState {
   if (action.type.startsWith("CANVAS_")) {
     return canvasReducer(state, action as CanvasAction);
   }
-  if (action.type.startsWith("FORM_")) {
+  if (action.type.startsWith("FORM_") || action.type.startsWith("LINKED_")) {
     return formReducer(state, action as FormAction);
   }
   return state;

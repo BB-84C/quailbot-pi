@@ -62,7 +62,11 @@ export type FormAction =
   | { type: "FORM_EDIT_CLI_GET_DESC"; payload: { text: string; commit?: boolean } }
   | { type: "FORM_EDIT_CLI_SET_DESC"; payload: { text: string; commit?: boolean } }
   | { type: "FORM_EDIT_CLI_SAFETY_FIELD"; payload: { field: CliSafetyField; text: string; commit?: boolean } }
-  | { type: "FORM_EDIT_CLI_RAMP_ENABLED"; payload: { value: boolean } };
+  | { type: "FORM_EDIT_CLI_RAMP_ENABLED"; payload: { value: boolean } }
+  | { type: "LINKED_SEARCH_CHANGED"; payload: { text: string } }
+  | { type: "LINKED_PICKER_CHANGED"; payload: { value: string } }
+  | { type: "LINKED_ADD" }
+  | { type: "LINKED_REMOVE"; payload: { value: string } };
 
 export type Action = TreeAction | CanvasAction | FormAction;
 
@@ -180,4 +184,20 @@ export function formEditCliSafetyField(field: CliSafetyField, text: string, comm
 
 export function formEditCliRampEnabled(value: boolean): Action {
   return { type: "FORM_EDIT_CLI_RAMP_ENABLED", payload: { value } };
+}
+
+export function linkedSearchChanged(text: string): Action {
+  return { type: "LINKED_SEARCH_CHANGED", payload: { text } };
+}
+
+export function linkedPickerChanged(value: string): Action {
+  return { type: "LINKED_PICKER_CHANGED", payload: { value } };
+}
+
+export function linkedAdd(): Action {
+  return { type: "LINKED_ADD" };
+}
+
+export function linkedRemove(value: string): Action {
+  return { type: "LINKED_REMOVE", payload: { value } };
 }

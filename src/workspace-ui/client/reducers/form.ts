@@ -1,9 +1,9 @@
 import { renameGroupCascade, wouldCreateGroupCycle } from "../../shared/groups.js";
-import { syncActionsFromMetadata } from "../../shared/model.js";
+import { editableLinkedObservables, runtimeLinkedObservables, syncActionsFromMetadata } from "../../shared/model.js";
 import { normalizeSafetyMode, safeFloat } from "../../shared/parse.js";
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../../shared/model.js";
 import type { FormAction } from "../actions.js";
-import { cliSafetyFields } from "../selectors/form.js";
+import { cliSafetyFields, linkedControlsEnabled, linkedFrameMode, linkedPickerOptions } from "../selectors/form.js";
 import type { AppState, CliMetaBuffers, CliSafetyField, FieldHistory, FormFieldKey, TreeItemKey } from "../state.js";
 
 type WorkspaceClone = AppState["workspace"];
@@ -222,13 +222,81 @@ function editGroup(state: AppState, groupName: string): AppState {
   return { ...state, workspace, form: formRest };
 }
 
+function cleanLinkedName(value: string): string {
+  return String(value || "").trim();
+}
+
+function selectedAnchor(workspace: WorkspaceClone, key: TreeItemKey | undefined): AnchorDraft | null {
+  if (!key || key.kind !== "anchor") return null;
+  return workspace.anchors.find((item) => item.name === key.name) ?? null;
+}
+
+function syncLinkedPickerToOptions(state: AppState): AppState {
+  const options = linkedPickerOptions(state);
+  const pickerValue = options.includes(state.form.linkedObs.pickerValue) ? state.form.linkedObs.pickerValue : (options[0] ?? "");
+  if (pickerValue === state.form.linkedObs.pickerValue) return state;
+  return { ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, pickerValue } } };
+}
+
+function addLinkedObservable(state: AppState): AppState {
+  if (!linkedControlsEnabled(state)) return state;
+  const options = linkedPickerOptions(state);
+  const rawValue = state.form.linkedObs.pickerValue || options[0] || "";
+  const name = cleanLinkedName(rawValue);
+  if (!name || !options.includes(name)) return state;
+  const key = state.tree.selected[0];
+  const mode = linkedFrameMode(state);
+  const workspace = cloneWorkspace(state.workspace);
+  if (mode === "anchor") {
+    const anchor = selectedAnchor(workspace, key);
+    if (!anchor || anchor.linked_rois.includes(name)) return state;
+    anchor.linked_rois = [...anchor.linked_rois, name];
+    return { ...state, workspace, form: { ...state.form, linkedObs: { ...state.form.linkedObs, pickerValue: name } } };
+  }
+  if (mode === "cli" || mode === "cli_action") {
+    const cli = selectedCli(workspace, key);
+    if (!cli) return state;
+    const runtimeEntries = runtimeLinkedObservables(cli);
+    if (runtimeEntries.some((entry) => entry.name === name)) return state;
+    cli.linked_observables = [...editableLinkedObservables(cli), name];
+    syncActionsFromMetadata(cli);
+    return { ...state, workspace, form: { ...state.form, linkedObs: { ...state.form.linkedObs, pickerValue: name } } };
+  }
+  return state;
+}
+
+function removeLinkedObservable(state: AppState, value: string): AppState {
+  if (!linkedControlsEnabled(state)) return state;
+  const name = cleanLinkedName(value);
+  if (!name) return state;
+  const key = state.tree.selected[0];
+  const mode = linkedFrameMode(state);
+  const workspace = cloneWorkspace(state.workspace);
+  if (mode === "anchor") {
+    const anchor = selectedAnchor(workspace, key);
+    if (!anchor || !anchor.linked_rois.includes(name)) return state;
+    anchor.linked_rois = anchor.linked_rois.filter((item) => item !== name);
+    return { ...state, workspace };
+  }
+  if (mode === "cli" || mode === "cli_action") {
+    const cli = selectedCli(workspace, key);
+    if (!cli) return state;
+    const entry = runtimeLinkedObservables(cli).find((item) => item.name === name);
+    if (!entry?.editable) return state;
+    cli.linked_observables = editableLinkedObservables(cli).filter((item) => item !== name);
+    syncActionsFromMetadata(cli);
+    return { ...state, workspace };
+  }
+  return state;
+}
+
 export function formReducer(state: AppState, action: FormAction): AppState {
   switch (action.type) {
     case "FORM_SELECTION_CHANGED": {
       const summary = action.payload.selectionSummary;
       const buffers = summary.kind === "single" ? { ...summary.fields } : {};
       const history = Object.fromEntries(Object.entries(buffers).map(([field, text]) => [field, historyFor(String(text ?? ""))]));
-      return { ...state, form: { buffers, history, cliMeta: cliMetaBuffersForSelection(state) } };
+      return syncLinkedPickerToOptions({ ...state, form: { buffers, history, cliMeta: cliMetaBuffersForSelection(state), linkedObs: state.form.linkedObs } });
     }
     case "FORM_EDIT_FIELD": {
       if (state.tree.selected.length > 1) return state;
@@ -299,6 +367,14 @@ export function formReducer(state: AppState, action: FormAction): AppState {
         },
         { safetyRampEnabled: action.payload.value },
       );
+    case "LINKED_SEARCH_CHANGED":
+      return syncLinkedPickerToOptions({ ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, searchText: action.payload.text } } });
+    case "LINKED_PICKER_CHANGED":
+      return { ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, pickerValue: action.payload.value } } };
+    case "LINKED_ADD":
+      return addLinkedObservable(state);
+    case "LINKED_REMOVE":
+      return removeLinkedObservable(state, action.payload.value);
     default:
       return state;
   }

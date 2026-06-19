@@ -1,5 +1,5 @@
 import { groupDescendants, groupDisplayOptions } from "../../shared/groups.js";
-import { cliParamToJson } from "../../shared/model.js";
+import { cliParamToJson, runtimeLinkedObservables } from "../../shared/model.js";
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../../shared/model.js";
 import type { AppState, CliSafetyField, FormFieldKey, TreeItemKey } from "../state.js";
 
@@ -13,6 +13,8 @@ export interface CliMetaVisibility {
   safetyFieldsEnabled: Partial<Record<CliSafetyField, boolean>>;
   rampEnabledVisible: boolean;
 }
+
+export type LinkedFrameMode = "anchor" | "cli" | "cli_action" | "none";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -126,4 +128,63 @@ export function cliMetaVisibility(cli: CliParamDraft): CliMetaVisibility {
 
 export function cliPayloadPreviewText(cli: CliParamDraft): string {
   return JSON.stringify(cliParamToJson(cli), null, 2);
+}
+
+function selectedSingleDraft(state: AppState): { key: TreeItemKey; draft: RoiDraft | AnchorDraft | GroupDraft | CliParamDraft } | null {
+  if (state.tree.selected.length !== 1) return null;
+  const key = state.tree.selected[0]!;
+  const draft = selectedDraft(state, key);
+  return draft ? { key, draft } : null;
+}
+
+export function linkedFrameMode(state: AppState): LinkedFrameMode {
+  const selected = selectedSingleDraft(state);
+  if (!selected) return "none";
+  if (selected.key.kind === "anchor") return "anchor";
+  if (selected.key.kind === "cli") {
+    const cli = selected.draft as CliParamDraft;
+    return isRecord(cli.action_cmd) ? "cli_action" : "cli";
+  }
+  return "none";
+}
+
+export function linkedControlsEnabled(state: AppState): boolean {
+  const selected = selectedSingleDraft(state);
+  if (!selected) return false;
+  const mode = linkedFrameMode(state);
+  if (mode === "anchor") return true;
+  if (mode === "cli" || mode === "cli_action") {
+    const cli = selected.draft as CliParamDraft;
+    return isRecord(cli.set_cmd) || isRecord(cli.action_cmd);
+  }
+  return false;
+}
+
+export function linkedListEntries(state: AppState): Array<{ name: string; editable: boolean }> {
+  const selected = selectedSingleDraft(state);
+  if (!selected) return [];
+  const mode = linkedFrameMode(state);
+  if (mode === "anchor") {
+    const anchor = selected.draft as AnchorDraft;
+    return anchor.linked_rois.map((name) => ({ name, editable: true }));
+  }
+  if (mode === "cli" || mode === "cli_action") {
+    return runtimeLinkedObservables(selected.draft as CliParamDraft);
+  }
+  return [];
+}
+
+export function linkedPickerOptions(state: AppState): string[] {
+  const selected = selectedSingleDraft(state);
+  const mode = linkedFrameMode(state);
+  let values: string[] = [];
+  if (mode === "anchor") {
+    values = state.workspace.rois.map((roi) => roi.name).filter((name) => name.length > 0);
+  } else if ((mode === "cli" || mode === "cli_action") && selected?.key.kind === "cli") {
+    const currentName = selected.key.name;
+    values = state.workspace.cliParams.map((param) => param.name).filter((name) => name.length > 0 && name !== currentName);
+  }
+  const query = state.form.linkedObs.searchText.trim().toLowerCase();
+  if (!query) return values;
+  return values.filter((name) => name.toLowerCase().includes(query));
 }

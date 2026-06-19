@@ -1,6 +1,19 @@
 import type { CliParamDraft } from "../../shared/model.js";
 import type { AppState, CliSafetyField, FormFieldKey } from "../state.js";
-import { cliMetaVisibility, cliPayloadPreviewText, cliSafetyFields, groupComboboxOptions, selectionSummary, shouldShowField, type SelectionSummary } from "../selectors/form.js";
+import {
+  cliMetaVisibility,
+  cliPayloadPreviewText,
+  cliSafetyFields,
+  groupComboboxOptions,
+  linkedControlsEnabled,
+  linkedFrameMode,
+  linkedListEntries,
+  linkedPickerOptions,
+  selectionSummary,
+  shouldShowField,
+  type LinkedFrameMode,
+  type SelectionSummary,
+} from "../selectors/form.js";
 
 const fieldOrder: FormFieldKey[] = ["name", "x", "y", "w", "h", "tags", "description"];
 
@@ -37,6 +50,16 @@ function setCheckboxValue(control: HTMLInputElement, value: boolean): void {
 function selectedCli(state: AppState, summary: Extract<SelectionSummary, { kind: "single" }>): CliParamDraft | null {
   if (summary.itemKind !== "cli") return null;
   return state.workspace.cliParams.find((item) => item.name === summary.name) ?? null;
+}
+
+function linkedTitle(mode: Exclude<LinkedFrameMode, "none">): string {
+  if (mode === "anchor") return "Linked Observables (anchor)";
+  if (mode === "cli_action") return "Linked Observables (cli action)";
+  return "Linked Observables (cli parameter)";
+}
+
+function setDisabled(control: HTMLInputElement | HTMLSelectElement | HTMLButtonElement, disabled: boolean): void {
+  control.disabled = disabled;
 }
 
 function appendNotice(rootEl: HTMLElement, state: AppState): void {
@@ -199,6 +222,149 @@ function buildCliMetadataBlock(state: AppState, cli: CliParamDraft): HTMLElement
   return block;
 }
 
+function buildCliActionsDisplay(cli: CliParamDraft, disabled: boolean): HTMLElement {
+  const fieldset = document.createElement("fieldset");
+  fieldset.className = "cli-actions-display";
+  fieldset.disabled = true;
+  if (disabled) {
+    fieldset.setAttribute("aria-disabled", "true");
+  }
+  const legend = document.createElement("legend");
+  legend.textContent = "CLI Actions";
+  fieldset.append(legend);
+  for (const [label, value] of [
+    ["get", cli.allow_get],
+    ["set", cli.allow_set],
+    ["ramp", cli.allow_ramp],
+  ] as const) {
+    const row = document.createElement("label");
+    row.className = "cli-actions-display__item";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = Boolean(value);
+    input.disabled = true;
+    const text = document.createElement("span");
+    text.textContent = label;
+    row.append(input, text);
+    fieldset.append(row);
+  }
+  return fieldset;
+}
+
+function populateLinkedFrame(frame: HTMLElement, state: AppState, mode: Exclude<LinkedFrameMode, "none">): void {
+  const activeElement = document.activeElement instanceof HTMLElement && frame.contains(document.activeElement) ? document.activeElement : null;
+  const activeRegion = activeElement?.dataset.region;
+  const activeAction = activeElement?.dataset.action;
+  const activeName = activeElement?.dataset.name;
+  const activeSelection = activeElement instanceof HTMLInputElement ? { start: activeElement.selectionStart, end: activeElement.selectionEnd } : null;
+  const enabled = linkedControlsEnabled(state);
+  const options = linkedPickerOptions(state);
+  const entries = linkedListEntries(state);
+  const selectedOption = options.includes(state.form.linkedObs.pickerValue) ? state.form.linkedObs.pickerValue : (options[0] ?? "");
+  frame.className = `linked-frame linked-frame--${mode}`;
+  frame.setAttribute("aria-disabled", enabled ? "false" : "true");
+  frame.replaceChildren();
+
+  const title = document.createElement("h3");
+  title.textContent = linkedTitle(mode);
+  frame.append(title);
+
+  const search = document.createElement("input");
+  search.type = "search";
+  search.dataset.region = "linked-search";
+  search.placeholder = "Search observables";
+  search.value = state.form.linkedObs.searchText;
+  setDisabled(search, !enabled);
+  frame.append(search);
+
+  const pickerRow = document.createElement("div");
+  pickerRow.className = "linked-picker-row";
+  const picker = document.createElement("select");
+  picker.dataset.region = "linked-picker";
+  setDisabled(picker, !enabled || options.length === 0);
+  for (const value of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    option.selected = value === selectedOption;
+    picker.append(option);
+  }
+  if (selectedOption) {
+    picker.value = selectedOption;
+  }
+  const add = document.createElement("button");
+  add.type = "button";
+  add.dataset.action = "linked-add";
+  add.textContent = "Add";
+  setDisabled(add, !enabled || !selectedOption);
+  pickerRow.append(picker, add);
+  frame.append(pickerRow);
+
+  const list = document.createElement("ul");
+  list.className = "linked-list";
+  list.dataset.region = "linked-list";
+  for (const entry of entries) {
+    const item = document.createElement("li");
+    item.dataset.name = entry.name;
+    if (!entry.editable) {
+      item.setAttribute("aria-disabled", "true");
+    }
+    const name = document.createElement("span");
+    name.textContent = `${entry.name}${entry.editable ? "" : " (auto)"}`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.dataset.action = "linked-remove";
+    remove.dataset.name = entry.name;
+    remove.textContent = "Remove";
+    setDisabled(remove, !enabled || !entry.editable);
+    item.append(name, remove);
+    list.append(item);
+  }
+  frame.append(list);
+
+  if (mode === "cli" || mode === "cli_action") {
+    const hint = document.createElement("p");
+    hint.className = "linked-hint";
+    hint.textContent = "Entries marked '(auto)' are implicit self-observables and cannot be removed.";
+    frame.append(hint);
+    const cli = state.tree.selected.length === 1 && state.tree.selected[0]?.kind === "cli" ? state.workspace.cliParams.find((item) => item.name === state.tree.selected[0]?.name) : null;
+    if (cli) {
+      frame.append(buildCliActionsDisplay(cli, !enabled));
+    }
+  }
+
+  if (activeRegion) {
+    const next = frame.querySelector<HTMLElement>(`[data-region="${activeRegion}"]`);
+    next?.focus();
+    if (next instanceof HTMLInputElement && activeSelection) {
+      next.setSelectionRange(activeSelection.start, activeSelection.end);
+    }
+  } else if (activeAction) {
+    const selector = activeName ? `[data-action="${activeAction}"][data-name="${activeName}"]` : `[data-action="${activeAction}"]`;
+    frame.querySelector<HTMLElement>(selector)?.focus();
+  }
+}
+
+function buildLinkedFrame(state: AppState): HTMLElement | null {
+  const mode = linkedFrameMode(state);
+  if (mode === "none") return null;
+  const frame = document.createElement("section");
+  populateLinkedFrame(frame, state, mode);
+  return frame;
+}
+
+function updateLinkedFrame(rootEl: HTMLElement, state: AppState): void {
+  const existing = rootEl.querySelector<HTMLElement>(".linked-frame");
+  const mode = linkedFrameMode(state);
+  if (mode === "none") {
+    existing?.remove();
+    return;
+  }
+  if (existing) {
+    populateLinkedFrame(existing, state, mode);
+  }
+}
+
 function updateCliMetadata(rootEl: HTMLElement, state: AppState, cli: CliParamDraft): void {
   const writable = rootEl.querySelector<HTMLInputElement>('input[data-cli-meta="writable"]');
   if (writable) setCheckboxValue(writable, state.form.cliMeta.writable ?? Boolean(cli.writable));
@@ -244,6 +410,7 @@ function updateExisting(rootEl: HTMLElement, state: AppState, summary: Selection
   if (select) renderGroupSelect(select, state);
   const cli = selectedCli(state, summary);
   if (cli) updateCliMetadata(rootEl, state, cli);
+  updateLinkedFrame(rootEl, state);
   appendNotice(rootEl, state);
   return true;
 }
@@ -286,15 +453,15 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
     const cli = selectedCli(state, summary);
     if (cli) {
       rootEl.append(buildCliMetadataBlock(state, cli));
-      const placeholder = document.createElement("div");
-      placeholder.className = "cli-linked-obs-placeholder";
-      placeholder.textContent = "Linked observables editor: next phase";
-      rootEl.append(placeholder);
+      const linked = buildLinkedFrame(state);
+      if (linked) rootEl.append(linked);
     }
     return;
   }
 
   rootEl.append(createGroupRow(state));
+  const linked = buildLinkedFrame(state);
+  if (linked) rootEl.append(linked);
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.disabled = true;

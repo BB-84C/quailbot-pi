@@ -9,6 +9,10 @@ import {
   formEditDescription,
   formEditField,
   formEditGroup,
+  linkedAdd,
+  linkedPickerChanged,
+  linkedRemove,
+  linkedSearchChanged,
   formRedoDescription,
   formRedoField,
   formUndoDescription,
@@ -46,6 +50,11 @@ function restoreCursor(control: HTMLInputElement | HTMLTextAreaElement, state: A
 
 export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action) => void, getState: () => AppState): () => void {
   const onInput = (event: Event): void => {
+    const linkedSearch = closestWithin<HTMLInputElement>(event.target, 'input[data-region="linked-search"]', rootEl);
+    if (linkedSearch) {
+      dispatch(linkedSearchChanged(linkedSearch.value));
+      return;
+    }
     const cliDesc = closestWithin<HTMLTextAreaElement>(event.target, 'textarea[data-cli-meta="getCmdDescription"], textarea[data-cli-meta="setCmdDescription"]', rootEl);
     if (cliDesc?.dataset.cliMeta === "getCmdDescription") {
       dispatch(formEditCliGetDesc(cliDesc.value));
@@ -105,6 +114,11 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
   };
 
   const onChange = (event: Event): void => {
+    const linkedPicker = closestWithin<HTMLSelectElement>(event.target, 'select[data-region="linked-picker"]', rootEl);
+    if (linkedPicker) {
+      dispatch(linkedPickerChanged(linkedPicker.value));
+      return;
+    }
     const cliCheckbox = closestWithin<HTMLInputElement>(event.target, 'input[data-cli-meta="writable"], input[data-cli-meta="rampEnabled"]', rootEl);
     if (cliCheckbox?.dataset.cliMeta === "writable") {
       dispatch(formEditCliWritable(cliCheckbox.checked));
@@ -124,14 +138,30 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
     dispatch(formEditGroup(select.value));
   };
 
+  const onClick = (event: MouseEvent): void => {
+    const add = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="linked-add"]', rootEl);
+    if (add) {
+      event.preventDefault();
+      dispatch(linkedAdd());
+      return;
+    }
+    const remove = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="linked-remove"]', rootEl);
+    if (remove) {
+      event.preventDefault();
+      dispatch(linkedRemove(remove.dataset.name ?? ""));
+    }
+  };
+
   rootEl.addEventListener("input", onInput);
   rootEl.addEventListener("blur", onBlur, true);
   rootEl.addEventListener("keydown", onKeyDown);
   rootEl.addEventListener("change", onChange);
+  rootEl.addEventListener("click", onClick);
   return () => {
     rootEl.removeEventListener("input", onInput);
     rootEl.removeEventListener("blur", onBlur, true);
     rootEl.removeEventListener("keydown", onKeyDown);
     rootEl.removeEventListener("change", onChange);
+    rootEl.removeEventListener("click", onClick);
   };
 }

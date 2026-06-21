@@ -64,17 +64,30 @@ describe("workspace toolbar events", () => {
     off();
   });
 
-  it("enables Draw ROI box only when a single ROI is selected", () => {
+  it("keeps Draw/Pick buttons clickable and shows Tk-style selection prompts", () => {
     const state = fixtureState();
     state.tree.selected = [];
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
     const { root, store } = mount(state);
 
-    expect([...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Draw ROI box")?.disabled).toBe(true);
+    const draw = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Draw ROI box");
+    const pick = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Pick anchor point");
+    expect(draw?.disabled).toBe(false);
+    expect(pick?.disabled).toBe(false);
+
+    click(root, "Draw ROI box");
+    expect(alert).toHaveBeenCalledWith("Select an ROI item first (or Add ROI).");
+    expect(store.getState().canvas.mode).toBe("idle");
+
+    click(root, "Pick anchor point");
+    expect(alert).toHaveBeenCalledWith("Select an Anchor item first (or Add Anchor).");
+    expect(store.getState().canvas.mode).toBe("idle");
 
     store.dispatch({ type: "TREE_CLICK_ITEM", payload: { kind: "roi", name: "roi-1", modifiers: { ctrl: false, shift: false }, region: "body" } });
     renderToolbar(root, store.getState());
 
     expect([...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Draw ROI box")?.disabled).toBe(false);
+    alert.mockRestore();
   });
 
   it("Refresh screenshot posts capture and dispatches CANVAS_FRAME_LOADED", async () => {
@@ -212,13 +225,13 @@ describe("workspace toolbar events", () => {
     off();
   });
 
-  it("Pick anchor point is disabled when no single Anchor is selected", () => {
+  it("Pick anchor point remains clickable when no single Anchor is selected", () => {
     const state = fixtureState();
     state.tree.selected = [];
     const { root } = mount(state);
 
     const button = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Pick anchor point");
-    expect(button?.disabled).toBe(true);
+    expect(button?.disabled).toBe(false);
   });
 
   it("renders Tk-style workspace controls and toggles CLI tools enabled", () => {

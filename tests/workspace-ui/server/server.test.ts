@@ -40,6 +40,7 @@ describe("integrated workspace UI server", () => {
     expect(html).toContain(`/assets/styles.css?token=${encodeURIComponent(server.token)}`);
     expect(html).toContain("data-menu-root");
     expect(html).toContain("data-help-modal-root");
+    expect(html).toContain("data-notice-modal-root");
     expect(html).not.toContain("Set agent workspace");
     expect(html).not.toContain("Use current workspace for agent");
   });
@@ -84,6 +85,20 @@ describe("integrated workspace UI server", () => {
     expect(css).toContain("z-index: 1051;");
     expect(css).toContain(".file-browser-entries");
     expect(css).toContain('button[aria-selected="true"]');
+  });
+
+  it("serves notice dialog CSS for DOM-readable app-owned messages", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/assets/styles.css?token=${server.token}`);
+    const css = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(css).toContain(".notice-backdrop");
+    expect(css).toContain(".notice-dialog");
+    expect(css).toContain(".notice-dialog-message");
+    expect(css).toContain("white-space: pre-wrap;");
+    expect(css).toContain("z-index: 1200;");
   });
 
   it("serves an empty favicon response so browser smoke tests stay noise-free", async () => {

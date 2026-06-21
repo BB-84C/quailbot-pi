@@ -10,6 +10,7 @@ import {
   fileBrowserSaveStarted,
   fileBrowserSaveSucceeded,
   fileBrowserSelect,
+  noticeOpen,
   type Action,
 } from "../actions.js";
 import { postBrowse, postLoad, postSave } from "../api/file-browser.js";
@@ -42,7 +43,7 @@ function errorMessage(response: ResponseWithErrors, fallback: string): string {
 
 function fail(dispatch: (action: Action) => void, message: string, alertUser = false): void {
   dispatch(fileBrowserFailed(message));
-  if (alertUser) window.alert(message);
+  if (alertUser) dispatch(noticeOpen(message));
 }
 
 async function browse(path: string, dispatch: (action: Action) => void): Promise<void> {
@@ -73,7 +74,7 @@ async function loadSelected(dispatch: (action: Action) => void, getState: () => 
       return;
     }
     dispatch(fileBrowserLoadSucceeded(response.path, response.canonicalJson));
-    window.alert(`Loaded ${response.path}`);
+    dispatch(noticeOpen(`Loaded ${response.path}`));
   } catch (error) {
     fail(dispatch, error instanceof Error ? error.message : String(error), true);
   }
@@ -94,7 +95,7 @@ async function saveTarget(targetPath: string, updateCurrent: boolean, dispatch: 
       return;
     }
     dispatch(fileBrowserSaveSucceeded(response.path, updateCurrent));
-    window.alert(`${updateCurrent ? "Saved" : "Exported"} to ${response.path}`);
+    dispatch(noticeOpen(`${updateCurrent ? "Saved" : "Exported"} to ${response.path}`));
   } catch (error) {
     fail(dispatch, error instanceof Error ? error.message : String(error), true);
   }

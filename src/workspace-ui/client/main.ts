@@ -8,6 +8,7 @@ import { attachFileBrowserEvents } from "./events/file-browser.js";
 import { attachFormEvents } from "./events/form.js";
 import { attachItemsTreeEvents } from "./events/items-tree.js";
 import { attachMenuEvents } from "./events/menu.js";
+import { attachNoticeDialogEvents } from "./events/notice-dialog.js";
 import { attachToolbarEvents } from "./events/toolbar.js";
 import { canvasFrameLoaded, formSelectionChanged, startupFinished, startupWorkspaceLoaded, type Action } from "./actions.js";
 import { postCapture, postFetchWorkspace } from "./api/workspace.js";
@@ -19,6 +20,7 @@ import { renderFileBrowserModal } from "./render/file-browser.js";
 import { renderForm } from "./render/form.js";
 import { renderItemsTree } from "./render/items-tree.js";
 import { renderMenu } from "./render/menu.js";
+import { renderNoticeDialog } from "./render/notice-dialog.js";
 import { renderToolbar } from "./render/toolbar.js";
 import { selectionSummary } from "./selectors/form.js";
 import { createStore } from "./store.js";
@@ -127,6 +129,12 @@ function bootstrapWorkspaceUi(): void {
     confirmRoot.dataset.confirmModalRoot = "true";
     helpRoot.after(confirmRoot);
   }
+  let noticeRoot = appRoot.querySelector<HTMLElement>("[data-notice-modal-root]");
+  if (!noticeRoot) {
+    noticeRoot = document.createElement("section");
+    noticeRoot.dataset.noticeModalRoot = "true";
+    confirmRoot.after(noticeRoot);
+  }
 
   const store = createStore();
   window.__quailbotWorkspaceUiBootStep = "create-store";
@@ -149,6 +157,7 @@ function bootstrapWorkspaceUi(): void {
     renderCliImportModal(modalRoot, store.getState());
     renderFileBrowserModal(fileBrowserRoot, store.getState());
     renderConfirmDialog(confirmRoot, store.getState());
+    renderNoticeDialog(noticeRoot, store.getState());
   };
   store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
   window.__quailbotWorkspaceUiBootStep = "initial-render";
@@ -177,6 +186,7 @@ function bootstrapWorkspaceUi(): void {
   appRoot.dataset.workspaceUiBootStep = "attach-toolbar";
   attachToolbarEvents({ root: toolbarRoot, dispatch, getState: store.getState });
   attachConfirmDialogEvents({ root: confirmRoot, dispatch, getState: store.getState });
+  attachNoticeDialogEvents({ root: noticeRoot, dispatch, getState: store.getState });
   window.__quailbotWorkspaceUiBootStep = "attach-menu";
   appRoot.dataset.workspaceUiBootStep = "attach-menu";
   attachMenuEvents({ menuRoot, helpRoot });

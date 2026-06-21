@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { formSelectionChanged, type Action } from "../../../src/workspace-ui/client/actions.js";
 import { attachConfirmDialogEvents } from "../../../src/workspace-ui/client/events/confirm-dialog.js";
+import { attachNoticeDialogEvents } from "../../../src/workspace-ui/client/events/notice-dialog.js";
 import { attachToolbarEvents } from "../../../src/workspace-ui/client/events/toolbar.js";
 import { renderConfirmDialog } from "../../../src/workspace-ui/client/render/confirm-dialog.js";
+import { renderNoticeDialog } from "../../../src/workspace-ui/client/render/notice-dialog.js";
 import { renderToolbar } from "../../../src/workspace-ui/client/render/toolbar.js";
 import { selectionSummary } from "../../../src/workspace-ui/client/selectors/form.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
@@ -14,7 +16,8 @@ function mount(state: AppState = fixtureState()) {
   document.head.innerHTML = '<meta name="quailbot-workspace-ui-token" content="toolbar-token">';
   const root = document.createElement("section");
   const confirmRoot = document.createElement("section");
-  document.body.replaceChildren(root, confirmRoot);
+  const noticeRoot = document.createElement("section");
+  document.body.replaceChildren(root, confirmRoot, noticeRoot);
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
@@ -23,14 +26,18 @@ function mount(state: AppState = fixtureState()) {
     }
     renderToolbar(root, store.getState());
     renderConfirmDialog(confirmRoot, store.getState());
+    renderNoticeDialog(noticeRoot, store.getState());
   };
   renderToolbar(root, store.getState());
   renderConfirmDialog(confirmRoot, store.getState());
+  renderNoticeDialog(noticeRoot, store.getState());
   const off = attachToolbarEvents({ root, dispatch, getState: store.getState });
   const offConfirm = attachConfirmDialogEvents({ root: confirmRoot, dispatch, getState: store.getState });
-  return { root, confirmRoot, store, off: () => {
+  const offNotice = attachNoticeDialogEvents({ root: noticeRoot, dispatch, getState: store.getState });
+  return { root, confirmRoot, noticeRoot, store, off: () => {
     off();
     offConfirm();
+    offNotice();
   } };
 }
 
@@ -77,8 +84,7 @@ describe("workspace toolbar events", () => {
   it("keeps Draw/Pick buttons clickable and shows Tk-style selection prompts", () => {
     const state = fixtureState();
     state.tree.selected = [];
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { root, store } = mount(state);
+    const { root, noticeRoot, store } = mount(state);
 
     const draw = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Draw ROI box");
     const pick = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Pick anchor point");
@@ -86,30 +92,28 @@ describe("workspace toolbar events", () => {
     expect(pick?.disabled).toBe(false);
 
     click(root, "Draw ROI box");
-    expect(alert).toHaveBeenCalledWith("Select an ROI item first (or Add ROI).");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Select an ROI item first (or Add ROI).");
     expect(store.getState().canvas.mode).toBe("idle");
 
     click(root, "Pick anchor point");
-    expect(alert).toHaveBeenCalledWith("Select an Anchor item first (or Add Anchor).");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Select an Anchor item first (or Add Anchor).");
     expect(store.getState().canvas.mode).toBe("idle");
 
     store.dispatch({ type: "TREE_CLICK_ITEM", payload: { kind: "roi", name: "roi-1", modifiers: { ctrl: false, shift: false }, region: "body" } });
     renderToolbar(root, store.getState());
 
     expect([...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Draw ROI box")?.disabled).toBe(false);
-    alert.mockRestore();
   });
 
   it("keeps Draw/Pick idle with a DOM-readable status when no screenshot is loaded", () => {
     const state = fixtureState();
     state.canvas.frame = null;
     state.tree.selected = [{ kind: "roi", name: "roi-1" }];
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { root, store } = mount(state);
+    const { root, noticeRoot, store } = mount(state);
 
     click(root, "Draw ROI box");
 
-    expect(alert).not.toHaveBeenCalled();
+    expect(noticeRoot.querySelector(".notice-dialog")).toBeNull();
     expect(store.getState().canvas.mode).toBe("idle");
     expect(store.getState().startup.error).toBe("No screenshot is loaded. Click Refresh screenshot before drawing or picking on the canvas.");
 
@@ -117,10 +121,9 @@ describe("workspace toolbar events", () => {
     renderToolbar(root, store.getState());
     click(root, "Pick anchor point");
 
-    expect(alert).not.toHaveBeenCalled();
+    expect(noticeRoot.querySelector(".notice-dialog")).toBeNull();
     expect(store.getState().canvas.mode).toBe("idle");
     expect(store.getState().startup.error).toBe("No screenshot is loaded. Click Refresh screenshot before drawing or picking on the canvas.");
-    alert.mockRestore();
   });
 
   it("Refresh screenshot posts capture and dispatches CANVAS_FRAME_LOADED", async () => {

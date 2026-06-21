@@ -1,4 +1,4 @@
-import { canvasBeginDrawRoi, canvasBeginPickAnchor, canvasFrameLoaded, confirmOpen, startupFinished, treeAddItem, workspaceCliEnabledChanged, type Action } from "../actions.js";
+import { canvasBeginDrawRoi, canvasBeginPickAnchor, canvasFrameLoaded, confirmOpen, noticeOpen, startupFinished, treeAddItem, workspaceCliEnabledChanged, type Action } from "../actions.js";
 import { postCapture } from "../api/workspace.js";
 import type { AppState } from "../state.js";
 import { attachScopedActivation, attachScopedEvent } from "./delegation.js";
@@ -61,7 +61,7 @@ export function attachToolbarEvents(args: { root: HTMLElement; dispatch: (action
         return true;
       case "canvas-draw-roi":
         if (!hasSingleSelection(getState(), "roi")) {
-          window.alert("Select an ROI item first (or Add ROI).");
+          dispatch(noticeOpen("Select an ROI item first (or Add ROI)."));
           return true;
         }
         if (!getState().canvas.frame) {
@@ -72,7 +72,7 @@ export function attachToolbarEvents(args: { root: HTMLElement; dispatch: (action
         return true;
       case "canvas-pick-anchor":
         if (!hasSingleSelection(getState(), "anchor")) {
-          window.alert("Select an Anchor item first (or Add Anchor).");
+          dispatch(noticeOpen("Select an Anchor item first (or Add Anchor)."));
           return true;
         }
         if (!getState().canvas.frame) {

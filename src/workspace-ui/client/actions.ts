@@ -116,7 +116,11 @@ export type ConfirmAction =
   | { type: "CONFIRM_OPEN"; payload: { message: string; action: "delete-selected" } }
   | { type: "CONFIRM_CLOSE" };
 
-export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction | WorkspaceAction | ConfirmAction;
+export type NoticeAction =
+  | { type: "NOTICE_OPEN"; payload: { message: string } }
+  | { type: "NOTICE_CLOSE" };
+
+export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction | WorkspaceAction | ConfirmAction | NoticeAction;
 
 export function treeAddItem(kind: "roi" | "anchor" | "group"): Action {
   return { type: "TREE_ADD_ITEM", payload: { kind } };
@@ -304,6 +308,14 @@ export function confirmOpen(message: string, action: "delete-selected"): Action 
 
 export function confirmClose(): Action {
   return { type: "CONFIRM_CLOSE" };
+}
+
+export function noticeOpen(message: string): Action {
+  return { type: "NOTICE_OPEN", payload: { message } };
+}
+
+export function noticeClose(): Action {
+  return { type: "NOTICE_CLOSE" };
 }
 
 export function cliImportProbeStarted(): Action {

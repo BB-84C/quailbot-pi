@@ -5,6 +5,7 @@ import { attachFileBrowserEvents } from "../../../src/workspace-ui/client/events
 import { renderFileBrowserModal } from "../../../src/workspace-ui/client/render/file-browser.js";
 import { renderForm } from "../../../src/workspace-ui/client/render/form.js";
 import { renderMenu } from "../../../src/workspace-ui/client/render/menu.js";
+import { renderNoticeDialog } from "../../../src/workspace-ui/client/render/notice-dialog.js";
 import { renderToolbar } from "../../../src/workspace-ui/client/render/toolbar.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
 import { initialState, type AppState } from "../../../src/workspace-ui/client/state.js";
@@ -28,7 +29,8 @@ function mount(state: AppState) {
   const toolbarRoot = document.createElement("section");
   const menuRoot = document.createElement("section");
   const modalRoot = document.createElement("section");
-  document.body.replaceChildren(menuRoot, toolbarRoot, formRoot, modalRoot);
+  const noticeRoot = document.createElement("section");
+  document.body.replaceChildren(menuRoot, toolbarRoot, formRoot, modalRoot, noticeRoot);
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
@@ -36,13 +38,14 @@ function mount(state: AppState) {
     renderToolbar(toolbarRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderFileBrowserModal(modalRoot, store.getState());
+    renderNoticeDialog(noticeRoot, store.getState());
   };
   renderMenu(menuRoot);
   renderToolbar(toolbarRoot, store.getState());
   renderForm(formRoot, store.getState());
   renderFileBrowserModal(modalRoot, store.getState());
   const off = attachFileBrowserEvents({ formRoots: [toolbarRoot, menuRoot], modalRoot, dispatch, getState: store.getState });
-  return { menuRoot, toolbarRoot, formRoot, modalRoot, store, off };
+  return { menuRoot, toolbarRoot, formRoot, modalRoot, noticeRoot, store, off };
 }
 
 function postedJson(fetchMock: ReturnType<typeof vi.fn>, callIndex: number): Record<string, unknown> {
@@ -57,8 +60,7 @@ describe("file browser save/export flow", () => {
   it("Save posts updateCurrent true and updates currentPath on success", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\active.json", hash: "abcd1234abcd1234" })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { toolbarRoot, formRoot, store } = mount(fixtureState());
+    const { toolbarRoot, formRoot, noticeRoot, store } = mount(fixtureState());
     const expected = buildWorkspaceJson(store.getState().workspace);
 
     expect(formRoot.querySelector('button[data-action="file-browser-save"]')).toBeNull();
@@ -69,7 +71,7 @@ describe("file browser save/export flow", () => {
     expect(body.updateCurrent).toBe(true);
     expect(stringifyWorkspaceJson(body.workspaceJson as Record<string, unknown>)).toBe(stringifyWorkspaceJson(expected));
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\active.json");
-    expect(alert).toHaveBeenCalledWith("Saved to D:\\quailbot\\workspaces\\active.json");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Saved to D:\\quailbot\\workspaces\\active.json");
   });
 
   it("Export posts updateCurrent false and does not update currentPath on success", async () => {
@@ -77,8 +79,7 @@ describe("file browser save/export flow", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\exported.json", hash: "abcd1234abcd1234" })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { menuRoot, formRoot, modalRoot, store } = mount(fixtureState());
+    const { menuRoot, formRoot, modalRoot, noticeRoot, store } = mount(fixtureState());
     const before = store.getState().workspace.currentPath;
 
     expect(formRoot.querySelector('button[data-action="file-browser-export"]')).toBeNull();
@@ -96,14 +97,13 @@ describe("file browser save/export flow", () => {
     expect(body.path).toBe("D:\\quailbot\\workspaces\\exported.json");
     expect(body.updateCurrent).toBe(false);
     expect(store.getState().workspace.currentPath).toBe(before);
-    expect(alert).toHaveBeenCalledWith("Exported to D:\\quailbot\\workspaces\\exported.json");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Exported to D:\\quailbot\\workspaces\\exported.json");
   });
 
   it("ignores background file controls while the file modal is open", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [] })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { menuRoot, toolbarRoot, modalRoot, store } = mount(fixtureState());
+    const { menuRoot, toolbarRoot, modalRoot, noticeRoot, store } = mount(fixtureState());
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
     await flush();
@@ -122,14 +122,13 @@ describe("file browser save/export flow", () => {
     expect(store.getState().fileBrowser.open).toBe(true);
     expect(store.getState().fileBrowser.mode).toBe("export");
     expect(modalRoot.querySelector(".file-browser-modal")).not.toBeNull();
-    expect(alert).not.toHaveBeenCalled();
+    expect(noticeRoot.querySelector(".notice-dialog")).toBeNull();
   });
 
-  it("Save failure alerts the concrete validation message even when no file modal is open", async () => {
+  it("Save failure shows the concrete validation message even when no file modal is open", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false, error: "Duplicate name: 'roi'", errors: [{ code: "duplicate_name", message: "Duplicate name: 'roi'" }] })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { toolbarRoot, modalRoot, store } = mount(fixtureState());
+    const { toolbarRoot, modalRoot, noticeRoot, store } = mount(fixtureState());
 
     toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
     await flush();
@@ -137,16 +136,15 @@ describe("file browser save/export flow", () => {
     expect(store.getState().fileBrowser.open).toBe(false);
     expect(store.getState().fileBrowser.lastError).toBe("Duplicate name: 'roi'");
     expect(modalRoot.querySelector(".file-browser-error")).toBeNull();
-    expect(alert).toHaveBeenCalledWith("Duplicate name: 'roi'");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Duplicate name: 'roi'");
   });
 
-  it("Export failure keeps the modal open and alerts the concrete validation message", async () => {
+  it("Export failure keeps the modal open and shows the concrete validation message", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, errors: [{ code: "roi_nonpositive_dim", message: "ROI 'roi' must have positive w/h" }] })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { menuRoot, formRoot, modalRoot, store } = mount(fixtureState());
+    const { menuRoot, formRoot, modalRoot, noticeRoot, store } = mount(fixtureState());
 
     expect(formRoot.querySelector('button[data-action="file-browser-export"]')).toBeNull();
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
@@ -162,7 +160,7 @@ describe("file browser save/export flow", () => {
     expect(store.getState().fileBrowser.open).toBe(true);
     expect(store.getState().fileBrowser.lastError).toBe("ROI 'roi' must have positive w/h");
     expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("ROI 'roi' must have positive w/h");
-    expect(alert).toHaveBeenCalledWith("ROI 'roi' must have positive w/h");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("ROI 'roi' must have positive w/h");
   });
 
   it("uses the Tk export fallback filename when the current workspace path is empty", () => {

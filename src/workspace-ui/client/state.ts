@@ -98,6 +98,11 @@ export interface ConfirmDialogState {
   action: "delete-selected" | null;
 }
 
+export interface NoticeDialogState {
+  open: boolean;
+  message: string;
+}
+
 export interface StartupWorkspacePayload {
   rois: RoiDraft[];
   anchors: AnchorDraft[];
@@ -134,6 +139,7 @@ export interface AppState {
   cliImport: CliImportState;
   fileBrowser: FileBrowserState;
   confirmDialog: ConfirmDialogState;
+  noticeDialog: NoticeDialogState;
 }
 
 export function initialState(): AppState {
@@ -201,6 +207,10 @@ export function initialState(): AppState {
       open: false,
       message: "",
       action: null,
+    },
+    noticeDialog: {
+      open: false,
+      message: "",
     },
   };
 }
@@ -370,6 +380,29 @@ function confirmDialogReducer(state: AppState, action: Action): AppState {
   }
 }
 
+function noticeDialogReducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case "NOTICE_OPEN":
+      return {
+        ...state,
+        noticeDialog: {
+          open: true,
+          message: action.payload.message,
+        },
+      };
+    case "NOTICE_CLOSE":
+      return {
+        ...state,
+        noticeDialog: {
+          open: false,
+          message: "",
+        },
+      };
+    default:
+      return state;
+  }
+}
+
 export function reduceAppState(state: AppState, action: Action): AppState {
   let nextState: AppState = state;
   if (action.type === "WORKSPACE_CLI_ENABLED_CHANGED") {
@@ -405,6 +438,9 @@ export function reduceAppState(state: AppState, action: Action): AppState {
   }
   if (action.type.startsWith("CONFIRM_")) {
     return pruneMissingSelectedFilterTags(confirmDialogReducer(state, action));
+  }
+  if (action.type.startsWith("NOTICE_")) {
+    return pruneMissingSelectedFilterTags(noticeDialogReducer(state, action));
   }
   if (action.type.startsWith("CLI_IMPORT_")) {
     return pruneMissingSelectedFilterTags(cliImportReducer(state, action));

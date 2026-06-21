@@ -6,6 +6,7 @@ import {
   cliImportResolveCancel,
   cliImportResolveKeepExisting,
   cliImportResolveUseLoaded,
+  noticeOpen,
   type Action,
 } from "../actions.js";
 import { postCliImport } from "../api/cli-import.js";
@@ -22,16 +23,17 @@ function importSuccessMessage(args: { cliName: string; usedSubcommand: string; l
   ].join("\n");
 }
 
-function deferAlert(message: string): void {
-  window.setTimeout(() => window.alert(message), 0);
+function deferNotice(dispatch: (action: Action) => void, message: string): void {
+  window.setTimeout(() => dispatch(noticeOpen(message)), 0);
 }
 
-function alertProbeFailure(cliName: string, error: string): void {
-  deferAlert(`Unable to query capabilities from '${cliName}'.\n${error}`);
+function alertProbeFailure(dispatch: (action: Action) => void, cliName: string, error: string): void {
+  deferNotice(dispatch, `Unable to query capabilities from '${cliName}'.\n${error}`);
 }
 
-function alertResolvedImport(state: AppState, conflictChoice: "keep" | "clean"): void {
-  deferAlert(
+function alertResolvedImport(dispatch: (action: Action) => void, state: AppState, conflictChoice: "keep" | "clean"): void {
+  deferNotice(
+    dispatch,
     importSuccessMessage({
       cliName: state.cliImport.cliName,
       usedSubcommand: state.cliImport.usedSubcommand,
@@ -49,7 +51,7 @@ async function runImport(dispatch: (action: Action) => void, getState: () => App
   if (!cliNamePattern.test(cliName)) {
     const error = "invalid CLI name";
     dispatch(cliImportProbeFailed(error));
-    alertProbeFailure(cliName, error);
+    alertProbeFailure(dispatch, cliName, error);
     return;
   }
   const declared = declaredCliNamesForWorkspace({ ...state.workspace, cliName });
@@ -62,7 +64,7 @@ async function runImport(dispatch: (action: Action) => void, getState: () => App
     if (!response.ok || !response.payload) {
       const error = response.error || "CLI import failed";
       dispatch(cliImportProbeFailed(error));
-      alertProbeFailure(cliName, error);
+      alertProbeFailure(dispatch, cliName, error);
       return;
     }
     const usedSubcommand = response.usedSubcommand === "capacities" ? "capacities" : response.usedSubcommand === "capabilities" ? "capabilities" : "";
@@ -70,7 +72,8 @@ async function runImport(dispatch: (action: Action) => void, getState: () => App
     const mergeResult = mergeCliParamDrafts(getState().workspace.cliParams, loadedDrafts);
     dispatch(cliImportProbeSucceeded({ cliName, usedSubcommand, mergeResult, loadedDrafts }));
     if (mergeResult.conflicts.length === 0) {
-      deferAlert(
+      deferNotice(
+        dispatch,
         importSuccessMessage({
           cliName,
           usedSubcommand,
@@ -84,7 +87,7 @@ async function runImport(dispatch: (action: Action) => void, getState: () => App
   } catch (exc) {
     const error = exc instanceof Error ? exc.message : String(exc);
     dispatch(cliImportProbeFailed(error));
-    alertProbeFailure(cliName, error);
+    alertProbeFailure(dispatch, cliName, error);
   }
 }
 
@@ -105,29 +108,29 @@ export function attachCliImportEvents(args: { formRoot: HTMLElement; modalRoot: 
     const keep = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="cli-import-keep"]', modalRoot);
     if (keep) {
       event.preventDefault();
-      alertResolvedImport(getState(), "keep");
       dispatch(cliImportResolveKeepExisting());
+      alertResolvedImport(dispatch, getState(), "keep");
       return;
     }
     const useLoaded = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="cli-import-use-loaded"]', modalRoot);
     if (useLoaded) {
       event.preventDefault();
-      alertResolvedImport(getState(), "clean");
       dispatch(cliImportResolveUseLoaded());
+      alertResolvedImport(dispatch, getState(), "clean");
       return;
     }
     const cancel = closestWithin<HTMLElement>(event.target, '[data-action="cli-import-cancel"]', modalRoot);
     if (cancel) {
       event.preventDefault();
       dispatch(cliImportResolveCancel());
-      deferAlert("Import cancelled. Existing workspace entries were left unchanged.");
+      deferNotice(dispatch, "Import cancelled. Existing workspace entries were left unchanged.");
     }
   };
   const onModalKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== "Escape") return;
     event.preventDefault();
     dispatch(cliImportResolveCancel());
-    deferAlert("Import cancelled. Existing workspace entries were left unchanged.");
+    deferNotice(dispatch, "Import cancelled. Existing workspace entries were left unchanged.");
   };
   const offFormInput = attachScopedEvent<Event>(formRoot, "input", onFormInput);
   const offFormClick = attachScopedActivation(formRoot, onFormClick);

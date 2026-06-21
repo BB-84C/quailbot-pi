@@ -4,6 +4,7 @@ import { attachFileBrowserEvents } from "../../../src/workspace-ui/client/events
 import { renderFileBrowserModal } from "../../../src/workspace-ui/client/render/file-browser.js";
 import { renderForm } from "../../../src/workspace-ui/client/render/form.js";
 import { renderMenu } from "../../../src/workspace-ui/client/render/menu.js";
+import { renderNoticeDialog } from "../../../src/workspace-ui/client/render/notice-dialog.js";
 import { renderToolbar } from "../../../src/workspace-ui/client/render/toolbar.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
 import { initialState, type AppState } from "../../../src/workspace-ui/client/state.js";
@@ -18,7 +19,8 @@ function mount(state: AppState) {
   const toolbarRoot = document.createElement("section");
   const menuRoot = document.createElement("section");
   const modalRoot = document.createElement("section");
-  document.body.replaceChildren(menuRoot, toolbarRoot, formRoot, modalRoot);
+  const noticeRoot = document.createElement("section");
+  document.body.replaceChildren(menuRoot, toolbarRoot, formRoot, modalRoot, noticeRoot);
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
@@ -26,13 +28,14 @@ function mount(state: AppState) {
     renderToolbar(toolbarRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderFileBrowserModal(modalRoot, store.getState());
+    renderNoticeDialog(noticeRoot, store.getState());
   };
   renderMenu(menuRoot);
   renderToolbar(toolbarRoot, store.getState());
   renderForm(formRoot, store.getState());
   renderFileBrowserModal(modalRoot, store.getState());
   const off = attachFileBrowserEvents({ formRoots: [toolbarRoot, menuRoot], modalRoot, dispatch, getState: store.getState });
-  return { menuRoot, toolbarRoot, formRoot, modalRoot, store, off };
+  return { menuRoot, toolbarRoot, formRoot, modalRoot, noticeRoot, store, off };
 }
 
 describe("file browser load flow", () => {
@@ -47,8 +50,7 @@ describe("file browser load flow", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [{ name: "loaded.json", kind: "file", path: "D:\\quailbot\\workspaces\\loaded.json" }] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\loaded.json", canonicalJson: { rois: [{ name: "loaded-roi", x: 1, y: 2, w: 3, h: 4, description: "", active: true }], anchors: [], groups: [], tools: {} }, summary: { path: "D:\\quailbot\\workspaces\\loaded.json", hash: "abcd1234abcd1234" } })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { menuRoot, formRoot, modalRoot, store } = mount(state);
+    const { menuRoot, formRoot, modalRoot, noticeRoot, store } = mount(state);
 
     expect(formRoot.querySelector('button[data-action="file-browser-load"]')).toBeNull();
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
@@ -61,7 +63,7 @@ describe("file browser load flow", () => {
     expect(fetch).toHaveBeenNthCalledWith(2, "/api/load", expect.objectContaining({ method: "POST" }));
     expect(store.getState().workspace.rois.map((roi) => roi.name)).toEqual(["loaded-roi"]);
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\loaded.json");
-    expect(alert).toHaveBeenCalledWith("Loaded D:\\quailbot\\workspaces\\loaded.json");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Loaded D:\\quailbot\\workspaces\\loaded.json");
   });
 
   it("opens a selected file on a fast second activation like the Tk file dialog double-click path", async () => {
@@ -71,8 +73,7 @@ describe("file browser load flow", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [{ name: "double.json", kind: "file", path: "D:\\quailbot\\workspaces\\double.json" }] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\double.json", canonicalJson: { rois: [{ name: "double-roi", x: 1, y: 2, w: 3, h: 4, description: "", active: true }], anchors: [], groups: [], tools: {} }, summary: { path: "D:\\quailbot\\workspaces\\double.json", hash: "abcd1234abcd1234" } })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { menuRoot, modalRoot, store } = mount(state);
+    const { menuRoot, modalRoot, noticeRoot, store } = mount(state);
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
     await flush();
@@ -84,18 +85,17 @@ describe("file browser load flow", () => {
     expect(fetch).toHaveBeenNthCalledWith(2, "/api/load", expect.objectContaining({ method: "POST" }));
     expect(store.getState().workspace.rois.map((roi) => roi.name)).toEqual(["double-roi"]);
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\double.json");
-    expect(alert).toHaveBeenCalledWith("Loaded D:\\quailbot\\workspaces\\double.json");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Loaded D:\\quailbot\\workspaces\\double.json");
   });
 
-  it("alerts load failures like Tk showerror", async () => {
+  it("shows load failures in the app-owned notice dialog", async () => {
     const state = initialState();
     state.workspace.currentPath = "D:\\quailbot\\workspaces\\active.json";
     const fetch = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [{ name: "broken.json", kind: "file", path: "D:\\quailbot\\workspaces\\broken.json" }] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: "invalid workspace JSON" })));
     vi.stubGlobal("fetch", fetch);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    const { menuRoot, modalRoot, store } = mount(state);
+    const { menuRoot, modalRoot, noticeRoot, store } = mount(state);
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
     await flush();
@@ -106,6 +106,6 @@ describe("file browser load flow", () => {
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\active.json");
     expect(store.getState().fileBrowser.open).toBe(true);
     expect(store.getState().fileBrowser.lastError).toBe("invalid workspace JSON");
-    expect(alert).toHaveBeenCalledWith("invalid workspace JSON");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("invalid workspace JSON");
   });
 });

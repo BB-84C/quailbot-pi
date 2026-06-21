@@ -378,6 +378,7 @@ function renderWorkspacePage(token: string): string {
       <section data-file-browser-modal-root></section>
       <section data-help-modal-root></section>
       <section data-confirm-modal-root></section>
+      <section data-notice-modal-root></section>
     </main>
     <script>window.__quailbotToken = document.querySelector('meta[name="quailbot-workspace-ui-token"]')?.content || "";</script>
     <script src="/assets/client.js?token=${encoded}"></script>
@@ -587,6 +588,44 @@ button, input, select, textarea { font: inherit; }
   border-top: 1px solid #d4d4d4;
 }
 .confirm-dialog-actions button {
+  min-width: 80px;
+}
+.notice-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.35);
+  z-index: 1200;
+}
+.notice-dialog {
+  width: min(460px, 100%);
+  border: 1px solid #657482;
+  border-radius: 4px;
+  background: #f7f7f7;
+  color: #111;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+.notice-dialog h2 {
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #c8ced4;
+  font-size: 1rem;
+}
+.notice-dialog-message {
+  margin: 0;
+  padding: 18px 12px;
+  white-space: pre-wrap;
+}
+.notice-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #d4d4d4;
+}
+.notice-dialog-actions button {
   min-width: 80px;
 }
 .file-browser-backdrop {

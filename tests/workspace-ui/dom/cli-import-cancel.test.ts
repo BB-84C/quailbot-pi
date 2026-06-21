@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Action } from "../../../src/workspace-ui/client/actions.js";
 import { attachCliImportEvents } from "../../../src/workspace-ui/client/events/cli-import.js";
 import { renderCliImportModal } from "../../../src/workspace-ui/client/render/cli-import-modal.js";
+import { renderNoticeDialog } from "../../../src/workspace-ui/client/render/notice-dialog.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
 import { initialState, type AppState } from "../../../src/workspace-ui/client/state.js";
 import type { CliParamDraft } from "../../../src/workspace-ui/shared/model.js";
@@ -51,14 +52,16 @@ function modalState(): AppState {
 function mount() {
   const formRoot = document.createElement("section");
   const modalRoot = document.createElement("section");
+  const noticeRoot = document.createElement("section");
   const store = createStore(modalState());
   const dispatch = (action: Action): void => {
     store.dispatch(action);
     renderCliImportModal(modalRoot, store.getState());
+    renderNoticeDialog(noticeRoot, store.getState());
   };
   renderCliImportModal(modalRoot, store.getState());
   attachCliImportEvents({ formRoot, modalRoot, dispatch, getState: store.getState });
-  return { modalRoot, store };
+  return { modalRoot, noticeRoot, store };
 }
 
 async function flush(): Promise<void> {
@@ -71,26 +74,25 @@ async function flush(): Promise<void> {
 describe("CLI import modal cancellation", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.spyOn(window, "alert").mockImplementation(() => undefined);
   });
 
   it("dispatches cancel on Escape", async () => {
-    const { modalRoot, store } = mount();
+    const { modalRoot, noticeRoot, store } = mount();
 
     modalRoot.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await flush();
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
-    expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Import cancelled. Existing workspace entries were left unchanged.");
   });
 
   it("dispatches cancel when the backdrop is clicked", async () => {
-    const { modalRoot, store } = mount();
+    const { modalRoot, noticeRoot, store } = mount();
 
     modalRoot.querySelector<HTMLElement>(".cli-import-backdrop")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flush();
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
-    expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Import cancelled. Existing workspace entries were left unchanged.");
   });
 });

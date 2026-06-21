@@ -4,6 +4,7 @@ import { formSelectionChanged, type Action } from "../../../src/workspace-ui/cli
 import { attachCliImportEvents } from "../../../src/workspace-ui/client/events/cli-import.js";
 import { renderCliImportModal } from "../../../src/workspace-ui/client/render/cli-import-modal.js";
 import { renderForm } from "../../../src/workspace-ui/client/render/form.js";
+import { renderNoticeDialog } from "../../../src/workspace-ui/client/render/notice-dialog.js";
 import { renderToolbar } from "../../../src/workspace-ui/client/render/toolbar.js";
 import { selectionSummary } from "../../../src/workspace-ui/client/selectors/form.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
@@ -71,18 +72,20 @@ function mount(state = fixtureState()) {
   const formRoot = document.createElement("section");
   const toolbarRoot = document.createElement("section");
   const modalRoot = document.createElement("section");
-  document.body.replaceChildren(toolbarRoot, formRoot, modalRoot);
+  const noticeRoot = document.createElement("section");
+  document.body.replaceChildren(toolbarRoot, formRoot, modalRoot, noticeRoot);
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
     renderToolbar(toolbarRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderCliImportModal(modalRoot, store.getState());
+    renderNoticeDialog(noticeRoot, store.getState());
   };
   dispatch(formSelectionChanged(selectionSummary(store.getState())));
   renderToolbar(toolbarRoot, store.getState());
   const off = attachCliImportEvents({ formRoot: toolbarRoot, modalRoot, dispatch, getState: store.getState });
-  return { toolbarRoot, formRoot, modalRoot, store, dispatch, off };
+  return { toolbarRoot, formRoot, modalRoot, noticeRoot, store, dispatch, off };
 }
 
 async function flush(): Promise<void> {
@@ -95,12 +98,11 @@ async function flush(): Promise<void> {
 describe("CLI import client flow", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.spyOn(window, "alert").mockImplementation(() => undefined);
   });
 
   it("probes, merges, opens conflicts, and applies Use loaded", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ ok: true, payload: capabilitiesPayload(), usedSubcommand: "capabilities", error: "" }) }));
-    const { toolbarRoot, formRoot, modalRoot, store } = mount();
+    const { toolbarRoot, formRoot, modalRoot, noticeRoot, store } = mount();
 
     expect(formRoot.querySelector('button[data-action="cli-import-load"]')).toBeNull();
     toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
@@ -118,12 +120,12 @@ describe("CLI import client flow", () => {
     expect(store.getState().workspace.cliEnabled).toBe(true);
     expect(store.getState().workspace.cliName).toBe("fixturectl");
     expect(store.getState().workspace.cliParams.map((draft) => cliParamToJson(draft))).toEqual(expected);
-    expect(window.alert).toHaveBeenCalledWith("Loaded 1 CLI entries from 'fixturectl capabilities'.\nIdentical skipped: 0. Conflicts: 1 (clean).");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Loaded 1 CLI entries from 'fixturectl capabilities'.\nIdentical skipped: 0. Conflicts: 1 (clean).");
   });
 
   it("Cancel leaves the workspace unchanged", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ ok: true, payload: capabilitiesPayload(), usedSubcommand: "capabilities", error: "" }) }));
-    const { toolbarRoot, formRoot, modalRoot, store } = mount();
+    const { toolbarRoot, formRoot, modalRoot, noticeRoot, store } = mount();
     const before = store.getState().workspace.cliParams.map((draft) => cliParamToJson(draft));
 
     toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
@@ -134,7 +136,7 @@ describe("CLI import client flow", () => {
     expect(store.getState().cliImport.modalOpen).toBe(false);
     expect(store.getState().workspace.cliEnabled).toBe(false);
     expect(store.getState().workspace.cliParams.map((draft) => cliParamToJson(draft))).toEqual(before);
-    expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Import cancelled. Existing workspace entries were left unchanged.");
   });
 
   it("alerts the Tk-style success message when import has no conflicts", async () => {
@@ -149,25 +151,25 @@ describe("CLI import client flow", () => {
         error: "",
       }),
     }));
-    const { toolbarRoot, store } = mount();
+    const { toolbarRoot, noticeRoot, store } = mount();
 
     toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
     await flush();
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
     expect(store.getState().workspace.cliParams.map((draft) => draft.name)).toEqual(["conflict", "new_param"]);
-    expect(window.alert).toHaveBeenCalledWith("Loaded 1 CLI entries from 'fixturectl capacities'.\nIdentical skipped: 0. Conflicts: 0 (none).");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Loaded 1 CLI entries from 'fixturectl capacities'.\nIdentical skipped: 0. Conflicts: 0 (none).");
   });
 
-  it("alerts probe failures like Tk showerror", async () => {
+  it("shows probe failures in the app-owned notice dialog", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ ok: false, usedSubcommand: "capacities", error: "no capacities" }) }));
-    const { toolbarRoot, store } = mount();
+    const { toolbarRoot, noticeRoot, store } = mount();
 
     toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
     await flush();
 
     expect(store.getState().cliImport.lastError).toBe("no capacities");
-    expect(window.alert).toHaveBeenCalledWith("Unable to query capabilities from 'fixturectl'.\nno capacities");
+    expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Unable to query capabilities from 'fixturectl'.\nno capacities");
   });
 
   it("uses the edited native CLI Name input when probing the CLI", async () => {

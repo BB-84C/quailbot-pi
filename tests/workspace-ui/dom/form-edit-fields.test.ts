@@ -49,4 +49,16 @@ describe("right-panel form field editing", () => {
     expect([...store.getState().tree.collapsedGroups]).toEqual(["Renamed"]);
     expect(renderedTreeRows(store.getState()).map((row) => `${row.kind}:${row.name}`)).not.toContain("group:B");
   });
+
+  it("drops selected filter tags that disappear after an item tag edit", () => {
+    const state = selectedState("roi", "roi-1");
+    state.filter.selectedTags = ["r1"];
+    const { root, store } = mountForm(state);
+
+    typeInto(input(root, "tags"), "renamed-tag");
+
+    expect(store.getState().workspace.rois[0]?.tags).toBe("renamed-tag");
+    expect(store.getState().filter.selectedTags).toEqual([]);
+    expect(renderedTreeRows(store.getState()).map((row) => `${row.kind}:${row.name}`)).toContain("roi:roi-1");
+  });
 });

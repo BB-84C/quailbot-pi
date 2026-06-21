@@ -37,6 +37,20 @@ function pointerActivate(root: HTMLElement, label: string): HTMLButtonElement {
   return button;
 }
 
+function pointerClickElement(el: HTMLElement): boolean {
+  el.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, button: 0, cancelable: true }));
+  return el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+}
+
+function pointerClickCheckbox(el: HTMLInputElement): void {
+  const checkedBefore = el.checked;
+  if (!pointerClickElement(el)) return;
+  if (el.checked === checkedBefore) {
+    el.checked = !checkedBefore;
+  }
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 describe("workspace toolbar events", () => {
   it("clicking Add ROI dispatches the tree add action and appends/selects a deduped ROI", () => {
     const { root, store, off } = mount();
@@ -221,8 +235,7 @@ describe("workspace toolbar events", () => {
     expect(cliEnabled?.checked).toBe(false);
 
     if (!cliEnabled) throw new Error("missing CLI tools enabled checkbox");
-    cliEnabled.checked = true;
-    cliEnabled.dispatchEvent(new Event("change", { bubbles: true }));
+    pointerClickCheckbox(cliEnabled);
 
     expect(store.getState().workspace.cliEnabled).toBe(true);
   });

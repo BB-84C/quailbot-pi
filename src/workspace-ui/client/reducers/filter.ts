@@ -9,9 +9,12 @@ export function filterReducer(state: AppState, action: Action): AppState {
       if (!tag) {
         return state;
       }
-      const selectedTags = state.filter.selectedTags.includes(tag)
-        ? state.filter.selectedTags.filter((selected) => selected !== tag)
-        : [...state.filter.selectedTags, tag];
+      const isSelected = state.filter.selectedTags.includes(tag);
+      const shouldSelect = action.payload.selected ?? !isSelected;
+      if (shouldSelect === isSelected) {
+        return state;
+      }
+      const selectedTags = shouldSelect ? [...state.filter.selectedTags, tag] : state.filter.selectedTags.filter((selected) => selected !== tag);
       return { ...state, filter: { ...state.filter, selectedTags } };
     }
     case "FILTER_KEYWORD_CHANGED": {

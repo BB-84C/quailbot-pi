@@ -7,12 +7,26 @@ function change(el: HTMLElement): void {
   el.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+function pointerClick(el: HTMLElement): boolean {
+  el.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, button: 0, cancelable: true }));
+  return el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+}
+
+function pointerClickCheckbox(el: HTMLInputElement): void {
+  const checkedBefore = el.checked;
+  if (!pointerClick(el)) return;
+  if (el.checked === checkedBefore) {
+    el.checked = !checkedBefore;
+  }
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 describe("CLI metadata editing", () => {
   it("writable checkbox commits immediately and re-runs action derivation", () => {
     const { root, store } = mountForm(stateWithCli(writableParam()));
     const writable = checkbox(root, "writable");
-    writable.checked = false;
-    change(writable);
+    expect(writable.checked).toBe(true);
+    pointerClickCheckbox(writable);
     const cli = store.getState().workspace.cliParams[0]!;
     expect(cli.writable).toBe(false);
     expect(cli.allow_set).toBe(false);

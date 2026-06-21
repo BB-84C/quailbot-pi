@@ -19,7 +19,7 @@ function ensureSection(rootEl: HTMLElement): HTMLElement {
   tags.className = "filter-tags";
   tags.dataset.region = "filter-tags";
 
-  const keywordRow = document.createElement("label");
+  const keywordRow = document.createElement("div");
   keywordRow.className = "filter-keyword-row";
   const keywordLabel = document.createElement("span");
   keywordLabel.textContent = "Keyword";
@@ -28,6 +28,7 @@ function ensureSection(rootEl: HTMLElement): HTMLElement {
   keyword.type = "text";
   keyword.className = "filter-keyword";
   keyword.dataset.region = "filter-keyword";
+  keyword.setAttribute("aria-label", "Keyword");
   keyword.placeholder = "keyword (comma-separated terms)";
   keywordRow.append(keywordLabel, keyword);
 

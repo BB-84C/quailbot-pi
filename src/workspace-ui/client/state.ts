@@ -1,7 +1,7 @@
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../shared/model.js";
 import type { CliImportConflict } from "../shared/cli-import.js";
 import { applyCliConflictResolution } from "../shared/cli-import.js";
-import type { FilterState } from "../shared/filter.js";
+import { collectTagCounts, type FilterState } from "../shared/filter.js";
 import type { CaptureFrame } from "../shared/geometry.js";
 import { loadWorkspaceData } from "../shared/parse.js";
 import type { Action, BrowseEntry, CanvasAction, FormAction } from "./actions.js";
@@ -213,6 +213,18 @@ function applyCliImportResolution(state: AppState, preferLoaded: boolean): AppSt
   };
 }
 
+function pruneMissingSelectedFilterTags(state: AppState): AppState {
+  if (state.filter.selectedTags.length === 0) {
+    return state;
+  }
+  const available = new Set(collectTagCounts(state.workspace).map((entry) => entry.tag.toLowerCase()));
+  const selectedTags = state.filter.selectedTags.filter((tag) => available.has(tag.toLowerCase()));
+  if (selectedTags.length === state.filter.selectedTags.length) {
+    return state;
+  }
+  return { ...state, filter: { ...state.filter, selectedTags } };
+}
+
 function cliImportReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "CLI_IMPORT_NAME_CHANGED":
@@ -303,11 +315,13 @@ function fileBrowserReducer(state: AppState, action: Action): AppState {
 }
 
 export function reduceAppState(state: AppState, action: Action): AppState {
+  let nextState: AppState = state;
   if (action.type === "WORKSPACE_CLI_ENABLED_CHANGED") {
-    return { ...state, workspace: { ...state.workspace, cliEnabled: action.payload.value } };
+    nextState = { ...state, workspace: { ...state.workspace, cliEnabled: action.payload.value } };
+    return pruneMissingSelectedFilterTags(nextState);
   }
   if (action.type === "STARTUP_WORKSPACE_LOADED") {
-    return {
+    nextState = {
       ...state,
       workspace: {
         ...state.workspace,
@@ -324,27 +338,29 @@ export function reduceAppState(state: AppState, action: Action): AppState {
       cliImport: { ...state.cliImport, cliName: action.payload.cliName },
       tree: { ...state.tree, selected: [], activeAnchor: null },
     };
+    return pruneMissingSelectedFilterTags(nextState);
   }
   if (action.type === "STARTUP_FINISHED") {
-    return { ...state, startup: { ready: true, error: action.payload.error } };
+    nextState = { ...state, startup: { ready: true, error: action.payload.error } };
+    return pruneMissingSelectedFilterTags(nextState);
   }
   if (action.type.startsWith("FILE_BROWSER_")) {
-    return fileBrowserReducer(state, action);
+    return pruneMissingSelectedFilterTags(fileBrowserReducer(state, action));
   }
   if (action.type.startsWith("CLI_IMPORT_")) {
-    return cliImportReducer(state, action);
+    return pruneMissingSelectedFilterTags(cliImportReducer(state, action));
   }
   if (action.type.startsWith("TREE_")) {
-    return treeReducer(state, action);
+    return pruneMissingSelectedFilterTags(treeReducer(state, action));
   }
   if (action.type.startsWith("CANVAS_")) {
-    return canvasReducer(state, action as CanvasAction);
+    return pruneMissingSelectedFilterTags(canvasReducer(state, action as CanvasAction));
   }
   if (action.type.startsWith("FORM_") || action.type.startsWith("LINKED_")) {
-    return formReducer(state, action as FormAction);
+    return pruneMissingSelectedFilterTags(formReducer(state, action as FormAction));
   }
   if (action.type.startsWith("FILTER_")) {
-    return filterReducer(state, action);
+    return pruneMissingSelectedFilterTags(filterReducer(state, action));
   }
-  return state;
+  return pruneMissingSelectedFilterTags(state);
 }

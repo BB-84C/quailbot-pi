@@ -82,7 +82,7 @@ export type FormAction =
   | { type: "LINKED_REMOVE"; payload: { value: string } };
 
 export type FilterAction =
-  | { type: "FILTER_TOGGLE_TAG"; payload: { tag: string } }
+  | { type: "FILTER_TOGGLE_TAG"; payload: { tag: string; selected?: boolean } }
   | { type: "FILTER_KEYWORD_CHANGED"; payload: { text: string } }
   | { type: "FILTER_TOGGLE_LOGIC" }
   | { type: "FILTER_CLEAR" };
@@ -270,8 +270,8 @@ export function linkedRemove(value: string): Action {
   return { type: "LINKED_REMOVE", payload: { value } };
 }
 
-export function filterToggleTag(tag: string): Action {
-  return { type: "FILTER_TOGGLE_TAG", payload: { tag } };
+export function filterToggleTag(tag: string, selected?: boolean): Action {
+  return { type: "FILTER_TOGGLE_TAG", payload: { tag, selected } };
 }
 
 export function filterKeywordChanged(text: string): Action {

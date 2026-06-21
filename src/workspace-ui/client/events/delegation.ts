@@ -33,17 +33,40 @@ export function attachScopedEvent<T extends Event>(
   };
 }
 
-export function attachScopedActivation(root: HTMLElement, handler: (event: MouseEvent) => void): () => void {
+function usesNativeFormDefault(target: EventTarget | null, root: HTMLElement): boolean {
+  if (!(target instanceof Element)) return false;
+  const checkbox = target.closest<HTMLInputElement>('input[type="checkbox"]');
+  if (checkbox && root.contains(checkbox)) return false;
+  const checkboxLabel = target.closest("label");
+  if (checkboxLabel && root.contains(checkboxLabel) && checkboxLabel.querySelector('input[type="checkbox"]')) return false;
+  const control = target.closest("input, textarea, select, option, label");
+  return Boolean(control && root.contains(control));
+}
+
+export function attachScopedActivation(root: HTMLElement, handler: (event: MouseEvent) => void | boolean): () => void {
   let suppressedTarget: EventTarget | null = null;
   let suppressClickUntil = 0;
 
   const onPointerUp = (event: PointerEvent): void => {
     if (event.button !== 0) return;
+    if (usesNativeFormDefault(event.target, root)) {
+      suppressedTarget = null;
+      suppressClickUntil = 0;
+      return;
+    }
+    const handled = handler(event as unknown as MouseEvent) === true || event.defaultPrevented;
+    if (!handled) {
+      suppressedTarget = null;
+      suppressClickUntil = 0;
+      return;
+    }
     suppressedTarget = event.target;
     suppressClickUntil = Date.now() + 750;
-    handler(event as unknown as MouseEvent);
   };
   const onClick = (event: MouseEvent): void => {
+    if (usesNativeFormDefault(event.target, root)) {
+      return;
+    }
     if (event.target === suppressedTarget && Date.now() < suppressClickUntil) {
       event.preventDefault();
       return;

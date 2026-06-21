@@ -8,7 +8,7 @@ export function attachFilterEvents(rootEl: HTMLElement, dispatch: (action: Actio
     if (!tag) {
       return;
     }
-    dispatch(filterToggleTag(tag));
+    dispatch(filterToggleTag(tag, checkbox.checked));
   };
 
   const onInput = (event: Event): void => {
@@ -19,17 +19,31 @@ export function attachFilterEvents(rootEl: HTMLElement, dispatch: (action: Actio
     dispatch(filterKeywordChanged(input.value));
   };
 
-  const onClick = (event: MouseEvent): void => {
+  const onClick = (event: MouseEvent): boolean => {
+    const checkbox =
+      closestWithin<HTMLInputElement>(event.target, 'input[data-action="toggle-tag"][data-tag]', rootEl) ??
+      closestWithin<HTMLLabelElement>(event.target, "label.filter-tag", rootEl)?.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag]');
+    const tag = checkbox?.dataset.tag;
+    if (checkbox && tag) {
+      event.preventDefault();
+      dispatch(filterToggleTag(tag, !checkbox.checked));
+      return true;
+    }
+
     const logic = closestWithin<HTMLButtonElement>(event.target, '[data-action="toggle-logic"]', rootEl);
     if (logic) {
+      event.preventDefault();
       dispatch(filterToggleLogic());
-      return;
+      return true;
     }
 
     const clear = closestWithin<HTMLButtonElement>(event.target, '[data-action="filter-clear"]', rootEl);
     if (clear) {
+      event.preventDefault();
       dispatch(filterClear());
+      return true;
     }
+    return false;
   };
 
   const offChange = attachScopedEvent<Event>(rootEl, "change", onChange);

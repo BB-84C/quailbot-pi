@@ -25,17 +25,46 @@ function mount(state = fixtureState()) {
   return { root, store, off };
 }
 
+function pointerClick(el: HTMLElement): boolean {
+  el.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, button: 0, cancelable: true }));
+  return el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+}
+
+function pointerClickCheckbox(el: HTMLInputElement): void {
+  const checkedBefore = el.checked;
+  if (!pointerClick(el)) return;
+  if (el.checked === checkedBefore) {
+    el.checked = !checkedBefore;
+  }
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 describe("filter panel events", () => {
   it("dispatches tag checkbox changes through the reducer to add and remove lowercase selected tags", () => {
     const { root, store, off } = mount();
     const checkbox = root.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag="Alpha"]');
     expect(checkbox).not.toBeNull();
 
+    checkbox!.checked = true;
     checkbox?.dispatchEvent(new Event("change", { bubbles: true }));
     expect(store.getState().filter.selectedTags).toEqual(["alpha"]);
 
-    root.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag="Alpha"]')?.dispatchEvent(new Event("change", { bubbles: true }));
+    const nextCheckbox = root.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag="Alpha"]');
+    nextCheckbox!.checked = false;
+    nextCheckbox?.dispatchEvent(new Event("change", { bubbles: true }));
     expect(store.getState().filter.selectedTags).toEqual([]);
+    off();
+  });
+
+  it("keeps native checkbox clicks working after pointer activation", () => {
+    const { root, store, off } = mount();
+    const checkbox = root.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag="Alpha"]');
+    expect(checkbox).not.toBeNull();
+
+    pointerClickCheckbox(checkbox!);
+
+    expect(store.getState().filter.selectedTags).toEqual(["alpha"]);
+    expect(root.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag="Alpha"]')?.checked).toBe(true);
     off();
   });
 
@@ -58,6 +87,16 @@ describe("filter panel events", () => {
     expect(store.getState().filter.logic).toBe("OR");
     root.querySelector<HTMLButtonElement>('.filter-logic-toggle[data-action="toggle-logic"]')?.click();
     expect(store.getState().filter.logic).toBe("AND");
+  });
+
+  it("does not double-toggle AND/OR when pointerup is followed by click", () => {
+    const { root, store } = mount();
+    const logic = root.querySelector<HTMLButtonElement>('.filter-logic-toggle[data-action="toggle-logic"]');
+    expect(logic).not.toBeNull();
+
+    pointerClick(logic!);
+
+    expect(store.getState().filter.logic).toBe("OR");
   });
 
   it("clears selected tags and keyword state while preserving current logic", () => {

@@ -31,18 +31,18 @@ export function attachItemsTreeEvents(rootEl: HTMLElement, dispatch: (action: Ac
     dispatch(treeDoubleClickItem("group", name));
   };
 
-  const onClick = (event: MouseEvent): void => {
+  const onClick = (event: MouseEvent): boolean => {
     const row = rowFromEvent(event.target, rootEl);
     if (!row) {
       lastBodyActivation = null;
-      return;
+      return false;
     }
     const now = Date.now();
     if (row.region === "body" && row.kind === "group") {
       if (lastBodyActivation?.kind === row.kind && lastBodyActivation.name === row.name && now - lastBodyActivation.time <= 650) {
         lastBodyActivation = null;
         collapseGroup(row.name);
-        return;
+        return true;
       }
       lastBodyActivation = { kind: row.kind, name: row.name, time: now };
     } else {
@@ -50,17 +50,18 @@ export function attachItemsTreeEvents(rootEl: HTMLElement, dispatch: (action: Ac
     }
     if (row.region === "toggle") {
       dispatch(treeClickItem({ kind: row.kind, name: row.name, region: "toggle", modifiers: { ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey } }));
-      return;
+      return true;
     }
     if (event.shiftKey) {
       dispatch(treeShiftRange(row.kind, row.name));
-      return;
+      return true;
     }
     if (event.ctrlKey || event.metaKey) {
       dispatch(treeCtrlToggleRow(row.kind, row.name));
-      return;
+      return true;
     }
     dispatch(treeClickItem({ kind: row.kind, name: row.name, region: "body", modifiers: { ctrl: false, shift: false } }));
+    return true;
   };
 
   const onDoubleClick = (event: MouseEvent): void => {

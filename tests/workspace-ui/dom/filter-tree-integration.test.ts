@@ -59,7 +59,9 @@ describe("filter and items tree integration", () => {
   it("rerenders tree rows from shared subtreeVisibility after tag and keyword changes", () => {
     const { filterRoot, treeRoot, store } = mount();
 
-    filterRoot.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag="physics"]')?.dispatchEvent(new Event("change", { bubbles: true }));
+    const physics = filterRoot.querySelector<HTMLInputElement>('input[data-action="toggle-tag"][data-tag="physics"]');
+    physics!.checked = true;
+    physics?.dispatchEvent(new Event("change", { bubbles: true }));
     expect(rowKeys(treeRoot)).toEqual(expectedVisibleKeys(store.getState()));
     expect(rowKeys(treeRoot)).not.toContain("roi:drop-roi");
 

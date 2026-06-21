@@ -134,24 +134,43 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
     dispatch(formEditGroup(select.value));
   };
 
-  const onClick = (event: MouseEvent): void => {
+  const onClick = (event: MouseEvent): boolean => {
+    const cliCheckbox =
+      event.target instanceof Element
+        ? (event.target.closest<HTMLInputElement>('input[data-cli-meta="writable"], input[data-cli-meta="rampEnabled"]') ??
+            event.target.closest<HTMLLabelElement>("label.form-row")?.querySelector<HTMLInputElement>('input[data-cli-meta="writable"], input[data-cli-meta="rampEnabled"]'))
+        : null;
+    if (cliCheckbox && rootEl.contains(cliCheckbox)) {
+      event.preventDefault();
+      if (cliCheckbox.dataset.cliMeta === "writable") {
+        dispatch(formEditCliWritable(!cliCheckbox.checked));
+        return true;
+      }
+      if (cliCheckbox.dataset.cliMeta === "rampEnabled") {
+        dispatch(formEditCliRampEnabled(!cliCheckbox.checked));
+        return true;
+      }
+    }
+
     const add = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="linked-add"]', rootEl);
     if (add) {
       event.preventDefault();
       dispatch(linkedAdd());
-      return;
+      return true;
     }
     const linkedItem = closestWithin<HTMLElement>(event.target, '[data-action="linked-select"][data-name]', rootEl);
     if (linkedItem) {
       event.preventDefault();
       dispatch(linkedSelect(linkedItem.dataset.name ?? "", { ctrl: event.ctrlKey || event.metaKey }));
-      return;
+      return true;
     }
     const removeSelected = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="linked-remove-selected"]', rootEl);
     if (removeSelected) {
       event.preventDefault();
       dispatch(linkedRemoveSelected());
+      return true;
     }
+    return false;
   };
 
   const offInput = attachScopedEvent<Event>(rootEl, "input", onInput);

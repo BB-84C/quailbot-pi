@@ -21,38 +21,51 @@ async function refreshCapture(dispatch: (action: Action) => void): Promise<void>
 
 export function attachToolbarEvents(args: { root: HTMLElement; dispatch: (action: Action) => void; getState: () => AppState }): () => void {
   const { root, dispatch, getState } = args;
-  const onClick = (event: MouseEvent): void => {
+  const onClick = (event: MouseEvent): boolean => {
+    const cliEnabled =
+      event.target instanceof Element
+        ? (event.target.closest<HTMLInputElement>('input[data-action="cli-tools-enabled"]') ??
+            event.target.closest<HTMLLabelElement>("label.toolbar-check")?.querySelector<HTMLInputElement>('input[data-action="cli-tools-enabled"]'))
+        : null;
+    if (cliEnabled && root.contains(cliEnabled)) {
+      event.preventDefault();
+      dispatch(workspaceCliEnabledChanged(!cliEnabled.checked));
+      return true;
+    }
+
     const clicked = closestButton(event.target, root);
-    if (!clicked || clicked.disabled) return;
+    if (!clicked || clicked.disabled) return false;
     event.preventDefault();
     switch (clicked.dataset.action) {
       case "tree-add-roi":
         dispatch(treeAddItem("roi"));
-        return;
+        return true;
       case "tree-add-anchor":
         dispatch(treeAddItem("anchor"));
-        return;
+        return true;
       case "tree-add-group":
         dispatch(treeAddItem("group"));
-        return;
+        return true;
       case "capture-refresh":
         void refreshCapture(dispatch);
-        return;
+        return true;
       case "canvas-draw-roi":
         dispatch(canvasBeginDrawRoi());
-        return;
+        return true;
       case "canvas-pick-anchor":
         dispatch(canvasBeginPickAnchor());
-        return;
+        return true;
       case "tree-delete": {
         const count = getState().tree.selected.length;
-        if (count === 0) return;
+        if (count === 0) return true;
         const prompt = count === 1 ? "Delete selected item?" : `Delete ${count} selected items?`;
         if (window.confirm(prompt)) {
           dispatch(treeDeleteSelected());
         }
+        return true;
       }
     }
+    return false;
   };
   const onChange = (event: Event): void => {
     const target = event.target;

@@ -96,4 +96,43 @@ describe("file browser save/export flow", () => {
     expect(store.getState().workspace.currentPath).toBe(before);
     expect(alert).toHaveBeenCalledWith("Exported to D:\\quailbot\\workspaces\\exported.json");
   });
+
+  it("Save failure alerts the concrete validation message even when no file modal is open", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false, error: "Duplicate name: 'roi'", errors: [{ code: "duplicate_name", message: "Duplicate name: 'roi'" }] })));
+    vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const { toolbarRoot, modalRoot, store } = mount(fixtureState());
+
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
+    await flush();
+
+    expect(store.getState().fileBrowser.open).toBe(false);
+    expect(store.getState().fileBrowser.lastError).toBe("Duplicate name: 'roi'");
+    expect(modalRoot.querySelector(".file-browser-error")).toBeNull();
+    expect(alert).toHaveBeenCalledWith("Duplicate name: 'roi'");
+  });
+
+  it("Export failure keeps the modal open and alerts the concrete validation message", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, errors: [{ code: "roi_nonpositive_dim", message: "ROI 'roi' must have positive w/h" }] })));
+    vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const { menuRoot, formRoot, modalRoot, store } = mount(fixtureState());
+
+    expect(formRoot.querySelector('button[data-action="file-browser-export"]')).toBeNull();
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
+    await flush();
+    const input = modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]');
+    if (!input) throw new Error("missing export filename input");
+    input.value = "exported.json";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
+    await flush();
+
+    expect(store.getState().fileBrowser.open).toBe(true);
+    expect(store.getState().fileBrowser.lastError).toBe("ROI 'roi' must have positive w/h");
+    expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("ROI 'roi' must have positive w/h");
+    expect(alert).toHaveBeenCalledWith("ROI 'roi' must have positive w/h");
+  });
 });

@@ -86,4 +86,26 @@ describe("file browser load flow", () => {
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\double.json");
     expect(alert).toHaveBeenCalledWith("Loaded D:\\quailbot\\workspaces\\double.json");
   });
+
+  it("alerts load failures like Tk showerror", async () => {
+    const state = initialState();
+    state.workspace.currentPath = "D:\\quailbot\\workspaces\\active.json";
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [{ name: "broken.json", kind: "file", path: "D:\\quailbot\\workspaces\\broken.json" }] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: "invalid workspace JSON" })));
+    vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
+    await flush();
+    modalRoot.querySelector<HTMLButtonElement>('button[data-file-browser-entry="file"]')?.click();
+    modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-open"]')?.click();
+    await flush();
+
+    expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\active.json");
+    expect(store.getState().fileBrowser.open).toBe(true);
+    expect(store.getState().fileBrowser.lastError).toBe("invalid workspace JSON");
+    expect(alert).toHaveBeenCalledWith("invalid workspace JSON");
+  });
 });

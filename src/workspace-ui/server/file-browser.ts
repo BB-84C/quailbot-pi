@@ -83,7 +83,7 @@ export function saveWorkspaceFile(args: SaveWorkspaceArgs): SaveWorkspaceResult 
     const drafts = loadWorkspaceData(raw);
     const validation = validateAndNormalizeForSave(drafts);
     if (!validation.ok) {
-      return { ok: false, error: "workspace validation failed", errors: validation.errors };
+      return { ok: false, error: validation.errors[0]?.message ?? "workspace validation failed", errors: validation.errors };
     }
     const normalizedJson = buildWorkspaceJson({ raw, ...drafts });
     const bytes = stringifyWorkspaceJson(normalizedJson);

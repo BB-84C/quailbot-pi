@@ -17,6 +17,8 @@ import type { AppState } from "../state.js";
 import { buildWorkspaceJson } from "../../shared/serialize.js";
 import { attachScopedActivation, attachScopedEvent, closestWithin } from "./delegation.js";
 
+type ResponseWithErrors = { error?: string; errors?: unknown[] };
+
 function dirnameLike(filePath: string): string {
   const slash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
   return slash > 0 ? filePath.slice(0, slash) : filePath;
@@ -28,43 +30,58 @@ function joinLike(dir: string, name: string): string {
   return dir.endsWith("\\") || dir.endsWith("/") ? `${dir}${name}` : `${dir}${sep}${name}`;
 }
 
+function errorMessage(response: ResponseWithErrors, fallback: string): string {
+  if (typeof response.error === "string" && response.error.trim()) return response.error;
+  const firstError = response.errors?.[0];
+  if (firstError && typeof firstError === "object" && "message" in firstError) {
+    const message = (firstError as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
+function fail(dispatch: (action: Action) => void, message: string, alertUser = false): void {
+  dispatch(fileBrowserFailed(message));
+  if (alertUser) window.alert(message);
+}
+
 async function browse(path: string, dispatch: (action: Action) => void): Promise<void> {
   dispatch(fileBrowserNav(path));
   try {
     const response = await postBrowse(path);
     if (!response.ok || !response.entries || !response.resolved) {
-      dispatch(fileBrowserFailed(response.error || "Browse failed"));
+      fail(dispatch, errorMessage(response, "Browse failed"));
       return;
     }
     dispatch(fileBrowserBrowseResult(response.entries, response.resolved));
   } catch (error) {
-    dispatch(fileBrowserFailed(error instanceof Error ? error.message : String(error)));
+    fail(dispatch, error instanceof Error ? error.message : String(error));
   }
 }
 
 async function loadSelected(dispatch: (action: Action) => void, getState: () => AppState): Promise<void> {
   const selected = getState().fileBrowser.selectedFile;
   if (!selected) {
-    dispatch(fileBrowserFailed("Select a workspace JSON file"));
+    fail(dispatch, "Select a workspace JSON file");
     return;
   }
   dispatch(fileBrowserLoadStarted());
   try {
     const response = await postLoad(selected);
     if (!response.ok || !response.path || !response.canonicalJson) {
-      dispatch(fileBrowserFailed(response.error || "Load failed"));
+      fail(dispatch, errorMessage(response, "Load failed"), true);
       return;
     }
     dispatch(fileBrowserLoadSucceeded(response.path, response.canonicalJson));
     window.alert(`Loaded ${response.path}`);
   } catch (error) {
-    dispatch(fileBrowserFailed(error instanceof Error ? error.message : String(error)));
+    fail(dispatch, error instanceof Error ? error.message : String(error), true);
   }
 }
 
 async function saveTarget(targetPath: string, updateCurrent: boolean, dispatch: (action: Action) => void, getState: () => AppState): Promise<void> {
   if (!targetPath) {
-    dispatch(fileBrowserFailed("Save path is required"));
+    fail(dispatch, "Save path is required", true);
     return;
   }
   dispatch(fileBrowserSaveStarted());
@@ -73,13 +90,13 @@ async function saveTarget(targetPath: string, updateCurrent: boolean, dispatch: 
   try {
     const response = await postSave(targetPath, workspaceJson, updateCurrent);
     if (!response.ok || !response.path) {
-      dispatch(fileBrowserFailed(response.error || "Save failed"));
+      fail(dispatch, errorMessage(response, "Save failed"), true);
       return;
     }
     dispatch(fileBrowserSaveSucceeded(response.path, updateCurrent));
     window.alert(`${updateCurrent ? "Saved" : "Exported"} to ${response.path}`);
   } catch (error) {
-    dispatch(fileBrowserFailed(error instanceof Error ? error.message : String(error)));
+    fail(dispatch, error instanceof Error ? error.message : String(error), true);
   }
 }
 

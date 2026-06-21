@@ -127,6 +127,19 @@ describe("integrated workspace UI server", () => {
     expect(body).toEqual({ ok: false, error: "not found" });
   });
 
+  it("returns the first Tk-style validation message when saving an invalid workspace", async () => {
+    const { server, workspacePath } = await startServerWithWorkspace("nqctl");
+    const workspaceJson = minimalWorkspace("nqctl");
+    workspaceJson.groups = [{ name: "current", active: true }];
+
+    const response = await postJson(server, "/api/save", { path: workspacePath, workspaceJson, updateCurrent: true });
+    const body = (await response.json()) as { ok: false; error: string; errors: Array<{ code: string; message: string }> };
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe("Duplicate name: 'current'");
+    expect(body.errors[0]).toMatchObject({ code: "duplicate_name", message: "Duplicate name: 'current'" });
+  });
+
   it("returns a 4xx response for invalid JSON request bodies", async () => {
     const { server } = await startServerWithWorkspace();
 

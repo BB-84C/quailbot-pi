@@ -56,7 +56,7 @@ describe("workspace shared save validation", () => {
     const result = validateAndNormalizeForSave({ rois: [roi({ name: "same" })], anchors: [], groups: [group({ name: "same" })], cliParams: [] });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors[0]).toMatchObject({ code: "duplicate_name", name: "same" });
+    if (!result.ok) expect(result.errors[0]).toMatchObject({ code: "duplicate_name", name: "same", message: "Duplicate name: 'same'" });
   });
 
   it("reports empty names", () => {
@@ -71,6 +71,7 @@ describe("workspace shared save validation", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.some((error) => error.code === "roi_nonpositive_dim" && error.name === "bad")).toBe(true);
+    if (!result.ok) expect(result.errors.find((error) => error.code === "roi_nonpositive_dim")?.message).toBe("ROI 'bad' must have positive w/h");
   });
 
   it("filters anchor links, dedupes CLI links, and resets orphan groups", () => {
@@ -94,6 +95,6 @@ describe("workspace shared save validation", () => {
     const result = validateAndNormalizeForSave({ rois: [], anchors: [], groups, cliParams: [] });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors[0]).toMatchObject({ code: "group_cycle" });
+    if (!result.ok) expect(result.errors[0]).toMatchObject({ code: "group_cycle", message: "Group cycle detected at 'a'" });
   });
 });

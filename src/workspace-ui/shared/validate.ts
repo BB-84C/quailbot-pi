@@ -27,6 +27,14 @@ function applyForcedRoiActivation(rois: RoiDraft[], anchors: AnchorDraft[]): voi
   }
 }
 
+function pythonStringRepr(value: string): string {
+  const escapedBackslashes = value.replaceAll("\\", "\\\\");
+  if (escapedBackslashes.includes("'") && !escapedBackslashes.includes('"')) {
+    return `"${escapedBackslashes.replaceAll('"', '\\"')}"`;
+  }
+  return `'${escapedBackslashes.replaceAll("'", "\\'")}'`;
+}
+
 export function validateAndNormalizeForSave(args: {
   rois: RoiDraft[];
   anchors: AnchorDraft[];
@@ -45,12 +53,12 @@ export function validateAndNormalizeForSave(args: {
       continue;
     }
     if (names.has(roi.name)) {
-      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${JSON.stringify(roi.name)}`, itemKind: "roi", name: roi.name });
+      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${pythonStringRepr(roi.name)}`, itemKind: "roi", name: roi.name });
     }
     names.add(roi.name);
     roiNames.add(roi.name);
     if (roi.w <= 0 || roi.h <= 0) {
-      addError(errors, { code: "roi_nonpositive_dim", message: `ROI ${JSON.stringify(roi.name)} must have positive w/h`, itemKind: "roi", name: roi.name });
+      addError(errors, { code: "roi_nonpositive_dim", message: `ROI ${pythonStringRepr(roi.name)} must have positive w/h`, itemKind: "roi", name: roi.name });
     }
   }
 
@@ -60,7 +68,7 @@ export function validateAndNormalizeForSave(args: {
       continue;
     }
     if (names.has(anchor.name)) {
-      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${JSON.stringify(anchor.name)}`, itemKind: "anchor", name: anchor.name });
+      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${pythonStringRepr(anchor.name)}`, itemKind: "anchor", name: anchor.name });
     }
     names.add(anchor.name);
     anchor.linked_rois = (anchor.linked_rois || []).filter((name) => roiNames.has(name));
@@ -72,7 +80,7 @@ export function validateAndNormalizeForSave(args: {
       continue;
     }
     if (names.has(param.name)) {
-      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${JSON.stringify(param.name)}`, itemKind: "cli", name: param.name });
+      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${pythonStringRepr(param.name)}`, itemKind: "cli", name: param.name });
     }
     names.add(param.name);
     const normalizedLinks: string[] = [];
@@ -93,7 +101,7 @@ export function validateAndNormalizeForSave(args: {
       continue;
     }
     if (names.has(group.name)) {
-      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${JSON.stringify(group.name)}`, itemKind: "group", name: group.name });
+      addError(errors, { code: "duplicate_name", message: `Duplicate name: ${pythonStringRepr(group.name)}`, itemKind: "group", name: group.name });
     }
     names.add(group.name);
     groupNames.add(group.name);
@@ -125,7 +133,7 @@ export function validateAndNormalizeForSave(args: {
     let current: GroupDraft | undefined = group;
     while (current?.group) {
       if (seen.has(current.group)) {
-        addError(errors, { code: "group_cycle", message: `Group cycle detected at ${JSON.stringify(current.name)}`, itemKind: "group", name: current.name });
+        addError(errors, { code: "group_cycle", message: `Group cycle detected at ${pythonStringRepr(current.name)}`, itemKind: "group", name: current.name });
         break;
       }
       seen.add(current.group);

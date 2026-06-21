@@ -56,6 +56,21 @@ describe("integrated workspace UI server", () => {
     expect(actual.equals(expected)).toBe(true);
   });
 
+  it("serves responsive CSS that keeps the workspace panes reachable on narrow viewports", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/assets/styles.css?token=${server.token}`);
+    const css = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/css");
+    expect(css).toContain("@media (max-width: 1180px)");
+    expect(css).toContain('"canvas"');
+    expect(css).toContain('"items"');
+    expect(css).toContain('"form"');
+    expect(css).toContain("overflow: auto;");
+  });
+
   it("serves an empty favicon response so browser smoke tests stay noise-free", async () => {
     const { server } = await startServerWithWorkspace();
 

@@ -589,6 +589,31 @@ button, input, select, textarea { font: inherit; }
 .confirm-dialog-actions button {
   min-width: 80px;
 }
+@media (max-width: 1180px) {
+  .workspace-ui-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(280px, 45vh) minmax(320px, auto) minmax(360px, auto);
+    grid-template-areas:
+      "menu"
+      "startup"
+      "canvas"
+      "items"
+      "form";
+    overflow: auto;
+  }
+  .workspace-pane {
+    min-width: 0;
+  }
+  .workspace-pane-canvas {
+    min-height: 280px;
+  }
+  .workspace-pane-items {
+    min-height: 320px;
+  }
+  .workspace-pane-form {
+    min-height: 360px;
+  }
+}
 `;
 
 function sendDistAsset(response: ServerResponse, path: string, contentType: string): void {

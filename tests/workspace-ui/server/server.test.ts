@@ -71,6 +71,21 @@ describe("integrated workspace UI server", () => {
     expect(css).toContain("overflow: auto;");
   });
 
+  it("serves file browser modal CSS so load/export opens as an overlay", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/assets/styles.css?token=${server.token}`);
+    const css = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(css).toContain(".file-browser-backdrop");
+    expect(css).toContain(".file-browser-modal");
+    expect(css).toContain("position: fixed;");
+    expect(css).toContain("z-index: 1051;");
+    expect(css).toContain(".file-browser-entries");
+    expect(css).toContain('button[aria-selected="true"]');
+  });
+
   it("serves an empty favicon response so browser smoke tests stay noise-free", async () => {
     const { server } = await startServerWithWorkspace();
 

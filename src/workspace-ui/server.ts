@@ -589,6 +589,82 @@ button, input, select, textarea { font: inherit; }
 .confirm-dialog-actions button {
   min-width: 80px;
 }
+.file-browser-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.35);
+  z-index: 1050;
+}
+.file-browser-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 1051;
+  display: grid;
+  gap: 10px;
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  padding: 12px;
+  border: 1px solid #657482;
+  border-radius: 4px;
+  background: #f7f7f7;
+  color: #111;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+.file-browser-modal h2,
+.file-browser-path {
+  margin: 0;
+}
+.file-browser-path {
+  overflow-wrap: anywhere;
+  color: #333;
+}
+.file-browser-entries {
+  min-height: 10rem;
+  max-height: min(22rem, 45vh);
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid #b8b8b8;
+  background: #fff;
+  list-style: none;
+}
+.file-browser-entries li + li {
+  margin-top: 2px;
+}
+.file-browser-entries button {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+.file-browser-entries button[aria-selected="true"] {
+  background: #2f68a3;
+  color: #fff;
+}
+.file-browser-filename-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.file-browser-filename-row input {
+  min-width: 0;
+  width: 100%;
+}
+.file-browser-error {
+  margin: 0;
+  color: #9f1d12;
+}
+.file-browser-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.file-browser-controls button {
+  min-width: 80px;
+}
 @media (max-width: 1180px) {
   .workspace-ui-shell {
     grid-template-columns: minmax(0, 1fr);

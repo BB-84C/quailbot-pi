@@ -126,6 +126,32 @@ describe("workspace UI browser bundle", () => {
     expect(dom.window.document.querySelector<HTMLElement>("[data-workspace-ui-root]")?.dataset.workspaceUiReady).toBe("true");
     expect(fetchMock).toHaveBeenCalledWith("/api/workspace", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-quailbot-workspace-ui-token": "late-token" }) }));
   });
+
+  it("keeps the shell usable and renders a startup banner when workspace and capture startup fetches fail", async () => {
+    const dom = new JSDOM(
+      '<!doctype html><html><head><meta name="quailbot-workspace-ui-token" content="failure-token"></head><body><main data-workspace-ui-root><section data-startup-banner-root></section><section data-canvas-root></section><section data-items-tree-root></section><section data-filter-root></section><section data-workspace-toolbar-root></section><section data-form-root></section></main></body></html>',
+      { runScripts: "dangerously", url: "http://127.0.0.1:3000/?token=failure-token" },
+    );
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/workspace") {
+        return Promise.resolve(new Response(JSON.stringify({ ok: false, error: "no active workspace" }), { status: 400, headers: { "content-type": "application/json" } }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, error: "capture unavailable in test" }), { status: 200, headers: { "content-type": "application/json" } }));
+    });
+    Object.defineProperty(dom.window, "fetch", { value: fetchMock, configurable: true });
+
+    const script = dom.window.document.createElement("script");
+    script.text = readFileSync(bundlePath, "utf8");
+    dom.window.document.head.appendChild(script);
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+
+    await vi.waitFor(() => expect(dom.window.document.querySelector(".startup-error-banner")?.textContent).toBe("no active workspace; capture unavailable in test"));
+    expect(dom.window.document.querySelector<HTMLElement>("[data-workspace-ui-root]")?.dataset.workspaceUiReady).toBe("true");
+    expect(dom.window.document.querySelector(".canvas-empty")?.textContent).toBe("No capture yet");
+    expect(dom.window.document.querySelector("[data-items-tree-root]")).not.toBeNull();
+    expect(dom.window.document.querySelector("[data-workspace-toolbar-root]")).not.toBeNull();
+    expect(dom.window.document.querySelector("[data-form-root]")).not.toBeNull();
+  });
 });
 
 function normalizePath(input: string): string {

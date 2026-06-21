@@ -84,6 +84,7 @@ async function saveTarget(targetPath: string, updateCurrent: boolean, dispatch: 
 export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoots?: HTMLElement[]; modalRoot: HTMLElement; dispatch: (action: Action) => void; getState: () => AppState }): () => void {
   const { modalRoot, dispatch, getState } = args;
   const formRoots = args.formRoots ?? (args.formRoot ? [args.formRoot] : []);
+  let lastLoadFileActivation: { path: string; at: number } | null = null;
   const onFormClick = (event: MouseEvent): void => {
     const formRoot = formRoots.find((root) => event.target instanceof Element && root.contains(event.target));
     if (!formRoot) return;
@@ -113,8 +114,24 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
       event.preventDefault();
       const kind = entry.dataset.fileBrowserEntry;
       const path = entry.dataset.path ?? "";
-      if (kind === "dir") void browse(path, dispatch);
-      else dispatch(fileBrowserSelect(entry.dataset.name ?? "", path));
+      if (kind === "dir") {
+        lastLoadFileActivation = null;
+        void browse(path, dispatch);
+      } else {
+        const state = getState();
+        const now = Date.now();
+        const repeatsSelectedFile =
+          state.fileBrowser.mode === "load" &&
+          state.fileBrowser.selectedFile === path &&
+          lastLoadFileActivation?.path === path &&
+          now - lastLoadFileActivation.at <= 1000;
+        lastLoadFileActivation = { path, at: now };
+        if (repeatsSelectedFile) {
+          void loadSelected(dispatch, getState);
+        } else {
+          dispatch(fileBrowserSelect(entry.dataset.name ?? "", path));
+        }
+      }
       return;
     }
     const up = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="file-browser-up"]', modalRoot);

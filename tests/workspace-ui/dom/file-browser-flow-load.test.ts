@@ -61,4 +61,25 @@ describe("file browser load flow", () => {
     expect(store.getState().workspace.rois.map((roi) => roi.name)).toEqual(["loaded-roi"]);
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\loaded.json");
   });
+
+  it("opens a selected file on a fast second activation like the Tk file dialog double-click path", async () => {
+    const state = initialState();
+    state.workspace.currentPath = "D:\\quailbot\\workspaces\\active.json";
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [{ name: "double.json", kind: "file", path: "D:\\quailbot\\workspaces\\double.json" }] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\double.json", canonicalJson: { rois: [{ name: "double-roi", x: 1, y: 2, w: 3, h: 4, description: "", active: true }], anchors: [], groups: [], tools: {} }, summary: { path: "D:\\quailbot\\workspaces\\double.json", hash: "abcd1234abcd1234" } })));
+    vi.stubGlobal("fetch", fetch);
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
+    await flush();
+    modalRoot.querySelector<HTMLButtonElement>('button[data-file-browser-entry="file"]')?.click();
+    expect(store.getState().fileBrowser.selectedFile).toBe("D:\\quailbot\\workspaces\\double.json");
+    modalRoot.querySelector<HTMLButtonElement>('button[data-file-browser-entry="file"]')?.click();
+    await flush();
+
+    expect(fetch).toHaveBeenNthCalledWith(2, "/api/load", expect.objectContaining({ method: "POST" }));
+    expect(store.getState().workspace.rois.map((roi) => roi.name)).toEqual(["double-roi"]);
+    expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\double.json");
+  });
 });

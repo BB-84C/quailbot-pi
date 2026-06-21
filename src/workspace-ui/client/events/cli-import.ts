@@ -17,11 +17,7 @@ const cliNamePattern = /^[A-Za-z0-9_.-]+$/;
 
 async function runImport(dispatch: (action: Action) => void, getState: () => AppState): Promise<void> {
   const state = getState();
-  const cliName = state.cliImport.cliName.trim();
-  if (!cliName) {
-    dispatch(cliImportProbeFailed("CLI name is required"));
-    return;
-  }
+  const cliName = state.cliImport.cliName.trim() || "cli";
   if (!cliNamePattern.test(cliName)) {
     dispatch(cliImportProbeFailed("invalid CLI name"));
     return;

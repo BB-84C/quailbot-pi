@@ -156,4 +156,31 @@ describe("CLI import client flow", () => {
     });
     expect(store.getState().workspace.cliName).toBe("customctl");
   });
+
+  it("uses Tk's default cli name when the native CLI Name input is blank", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({
+        ok: true,
+        payload: { parameters: { items: [] }, action_commands: { items: [] } },
+        usedSubcommand: "capabilities",
+        error: "",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { toolbarRoot, store } = mount();
+
+    const input = toolbarRoot.querySelector<HTMLInputElement>('input[data-cli-import-name="true"]');
+    if (!input) throw new Error("missing CLI Name input");
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
+    await flush();
+
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+      cliName: "cli",
+      declaredCliNames: expect.arrayContaining(["cli"]),
+    });
+    expect(store.getState().cliImport.lastError).toBeNull();
+    expect(store.getState().workspace.cliName).toBe("cli");
+  });
 });

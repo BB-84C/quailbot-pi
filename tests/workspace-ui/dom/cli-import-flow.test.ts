@@ -93,6 +93,7 @@ async function flush(): Promise<void> {
 describe("CLI import client flow", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(window, "alert").mockImplementation(() => undefined);
   });
 
   it("probes, merges, opens conflicts, and applies Use loaded", async () => {
@@ -114,6 +115,7 @@ describe("CLI import client flow", () => {
     expect(store.getState().workspace.cliEnabled).toBe(true);
     expect(store.getState().workspace.cliName).toBe("fixturectl");
     expect(store.getState().workspace.cliParams.map((draft) => cliParamToJson(draft))).toEqual(expected);
+    expect(window.alert).toHaveBeenCalledWith("Loaded 1 CLI entries from 'fixturectl capabilities'.\nIdentical skipped: 0. Conflicts: 1 (clean).");
   });
 
   it("Cancel leaves the workspace unchanged", async () => {
@@ -128,6 +130,40 @@ describe("CLI import client flow", () => {
     expect(store.getState().cliImport.modalOpen).toBe(false);
     expect(store.getState().workspace.cliEnabled).toBe(false);
     expect(store.getState().workspace.cliParams.map((draft) => cliParamToJson(draft))).toEqual(before);
+    expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");
+  });
+
+  it("alerts the Tk-style success message when import has no conflicts", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      json: async () => ({
+        ok: true,
+        payload: {
+          parameters: { items: [{ name: "new_param", CLI_Name: "fixturectl", label: "New Param", readable: true, enabled: false }] },
+          action_commands: { items: [] },
+        },
+        usedSubcommand: "capacities",
+        error: "",
+      }),
+    }));
+    const { toolbarRoot, store } = mount();
+
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
+    await flush();
+
+    expect(store.getState().cliImport.modalOpen).toBe(false);
+    expect(store.getState().workspace.cliParams.map((draft) => draft.name)).toEqual(["conflict", "new_param"]);
+    expect(window.alert).toHaveBeenCalledWith("Loaded 1 CLI entries from 'fixturectl capacities'.\nIdentical skipped: 0. Conflicts: 0 (none).");
+  });
+
+  it("alerts probe failures like Tk showerror", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ ok: false, usedSubcommand: "capacities", error: "no capacities" }) }));
+    const { toolbarRoot, store } = mount();
+
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
+    await flush();
+
+    expect(store.getState().cliImport.lastError).toBe("no capacities");
+    expect(window.alert).toHaveBeenCalledWith("Unable to query capabilities from 'fixturectl'.\nno capacities");
   });
 
   it("uses the edited native CLI Name input when probing the CLI", async () => {

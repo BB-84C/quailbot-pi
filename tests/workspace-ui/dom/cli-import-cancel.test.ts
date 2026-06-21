@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Action } from "../../../src/workspace-ui/client/actions.js";
 import { attachCliImportEvents } from "../../../src/workspace-ui/client/events/cli-import.js";
@@ -62,12 +62,18 @@ function mount() {
 }
 
 describe("CLI import modal cancellation", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(window, "alert").mockImplementation(() => undefined);
+  });
+
   it("dispatches cancel on Escape", () => {
     const { modalRoot, store } = mount();
 
     modalRoot.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
+    expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");
   });
 
   it("dispatches cancel when the backdrop is clicked", () => {
@@ -76,5 +82,6 @@ describe("CLI import modal cancellation", () => {
     modalRoot.querySelector<HTMLElement>(".cli-import-backdrop")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
+    expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");
   });
 });

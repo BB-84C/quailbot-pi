@@ -20,6 +20,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function cleanLinkedValue(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function linkedValuesFromRawItem(rawItem: Record<string, unknown>): string[] {
+  const raw = Array.isArray(rawItem.linked_observables) ? rawItem.linked_observables : Array.isArray(rawItem.linked_ROIs) ? rawItem.linked_ROIs : [];
+  return raw.map(cleanLinkedValue).filter((name) => name.length > 0);
+}
+
+function uniqueNames(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const name = cleanLinkedValue(value);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
 export type SelectionSummary =
   | { kind: "none" }
   | { kind: "single"; itemKind: "roi" | "anchor" | "group" | "cli"; name: string; fields: Partial<Record<FormFieldKey, string>>; groupValue: string }
@@ -191,7 +213,13 @@ export function linkedPickerOptions(state: AppState): string[] {
     values = state.workspace.rois.map((roi) => roi.name).filter((name) => name.length > 0);
   } else if ((mode === "cli" || mode === "cli_action") && selected?.key.kind === "cli") {
     const currentName = selected.key.name;
-    values = state.workspace.cliParams.map((param) => param.name).filter((name) => name.length > 0 && name !== currentName);
+    const currentKey = currentName.toLowerCase();
+    const cli = selected.draft as CliParamDraft;
+    values = uniqueNames([
+      ...state.workspace.cliParams.map((param) => param.name).filter((name) => name.length > 0 && name !== currentName),
+      ...linkedValuesFromRawItem(cli.raw_item),
+      ...cli.linked_observables,
+    ]).filter((name) => name.toLowerCase() !== currentKey);
   }
   const query = state.form.linkedObs.searchText.trim().toLowerCase();
   if (!query) return values;

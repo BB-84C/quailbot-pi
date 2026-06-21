@@ -322,7 +322,7 @@ export function formReducer(state: AppState, action: FormAction): AppState {
       const summary = action.payload.selectionSummary;
       const buffers = summary.kind === "single" ? { ...summary.fields } : {};
       const history = Object.fromEntries(Object.entries(buffers).map(([field, text]) => [field, historyFor(String(text ?? ""))]));
-      return syncLinkedPickerToOptions({ ...state, form: { buffers, history, cliMeta: cliMetaBuffersForSelection(state), linkedObs: { ...state.form.linkedObs, selectedNames: [] } } });
+      return syncLinkedPickerToOptions({ ...state, form: { buffers, history, cliMeta: cliMetaBuffersForSelection(state), linkedObs: { searchText: "", pickerValue: "", selectedNames: [] } } });
     }
     case "FORM_EDIT_FIELD": {
       if (state.tree.selected.length > 1) return state;

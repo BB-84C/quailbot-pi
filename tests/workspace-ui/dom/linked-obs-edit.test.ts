@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { linkedAdd, linkedPickerChanged, linkedRemove, linkedSearchChanged } from "../../../src/workspace-ui/client/actions.js";
-import { linkedPickerOptions } from "../../../src/workspace-ui/client/selectors/form.js";
+import { formSelectionChanged, linkedAdd, linkedPickerChanged, linkedRemove, linkedSearchChanged } from "../../../src/workspace-ui/client/actions.js";
+import { linkedPickerOptions, selectionSummary } from "../../../src/workspace-ui/client/selectors/form.js";
 import { runtimeLinkedObservables } from "../../../src/workspace-ui/shared/model.js";
 import { cliDraft, rampParam, writableParam } from "./cli-meta-helpers.js";
 import { fixtureState, mountForm, selectedState } from "./form-test-helpers.js";
@@ -84,6 +84,33 @@ describe("linked observables editing", () => {
     expect(updated.allow_ramp).toBe(false);
   });
 
+  it("offers raw and current CLI links in the picker so removed links can be restored", () => {
+    const cli = cliDraft({
+      name: "action",
+      readable: false,
+      writable: false,
+      allow_get: false,
+      allow_set: false,
+      get_cmd: null,
+      set_cmd: null,
+      safety: null,
+      action_cmd: { command: "Action" },
+      linked_observables: ["scan_status", "scan_speed"],
+      raw_item: { linked_observables: ["scan_status", "scan_buffer", "scan_speed"] },
+    });
+    const state = fixtureState();
+    state.workspace.cliParams = [cli, cliDraft({ name: "current" })];
+    state.tree.selected = [{ kind: "cli", name: "action" }];
+    const { root, store, dispatch } = mountForm(state);
+
+    expect(linkedPickerOptions(store.getState())).toEqual(["current", "scan_status", "scan_buffer", "scan_speed"]);
+
+    dispatch(linkedPickerChanged("scan_buffer"));
+    dispatch(linkedAdd());
+    expect(store.getState().workspace.cliParams[0]?.linked_observables).toEqual(["scan_status", "scan_speed", "scan_buffer"]);
+    expect([...root.querySelectorAll<HTMLElement>('.linked-list [role="option"]')].map((item) => item.dataset.name)).toEqual(["scan_status", "scan_speed", "scan_buffer"]);
+  });
+
   it("search filters picker options with lowercase substring matching", () => {
     const state = selectedState("anchor", "anchor-1");
     state.workspace.rois.push({ name: "Scope-Monitor", x: 0, y: 0, w: 2, h: 2, description: "", tags: "", active: true, group: "" });
@@ -110,5 +137,22 @@ describe("linked observables editing", () => {
 
     expect(document.activeElement).toBe(root.querySelector<HTMLInputElement>('input[data-region="linked-search"]'));
     root.remove();
+  });
+
+  it("resets linked search and picker when the selected item changes", () => {
+    const state = selectedState("anchor", "anchor-1");
+    state.workspace.cliParams.push(cliDraft({ name: "aux" }));
+    const { root, store, dispatch } = mountForm(state);
+
+    dispatch(linkedSearchChanged("roi"));
+    expect(store.getState().form.linkedObs.searchText).toBe("roi");
+
+    dispatch({ type: "TREE_CLICK_ITEM", payload: { kind: "cli", name: "bias", region: "body", modifiers: { ctrl: false, shift: false } } });
+    dispatch(formSelectionChanged(selectionSummary(store.getState())));
+
+    expect(store.getState().form.linkedObs.searchText).toBe("");
+    expect(linkedPickerOptions(store.getState())).toEqual(["aux"]);
+    expect(root.querySelector<HTMLInputElement>('input[data-region="linked-search"]')?.value).toBe("");
+    expect([...root.querySelectorAll<HTMLOptionElement>('select[data-region="linked-picker"] option')].map((option) => option.value)).toEqual(["aux"]);
   });
 });

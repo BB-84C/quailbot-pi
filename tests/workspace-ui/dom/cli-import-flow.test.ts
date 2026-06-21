@@ -86,8 +86,10 @@ function mount(state = fixtureState()) {
 }
 
 async function flush(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let idx = 0; idx < 6; idx += 1) {
+    await Promise.resolve();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe("CLI import client flow", () => {
@@ -111,6 +113,7 @@ describe("CLI import client flow", () => {
     const expected = applyCliConflictResolution(pending.merged ?? [], pending.conflicts, true).map((draft) => cliParamToJson(draft));
 
     modalRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-use-loaded"]')?.click();
+    await flush();
 
     expect(store.getState().workspace.cliEnabled).toBe(true);
     expect(store.getState().workspace.cliName).toBe("fixturectl");
@@ -126,6 +129,7 @@ describe("CLI import client flow", () => {
     toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
     await flush();
     modalRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-cancel"]')?.click();
+    await flush();
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
     expect(store.getState().workspace.cliEnabled).toBe(false);

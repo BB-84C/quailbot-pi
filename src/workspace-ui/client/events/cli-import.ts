@@ -22,12 +22,16 @@ function importSuccessMessage(args: { cliName: string; usedSubcommand: string; l
   ].join("\n");
 }
 
+function deferAlert(message: string): void {
+  window.setTimeout(() => window.alert(message), 0);
+}
+
 function alertProbeFailure(cliName: string, error: string): void {
-  window.alert(`Unable to query capabilities from '${cliName}'.\n${error}`);
+  deferAlert(`Unable to query capabilities from '${cliName}'.\n${error}`);
 }
 
 function alertResolvedImport(state: AppState, conflictChoice: "keep" | "clean"): void {
-  window.alert(
+  deferAlert(
     importSuccessMessage({
       cliName: state.cliImport.cliName,
       usedSubcommand: state.cliImport.usedSubcommand,
@@ -66,7 +70,7 @@ async function runImport(dispatch: (action: Action) => void, getState: () => App
     const mergeResult = mergeCliParamDrafts(getState().workspace.cliParams, loadedDrafts);
     dispatch(cliImportProbeSucceeded({ cliName, usedSubcommand, mergeResult, loadedDrafts }));
     if (mergeResult.conflicts.length === 0) {
-      window.alert(
+      deferAlert(
         importSuccessMessage({
           cliName,
           usedSubcommand,
@@ -116,14 +120,14 @@ export function attachCliImportEvents(args: { formRoot: HTMLElement; modalRoot: 
     if (cancel) {
       event.preventDefault();
       dispatch(cliImportResolveCancel());
-      window.alert("Import cancelled. Existing workspace entries were left unchanged.");
+      deferAlert("Import cancelled. Existing workspace entries were left unchanged.");
     }
   };
   const onModalKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== "Escape") return;
     event.preventDefault();
     dispatch(cliImportResolveCancel());
-    window.alert("Import cancelled. Existing workspace entries were left unchanged.");
+    deferAlert("Import cancelled. Existing workspace entries were left unchanged.");
   };
   const offFormInput = attachScopedEvent<Event>(formRoot, "input", onFormInput);
   const offFormClick = attachScopedActivation(formRoot, onFormClick);

@@ -61,25 +61,34 @@ function mount() {
   return { modalRoot, store };
 }
 
+async function flush(): Promise<void> {
+  for (let idx = 0; idx < 6; idx += 1) {
+    await Promise.resolve();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe("CLI import modal cancellation", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(window, "alert").mockImplementation(() => undefined);
   });
 
-  it("dispatches cancel on Escape", () => {
+  it("dispatches cancel on Escape", async () => {
     const { modalRoot, store } = mount();
 
     modalRoot.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flush();
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
     expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");
   });
 
-  it("dispatches cancel when the backdrop is clicked", () => {
+  it("dispatches cancel when the backdrop is clicked", async () => {
     const { modalRoot, store } = mount();
 
     modalRoot.querySelector<HTMLElement>(".cli-import-backdrop")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
 
     expect(store.getState().cliImport.modalOpen).toBe(false);
     expect(window.alert).toHaveBeenCalledWith("Import cancelled. Existing workspace entries were left unchanged.");

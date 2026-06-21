@@ -99,6 +99,32 @@ describe("file browser save/export flow", () => {
     expect(alert).toHaveBeenCalledWith("Exported to D:\\quailbot\\workspaces\\exported.json");
   });
 
+  it("ignores background file controls while the file modal is open", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [] })));
+    vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const { menuRoot, toolbarRoot, modalRoot, store } = mount(fixtureState());
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
+    await flush();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(store.getState().fileBrowser.open).toBe(true);
+    expect(store.getState().fileBrowser.mode).toBe("export");
+    expect(modalRoot.querySelector(".file-browser-modal")).not.toBeNull();
+
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
+    await flush();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(store.getState().fileBrowser.open).toBe(true);
+    expect(store.getState().fileBrowser.mode).toBe("export");
+    expect(modalRoot.querySelector(".file-browser-modal")).not.toBeNull();
+    expect(alert).not.toHaveBeenCalled();
+  });
+
   it("Save failure alerts the concrete validation message even when no file modal is open", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false, error: "Duplicate name: 'roi'", errors: [{ code: "duplicate_name", message: "Duplicate name: 'roi'" }] })));
     vi.stubGlobal("fetch", fetch);

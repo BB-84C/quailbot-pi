@@ -107,6 +107,10 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
   const onFormClick = (event: MouseEvent): void => {
     const formRoot = formRoots.find((root) => event.target instanceof Element && root.contains(event.target));
     if (!formRoot) return;
+    if (getState().fileBrowser.open) {
+      event.preventDefault();
+      return;
+    }
     const load = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="file-browser-load"]', formRoot);
     if (load) {
       event.preventDefault();

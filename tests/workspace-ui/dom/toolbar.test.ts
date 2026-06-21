@@ -122,6 +122,21 @@ describe("workspace toolbar events", () => {
     confirm.mockRestore();
   });
 
+  it("Delete clears collapsed state for deleted groups like Tk object deletion", () => {
+    const state = fixtureState();
+    state.tree.selected = [{ kind: "group", name: "A" }];
+    state.tree.collapsedGroups = new Set(["A", "B"]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { root, store } = mount(state);
+
+    click(root, "Delete");
+
+    expect(confirm).toHaveBeenCalledWith("Delete selected item?");
+    expect(store.getState().workspace.groups.map((item) => item.name)).toEqual(["B", "C"]);
+    expect([...store.getState().tree.collapsedGroups]).toEqual(["B"]);
+    confirm.mockRestore();
+  });
+
   it("clicking Add Anchor appends and selects a deduped anchor", () => {
     const { root, store, off } = mount();
     const before = store.getState().workspace.anchors.length;

@@ -146,7 +146,11 @@ function commitField(state: AppState, field: FormFieldKey, options: { recordDesc
       if (oldName !== nextName) {
         renameGroupCascade({ groups: workspace.groups, rois: workspace.rois, anchors: workspace.anchors, cliParams: workspace.cliParams, oldName, newName: nextName });
         const nextKey = { kind: "group" as const, name: nextName };
-        return { ...state, workspace, tree: { ...state.tree, selected: [nextKey], activeAnchor: nextKey } };
+        const collapsedGroups = new Set(state.tree.collapsedGroups);
+        if (collapsedGroups.delete(oldName)) {
+          collapsedGroups.add(nextName);
+        }
+        return { ...state, workspace, tree: { ...state.tree, collapsedGroups, selected: [nextKey], activeAnchor: nextKey } };
       }
       return state;
     }

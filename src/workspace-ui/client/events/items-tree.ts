@@ -23,11 +23,30 @@ function rowFromEvent(target: EventTarget | null, root: HTMLElement): { kind: Tr
 
 export function attachItemsTreeEvents(rootEl: HTMLElement, dispatch: (action: Action) => void): () => void {
   rootEl.tabIndex = rootEl.tabIndex < 0 ? 0 : rootEl.tabIndex;
+  let lastBodyActivation: { kind: TreeItemKind; name: string; time: number } | null = null;
+  let lastGroupCollapse: { name: string; time: number } | null = null;
+
+  const collapseGroup = (name: string): void => {
+    lastGroupCollapse = { name, time: Date.now() };
+    dispatch(treeDoubleClickItem("group", name));
+  };
 
   const onClick = (event: MouseEvent): void => {
     const row = rowFromEvent(event.target, rootEl);
     if (!row) {
+      lastBodyActivation = null;
       return;
+    }
+    const now = Date.now();
+    if (row.region === "body" && row.kind === "group") {
+      if (lastBodyActivation?.kind === row.kind && lastBodyActivation.name === row.name && now - lastBodyActivation.time <= 650) {
+        lastBodyActivation = null;
+        collapseGroup(row.name);
+        return;
+      }
+      lastBodyActivation = { kind: row.kind, name: row.name, time: now };
+    } else {
+      lastBodyActivation = null;
     }
     if (row.region === "toggle") {
       dispatch(treeClickItem({ kind: row.kind, name: row.name, region: "toggle", modifiers: { ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey } }));
@@ -49,7 +68,10 @@ export function attachItemsTreeEvents(rootEl: HTMLElement, dispatch: (action: Ac
     if (!row || row.region !== "body" || row.kind !== "group") {
       return;
     }
-    dispatch(treeDoubleClickItem(row.kind, row.name));
+    if (lastGroupCollapse?.name === row.name && Date.now() - lastGroupCollapse.time <= 650) {
+      return;
+    }
+    collapseGroup(row.name);
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {

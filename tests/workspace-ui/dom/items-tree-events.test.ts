@@ -132,6 +132,16 @@ describe("items tree events", () => {
     expect(store.getState().tree.activeAnchor).toEqual({ kind: "group", name: "grp" });
   });
 
+  it("treats repeated pointer activation on a group body as Tk double-click collapse across re-render", () => {
+    const { root, store } = mount();
+
+    pointerRow(root, "group", "grp");
+    pointerRow(root, "group", "grp");
+
+    expect(store.getState().tree.collapsedGroups.has("grp")).toBe(true);
+    expect(selectedKeys(store.getState())).toEqual(["group:grp"]);
+  });
+
   it("keeps reducer behavior pure for direct action dispatch", () => {
     const state = fixtureState();
     const next = reduceAppState(state, treeClickItem({ kind: "roi", name: "roi-a", modifiers: { ctrl: false, shift: false }, region: "body" }));

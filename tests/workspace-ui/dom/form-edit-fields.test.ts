@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { renderedTreeRows } from "../../../src/workspace-ui/client/reducers/tree.js";
 import { blur, input, mountForm, selectedState, typeInto } from "./form-test-helpers.js";
 
 describe("right-panel form field editing", () => {
@@ -34,5 +35,18 @@ describe("right-panel form field editing", () => {
     typeInto(input(root, "h"), "-9");
     blur(input(root, "h"));
     expect(store.getState().workspace.rois[0]?.h).toBe(40);
+  });
+
+  it("keeps Tk group collapsed state attached to the group object across rename", () => {
+    const state = selectedState("group", "A");
+    state.tree.collapsedGroups = new Set(["A"]);
+    const { root, store } = mountForm(state);
+
+    typeInto(input(root, "name"), "Renamed");
+
+    expect(store.getState().workspace.groups[0]?.name).toBe("Renamed");
+    expect(store.getState().workspace.groups[1]?.group).toBe("Renamed");
+    expect([...store.getState().tree.collapsedGroups]).toEqual(["Renamed"]);
+    expect(renderedTreeRows(store.getState()).map((row) => `${row.kind}:${row.name}`)).not.toContain("group:B");
   });
 });

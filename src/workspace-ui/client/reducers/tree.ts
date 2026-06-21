@@ -123,9 +123,16 @@ function deleteSelected(state: AppState): AppState {
   if (selected.length === 0) {
     return state;
   }
+  const deletedGroupNames = new Set(
+    selected
+      .filter((item) => item.kind === "group")
+      .map((item) => state.workspace.groups[item.idx]?.name)
+      .filter((name): name is string => Boolean(name)),
+  );
   const workspace = cloneWorkspace(state.workspace);
   deleteItems({ groups: workspace.groups, rois: workspace.rois, anchors: workspace.anchors, cliParams: workspace.cliParams, selected });
-  return { ...state, workspace, tree: { ...state.tree, selected: [], activeAnchor: null } };
+  const collapsedGroups = new Set([...state.tree.collapsedGroups].filter((name) => !deletedGroupNames.has(name)));
+  return { ...state, workspace, tree: { ...state.tree, collapsedGroups, selected: [], activeAnchor: null } };
 }
 
 function withForcedActivation(state: AppState): AppState {

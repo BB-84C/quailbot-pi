@@ -21,6 +21,7 @@ import { renderToolbar } from "./render/toolbar.js";
 import { selectionSummary } from "./selectors/form.js";
 import { createStore } from "./store.js";
 import type { AppState } from "./state.js";
+import { workspaceDocumentTitle } from "./title.js";
 
 declare global {
   interface Window {
@@ -129,6 +130,7 @@ function bootstrapWorkspaceUi(): void {
     }
   };
   const render = (): void => {
+    document.title = workspaceDocumentTitle(store.getState());
     renderMenu(menuRoot);
     renderStartupBanner(startupRoot, store.getState());
     renderToolbar(toolbarRoot, store.getState());

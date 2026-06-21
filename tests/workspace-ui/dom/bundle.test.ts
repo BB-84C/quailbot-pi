@@ -62,7 +62,7 @@ describe("workspace UI browser bundle", () => {
             JSON.stringify({
               ok: true,
               canonicalJson: { rois: [{ name: "startup-roi", x: 1, y: 2, w: 3, h: 4, description: "loaded", active: true }], anchors: [], groups: [] },
-              summary: { path: "workspace.json", hash: "abc123" },
+              summary: { path: "D:\\quailbot\\workspaces\\startup.json", hash: "abc123" },
             }),
             { status: 200, headers: { "content-type": "application/json" } },
           ),
@@ -83,6 +83,7 @@ describe("workspace UI browser bundle", () => {
     dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
 
     await vi.waitFor(() => expect(dom.window.document.body.textContent).toContain("startup-roi"));
+    expect(dom.window.document.title).toBe("Workspace Calibrator - startup.json - idle");
     expect(fetchMock).toHaveBeenCalledWith("/api/workspace", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-quailbot-workspace-ui-token": "bundle-token" }) }));
     expect(fetchMock).toHaveBeenCalledWith("/api/capture", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-quailbot-workspace-ui-token": "bundle-token" }) }));
     expect(dom.window.document.querySelector('.canvas-image[href*="startup-capture"]')).toBeTruthy();

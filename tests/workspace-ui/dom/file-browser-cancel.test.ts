@@ -8,7 +8,7 @@ import { initialState } from "../../../src/workspace-ui/client/state.js";
 import type { Action } from "../../../src/workspace-ui/client/actions.js";
 
 describe("file browser cancel flow", () => {
-  it("dismisses on Escape and overlay backdrop click", () => {
+  it("focuses the dialog and dismisses on Escape and overlay backdrop click", () => {
     const formRoot = document.createElement("section");
     const modalRoot = document.createElement("section");
     document.body.replaceChildren(formRoot, modalRoot);
@@ -21,11 +21,15 @@ describe("file browser cancel flow", () => {
 
     dispatch(fileBrowserOpen("load"));
     expect(store.getState().fileBrowser.open).toBe(true);
-    modalRoot.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(document.activeElement).toBe(modalRoot.querySelector('[role="dialog"]'));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(store.getState().fileBrowser.open).toBe(false);
 
     dispatch(fileBrowserOpen("export"));
     modalRoot.querySelector<HTMLElement>(".file-browser-backdrop")?.click();
+    expect(store.getState().fileBrowser.open).toBe(false);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(store.getState().fileBrowser.open).toBe(false);
   });
 });

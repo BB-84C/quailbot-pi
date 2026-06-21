@@ -187,14 +187,21 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
     event.preventDefault();
     dispatch(fileBrowserCancel());
   };
+  const onDocumentKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || !getState().fileBrowser.open) return;
+    event.preventDefault();
+    dispatch(fileBrowserCancel());
+  };
   const offs = formRoots.map((formRoot) => attachScopedActivation(formRoot, onFormClick));
   const offModalClick = attachScopedActivation(modalRoot, onModalClick);
   const offModalInput = attachScopedEvent<Event>(modalRoot, "input", onModalInput);
   const offModalKeyDown = attachScopedEvent<KeyboardEvent>(modalRoot, "keydown", onKeyDown);
+  document.addEventListener("keydown", onDocumentKeyDown, true);
   return () => {
     for (const off of offs) off();
     offModalClick();
     offModalInput();
     offModalKeyDown();
+    document.removeEventListener("keydown", onDocumentKeyDown, true);
   };
 }

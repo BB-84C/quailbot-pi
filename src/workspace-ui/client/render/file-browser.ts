@@ -69,4 +69,5 @@ export function renderFileBrowserModal(rootEl: HTMLElement, state: AppState): vo
   );
   modal.append(controls);
   rootEl.append(backdrop, modal);
+  modal.focus();
 }

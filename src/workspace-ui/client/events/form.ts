@@ -44,6 +44,16 @@ function restoreCursor(control: HTMLInputElement | HTMLTextAreaElement, state: A
   control.setSelectionRange(cursor, cursor);
 }
 
+function wheelDeltaPixels(event: WheelEvent, rootEl: HTMLElement): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return event.deltaY * 40;
+  }
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return event.deltaY * Math.max(rootEl.clientHeight, 1);
+  }
+  return event.deltaY;
+}
+
 export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action) => void, getState: () => AppState): () => void {
   const onInput = (event: Event): void => {
     const linkedSearch = closestWithin<HTMLInputElement>(event.target, 'input[data-region="linked-search"]', rootEl);
@@ -173,16 +183,25 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
     return false;
   };
 
+  const onWheel = (event: WheelEvent): void => {
+    event.preventDefault();
+    const deltaY = wheelDeltaPixels(event, rootEl);
+    if (!deltaY) return;
+    rootEl.scrollTop += deltaY;
+  };
+
   const offInput = attachScopedEvent<Event>(rootEl, "input", onInput);
   const offBlur = attachScopedEvent<FocusEvent>(rootEl, "blur", onBlur, true);
   const offKeyDown = attachScopedEvent<KeyboardEvent>(rootEl, "keydown", onKeyDown);
   const offChange = attachScopedEvent<Event>(rootEl, "change", onChange);
   const offClick = attachScopedActivation(rootEl, onClick);
+  const offWheel = attachScopedEvent<WheelEvent>(rootEl, "wheel", onWheel, { passive: false });
   return () => {
     offInput();
     offBlur();
     offKeyDown();
     offChange();
     offClick();
+    offWheel();
   };
 }

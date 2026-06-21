@@ -1,6 +1,6 @@
 import { build } from "esbuild";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
 
 const entryPoint = resolve("src/workspace-ui/client/main.ts");
 const outfile = resolve("dist/workspace-ui/client.js");
@@ -33,6 +33,27 @@ const result = await build({
   target: "es2022",
   minify: false,
   metafile: true,
+  write: false,
 });
 
-writeFileSync(metafilePath, JSON.stringify(result.metafile, null, 2));
+const outputFiles = new Map(result.outputFiles.map((file) => [basename(file.path), file.contents]));
+const bundle = outputFiles.get("client.js");
+const sourceMap = outputFiles.get("client.js.map");
+if (!bundle || !sourceMap) {
+  throw new Error("[build-workspace-ui-client] esbuild did not return the expected client.js and client.js.map outputs");
+}
+
+writeAtomic(outfile, bundle);
+writeAtomic(`${outfile}.map`, sourceMap);
+writeAtomic(metafilePath, `${JSON.stringify(result.metafile, null, 2)}\n`);
+
+function writeAtomic(path, contents) {
+  const tmpPath = `${path}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  try {
+    writeFileSync(tmpPath, contents);
+    renameSync(tmpPath, path);
+  } catch (error) {
+    rmSync(tmpPath, { force: true });
+    throw error;
+  }
+}

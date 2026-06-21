@@ -43,6 +43,23 @@ function wheel(root: HTMLElement, options: WheelEventInit) {
 }
 
 describe("canvas events", () => {
+  it("does not enter draw or pick mode before a screenshot frame is loaded", () => {
+    const state = fixtureState();
+    state.canvas.frame = null;
+    const { store: drawStore } = mount(state);
+
+    drawStore.dispatch(canvasBeginDrawRoi());
+    expect(drawStore.getState().canvas.mode).toBe("idle");
+
+    const pickState = fixtureState();
+    pickState.canvas.frame = null;
+    pickState.tree.selected = [{ kind: "anchor", name: "anchor-a" }];
+    const { store: pickStore } = mount(pickState);
+
+    pickStore.dispatch(canvasBeginPickAnchor());
+    expect(pickStore.getState().canvas.mode).toBe("idle");
+  });
+
   it("draws an ROI from pointer down through release using panned canvas coordinates", () => {
     const { root, store, off } = mount();
     const scale = effectiveScale(frame, { ...store.getState().canvas.viewport, zoom: 1 });

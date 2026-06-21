@@ -100,6 +100,29 @@ describe("workspace toolbar events", () => {
     alert.mockRestore();
   });
 
+  it("keeps Draw/Pick idle with a DOM-readable status when no screenshot is loaded", () => {
+    const state = fixtureState();
+    state.canvas.frame = null;
+    state.tree.selected = [{ kind: "roi", name: "roi-1" }];
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const { root, store } = mount(state);
+
+    click(root, "Draw ROI box");
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(store.getState().canvas.mode).toBe("idle");
+    expect(store.getState().startup.error).toBe("No screenshot is loaded. Click Refresh screenshot before drawing or picking on the canvas.");
+
+    store.dispatch({ type: "TREE_CLICK_ITEM", payload: { kind: "anchor", name: "anchor-1", modifiers: { ctrl: false, shift: false }, region: "body" } });
+    renderToolbar(root, store.getState());
+    click(root, "Pick anchor point");
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(store.getState().canvas.mode).toBe("idle");
+    expect(store.getState().startup.error).toBe("No screenshot is loaded. Click Refresh screenshot before drawing or picking on the canvas.");
+    alert.mockRestore();
+  });
+
   it("Refresh screenshot posts capture and dispatches CANVAS_FRAME_LOADED", async () => {
     const frame = { imageWidth: 10, imageHeight: 20, originX: -1, originY: 2, captureId: "refresh" };
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ ok: true, frame }), { status: 200, headers: { "content-type": "application/json" } }));

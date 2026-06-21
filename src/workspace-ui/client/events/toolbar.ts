@@ -17,6 +17,8 @@ function hasSingleSelection(state: AppState, kind: "roi" | "anchor"): boolean {
   return source.some((item) => item.name === selected.name);
 }
 
+const MISSING_CAPTURE_MESSAGE = "No screenshot is loaded. Click Refresh screenshot before drawing or picking on the canvas.";
+
 async function refreshCapture(dispatch: (action: Action) => void): Promise<void> {
   const response = await postCapture();
   if (response.ok) {
@@ -62,11 +64,19 @@ export function attachToolbarEvents(args: { root: HTMLElement; dispatch: (action
           window.alert("Select an ROI item first (or Add ROI).");
           return true;
         }
+        if (!getState().canvas.frame) {
+          dispatch(startupFinished(MISSING_CAPTURE_MESSAGE));
+          return true;
+        }
         dispatch(canvasBeginDrawRoi());
         return true;
       case "canvas-pick-anchor":
         if (!hasSingleSelection(getState(), "anchor")) {
           window.alert("Select an Anchor item first (or Add Anchor).");
+          return true;
+        }
+        if (!getState().canvas.frame) {
+          dispatch(startupFinished(MISSING_CAPTURE_MESSAGE));
           return true;
         }
         dispatch(canvasBeginPickAnchor());

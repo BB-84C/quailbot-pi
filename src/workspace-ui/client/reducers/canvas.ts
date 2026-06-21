@@ -72,10 +72,16 @@ export function canvasReducer(state: AppState, action: CanvasAction): AppState {
       return withCanvas(state, { viewport, pan: clampPan(state.canvas.frame, viewport, scale, state.canvas.pan) });
     }
     case "CANVAS_BEGIN_DRAW_ROI": {
+      if (!state.canvas.frame) {
+        return state;
+      }
       const name = selectedRoiName(state);
       return name ? withCanvas(state, { mode: "draw_roi", drawingItemName: name, draftDrag: null }) : state;
     }
     case "CANVAS_BEGIN_PICK_ANCHOR": {
+      if (!state.canvas.frame) {
+        return state;
+      }
       const name = selectedAnchorName(state);
       return name ? withCanvas(state, { mode: "pick_anchor", drawingItemName: name, draftDrag: null }) : state;
     }

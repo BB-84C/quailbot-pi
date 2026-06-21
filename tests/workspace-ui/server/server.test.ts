@@ -38,6 +38,10 @@ describe("integrated workspace UI server", () => {
     expect(html).toContain(`<meta name="quailbot-workspace-ui-token" content="${server.token}">`);
     expect(html).toContain(`/assets/client.js?token=${encodeURIComponent(server.token)}`);
     expect(html).toContain(`/assets/styles.css?token=${encodeURIComponent(server.token)}`);
+    expect(html).toContain("data-menu-root");
+    expect(html).toContain("data-help-modal-root");
+    expect(html).not.toContain("Set agent workspace");
+    expect(html).not.toContain("Use current workspace for agent");
   });
 
   it("serves the built browser bundle bytes from /assets/client.js", async () => {
@@ -50,6 +54,32 @@ describe("integrated workspace UI server", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/javascript");
     expect(actual.equals(expected)).toBe(true);
+  });
+
+  it("serves an empty favicon response so browser smoke tests stay noise-free", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/favicon.ico`);
+
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
+  });
+
+  it("serves versioned capture assets by captureId after current metadata changes", async () => {
+    const { cwd, server } = await startServerWithWorkspace();
+    const stateDir = join(cwd, ".quailbot-pi");
+    const oldId = "a1b2c3d4e5f60789";
+    const oldBytes = Buffer.from("old capture bytes", "utf8");
+    writeFileSync(join(stateDir, `workspace-capture.${oldId}.png`), oldBytes);
+    writeFileSync(join(stateDir, "workspace-capture.png"), Buffer.from("current capture bytes", "utf8"));
+    writeFileSync(join(stateDir, "workspace-capture.metadata.json"), `${JSON.stringify({ captureId: "0123456789abcdef" })}\n`, "utf8");
+
+    const response = await fetch(`${server.url}/assets/workspace-capture?captureId=${oldId}&token=${server.token}`);
+    const actual = Buffer.from(await response.arrayBuffer());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("image/png");
+    expect(actual.equals(oldBytes)).toBe(true);
   });
 
   it("rejects API routes without the workspace UI token header", async () => {

@@ -87,6 +87,44 @@ describe("workspace UI browser bundle", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/capture", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-quailbot-workspace-ui-token": "bundle-token" }) }));
     expect(dom.window.document.querySelector('.canvas-image[href*="startup-capture"]')).toBeTruthy();
   });
+
+  it("bootstraps immediately when the bundle loads after DOMContentLoaded", async () => {
+    const dom = new JSDOM(
+      '<!doctype html><html><head><meta name="quailbot-workspace-ui-token" content="late-token"></head><body><main data-workspace-ui-root><section data-canvas-root></section><section data-items-tree-root></section><section data-filter-root></section><section data-workspace-toolbar-root></section><section data-form-root></section></main></body></html>',
+      { runScripts: "dangerously", url: "http://127.0.0.1:3000/?token=late-token" },
+    );
+    Object.defineProperty(dom.window.document, "readyState", { value: "complete", configurable: true });
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/workspace") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ok: true,
+              canonicalJson: { rois: [], anchors: [], groups: [], cli_params: { cli_name: "latectl", enabled: true, parameters: { items: [{ name: "late-param", enabled: true }] } } },
+              summary: { path: "workspace.json", hash: "latehash" },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ ok: false, error: "capture unavailable in test" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    });
+    Object.defineProperty(dom.window, "fetch", { value: fetchMock, configurable: true });
+
+    const script = dom.window.document.createElement("script");
+    script.text = readFileSync(bundlePath, "utf8");
+    dom.window.document.head.appendChild(script);
+
+    await vi.waitFor(() => expect(dom.window.document.body.textContent).toContain("late-param"));
+    expect((dom.window as unknown as WorkspaceUiWindow).__quailbotWorkspaceUiReady).toBe(true);
+    expect(dom.window.document.querySelector<HTMLElement>("[data-workspace-ui-root]")?.dataset.workspaceUiReady).toBe("true");
+    expect(fetchMock).toHaveBeenCalledWith("/api/workspace", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-quailbot-workspace-ui-token": "late-token" }) }));
+  });
 });
 
 function normalizePath(input: string): string {

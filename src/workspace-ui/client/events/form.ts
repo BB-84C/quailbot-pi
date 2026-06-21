@@ -11,8 +11,9 @@ import {
   formEditGroup,
   linkedAdd,
   linkedPickerChanged,
-  linkedRemove,
+  linkedRemoveSelected,
   linkedSearchChanged,
+  linkedSelect,
   formRedoDescription,
   formRedoField,
   formUndoDescription,
@@ -21,6 +22,7 @@ import {
 } from "../actions.js";
 import type { AppState, CliSafetyField, FormFieldKey } from "../state.js";
 import { cliSafetyFields } from "../selectors/form.js";
+import { attachScopedActivation, attachScopedEvent, closestWithin } from "./delegation.js";
 
 function isField(value: string | undefined): value is FormFieldKey {
   return value === "name" || value === "x" || value === "y" || value === "w" || value === "h" || value === "tags" || value === "description";
@@ -32,12 +34,6 @@ function isCliSafetyField(value: string | undefined): value is CliSafetyField {
 
 function isSafetyMode(value: string): value is "alwaysAllowed" | "guarded" | "blocked" {
   return value === "alwaysAllowed" || value === "guarded" || value === "blocked";
-}
-
-function closestWithin<T extends Element>(target: EventTarget | null, selector: string, root: HTMLElement): T | null {
-  if (!(target instanceof Element)) return null;
-  const found = target.closest<T>(selector);
-  return found && root.contains(found) ? found : null;
 }
 
 function restoreCursor(control: HTMLInputElement | HTMLTextAreaElement, state: AppState, field: FormFieldKey): void {
@@ -57,16 +53,16 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
     }
     const cliDesc = closestWithin<HTMLTextAreaElement>(event.target, 'textarea[data-cli-meta="getCmdDescription"], textarea[data-cli-meta="setCmdDescription"]', rootEl);
     if (cliDesc?.dataset.cliMeta === "getCmdDescription") {
-      dispatch(formEditCliGetDesc(cliDesc.value));
+      dispatch(formEditCliGetDesc(cliDesc.value, true));
       return;
     }
     if (cliDesc?.dataset.cliMeta === "setCmdDescription") {
-      dispatch(formEditCliSetDesc(cliDesc.value));
+      dispatch(formEditCliSetDesc(cliDesc.value, true));
       return;
     }
     const safety = closestWithin<HTMLInputElement>(event.target, "input[data-cli-safety-field]", rootEl);
     if (safety && isCliSafetyField(safety.dataset.cliSafetyField)) {
-      dispatch(formEditCliSafetyField(safety.dataset.cliSafetyField, safety.value));
+      dispatch(formEditCliSafetyField(safety.dataset.cliSafetyField, safety.value, true));
       return;
     }
     const control = closestWithin<HTMLInputElement | HTMLTextAreaElement>(event.target, "input[data-field], textarea[data-field]", rootEl);
@@ -145,23 +141,29 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
       dispatch(linkedAdd());
       return;
     }
-    const remove = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="linked-remove"]', rootEl);
-    if (remove) {
+    const linkedItem = closestWithin<HTMLElement>(event.target, '[data-action="linked-select"][data-name]', rootEl);
+    if (linkedItem) {
       event.preventDefault();
-      dispatch(linkedRemove(remove.dataset.name ?? ""));
+      dispatch(linkedSelect(linkedItem.dataset.name ?? "", { ctrl: event.ctrlKey || event.metaKey }));
+      return;
+    }
+    const removeSelected = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="linked-remove-selected"]', rootEl);
+    if (removeSelected) {
+      event.preventDefault();
+      dispatch(linkedRemoveSelected());
     }
   };
 
-  rootEl.addEventListener("input", onInput);
-  rootEl.addEventListener("blur", onBlur, true);
-  rootEl.addEventListener("keydown", onKeyDown);
-  rootEl.addEventListener("change", onChange);
-  rootEl.addEventListener("click", onClick);
+  const offInput = attachScopedEvent<Event>(rootEl, "input", onInput);
+  const offBlur = attachScopedEvent<FocusEvent>(rootEl, "blur", onBlur, true);
+  const offKeyDown = attachScopedEvent<KeyboardEvent>(rootEl, "keydown", onKeyDown);
+  const offChange = attachScopedEvent<Event>(rootEl, "change", onChange);
+  const offClick = attachScopedActivation(rootEl, onClick);
   return () => {
-    rootEl.removeEventListener("input", onInput);
-    rootEl.removeEventListener("blur", onBlur, true);
-    rootEl.removeEventListener("keydown", onKeyDown);
-    rootEl.removeEventListener("change", onChange);
-    rootEl.removeEventListener("click", onClick);
+    offInput();
+    offBlur();
+    offKeyDown();
+    offChange();
+    offClick();
   };
 }

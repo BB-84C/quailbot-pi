@@ -3,7 +3,7 @@ import { editableLinkedObservables, runtimeLinkedObservables, syncActionsFromMet
 import { normalizeSafetyMode, safeFloat } from "../../shared/parse.js";
 import type { AnchorDraft, CliParamDraft, GroupDraft, RoiDraft } from "../../shared/model.js";
 import type { FormAction } from "../actions.js";
-import { cliSafetyFields, linkedControlsEnabled, linkedFrameMode, linkedPickerOptions } from "../selectors/form.js";
+import { cliSafetyFields, linkedControlsEnabled, linkedFrameMode, linkedListEntries, linkedPickerOptions } from "../selectors/form.js";
 import type { AppState, CliMetaBuffers, CliSafetyField, FieldHistory, FormFieldKey, TreeItemKey } from "../state.js";
 
 type WorkspaceClone = AppState["workspace"];
@@ -109,7 +109,7 @@ function applyHistoryMove(state: AppState, field: FormFieldKey, direction: -1 | 
   const index = Math.max(0, Math.min(history.entries.length - 1, history.index + direction));
   const entry = history.entries[index];
   if (!entry || index === history.index) return state;
-  return {
+  const nextState = {
     ...state,
     form: {
       ...state.form,
@@ -117,9 +117,10 @@ function applyHistoryMove(state: AppState, field: FormFieldKey, direction: -1 | 
       history: { ...state.form.history, [field]: { ...history, index } },
     },
   };
+  return commitField(nextState, field, { recordDescriptionHistory: false });
 }
 
-function commitField(state: AppState, field: FormFieldKey): AppState {
+function commitField(state: AppState, field: FormFieldKey, options: { recordDescriptionHistory?: boolean } = {}): AppState {
   if (state.tree.selected.length !== 1) return state;
   const key = state.tree.selected[0]!;
   const workspace = cloneWorkspace(state.workspace);
@@ -129,7 +130,8 @@ function commitField(state: AppState, field: FormFieldKey): AppState {
 
   if (field === "description") {
     draft.description = text;
-    return commitDescriptionHistory({ ...state, workspace }, text);
+    const nextState = { ...state, workspace };
+    return options.recordDescriptionHistory === false ? nextState : commitDescriptionHistory(nextState, text);
   }
   if (field === "tags") {
     draft.tags = text;
@@ -234,8 +236,10 @@ function selectedAnchor(workspace: WorkspaceClone, key: TreeItemKey | undefined)
 function syncLinkedPickerToOptions(state: AppState): AppState {
   const options = linkedPickerOptions(state);
   const pickerValue = options.includes(state.form.linkedObs.pickerValue) ? state.form.linkedObs.pickerValue : (options[0] ?? "");
-  if (pickerValue === state.form.linkedObs.pickerValue) return state;
-  return { ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, pickerValue } } };
+  const linkedNames = new Set(linkedListEntries(state).map((entry) => entry.name));
+  const selectedNames = state.form.linkedObs.selectedNames.filter((name) => linkedNames.has(name));
+  if (pickerValue === state.form.linkedObs.pickerValue && selectedNames.length === state.form.linkedObs.selectedNames.length) return state;
+  return { ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, pickerValue, selectedNames } } };
 }
 
 function addLinkedObservable(state: AppState): AppState {
@@ -290,22 +294,49 @@ function removeLinkedObservable(state: AppState, value: string): AppState {
   return state;
 }
 
+function selectLinkedObservable(state: AppState, value: string, modifiers: { ctrl: boolean }): AppState {
+  if (!linkedControlsEnabled(state)) return state;
+  const name = cleanLinkedName(value);
+  if (!name || !linkedListEntries(state).some((entry) => entry.name === name)) return state;
+  const selected = state.form.linkedObs.selectedNames;
+  const selectedNames = modifiers.ctrl ? (selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]) : [name];
+  return { ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, selectedNames } } };
+}
+
+function removeSelectedLinkedObservables(state: AppState): AppState {
+  if (!linkedControlsEnabled(state)) return state;
+  let next = state;
+  for (const name of state.form.linkedObs.selectedNames) {
+    next = removeLinkedObservable(next, name);
+  }
+  return { ...next, form: { ...next.form, linkedObs: { ...next.form.linkedObs, selectedNames: [] } } };
+}
+
 export function formReducer(state: AppState, action: FormAction): AppState {
   switch (action.type) {
     case "FORM_SELECTION_CHANGED": {
       const summary = action.payload.selectionSummary;
       const buffers = summary.kind === "single" ? { ...summary.fields } : {};
       const history = Object.fromEntries(Object.entries(buffers).map(([field, text]) => [field, historyFor(String(text ?? ""))]));
-      return syncLinkedPickerToOptions({ ...state, form: { buffers, history, cliMeta: cliMetaBuffersForSelection(state), linkedObs: state.form.linkedObs } });
+      return syncLinkedPickerToOptions({ ...state, form: { buffers, history, cliMeta: cliMetaBuffersForSelection(state), linkedObs: { ...state.form.linkedObs, selectedNames: [] } } });
     }
     case "FORM_EDIT_FIELD": {
       if (state.tree.selected.length > 1) return state;
       const { field, text, cursor } = action.payload;
-      return { ...state, form: { ...state.form, buffers: { ...state.form.buffers, [field]: text }, history: { ...state.form.history, [field]: recordHistory(state.form.history[field], text, cursor) } } };
+      const nextState = { ...state, form: { ...state.form, buffers: { ...state.form.buffers, [field]: text }, history: { ...state.form.history, [field]: recordHistory(state.form.history[field], text, cursor) } } };
+      return commitField(nextState, field);
     }
     case "FORM_EDIT_DESCRIPTION": {
       if (state.tree.selected.length > 1) return state;
-      return { ...state, form: { ...state.form, buffers: { ...state.form.buffers, description: action.payload.text } } };
+      const nextState = {
+        ...state,
+        form: {
+          ...state.form,
+          buffers: { ...state.form.buffers, description: action.payload.text },
+          history: { ...state.form.history, description: recordHistory(state.form.history.description, action.payload.text, action.payload.cursor) },
+        },
+      };
+      return commitField(nextState, "description", { recordDescriptionHistory: false });
     }
     case "FORM_UNDO_FIELD":
       return applyHistoryMove(state, action.payload.field, -1);
@@ -371,8 +402,12 @@ export function formReducer(state: AppState, action: FormAction): AppState {
       return syncLinkedPickerToOptions({ ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, searchText: action.payload.text } } });
     case "LINKED_PICKER_CHANGED":
       return { ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, pickerValue: action.payload.value } } };
+    case "LINKED_SELECT":
+      return selectLinkedObservable(state, action.payload.value, action.payload.modifiers);
     case "LINKED_ADD":
       return addLinkedObservable(state);
+    case "LINKED_REMOVE_SELECTED":
+      return removeSelectedLinkedObservables(state);
     case "LINKED_REMOVE":
       return removeLinkedObservable(state, action.payload.value);
     default:

@@ -11,14 +11,9 @@ import {
 import { postCliImport } from "../api/cli-import.js";
 import type { AppState } from "../state.js";
 import { declaredCliNamesForWorkspace, loadedDraftsFromCapabilities, mergeCliParamDrafts } from "../../shared/cli-import.js";
+import { attachScopedActivation, attachScopedEvent, closestWithin } from "./delegation.js";
 
 const cliNamePattern = /^[A-Za-z0-9_.-]+$/;
-
-function closestWithin<T extends Element>(target: EventTarget | null, selector: string, root: HTMLElement): T | null {
-  if (!(target instanceof Element)) return null;
-  const found = target.closest<T>(selector);
-  return found && root.contains(found) ? found : null;
-}
 
 async function runImport(dispatch: (action: Action) => void, getState: () => AppState): Promise<void> {
   const state = getState();
@@ -88,14 +83,14 @@ export function attachCliImportEvents(args: { formRoot: HTMLElement; modalRoot: 
     event.preventDefault();
     dispatch(cliImportResolveCancel());
   };
-  formRoot.addEventListener("input", onFormInput);
-  formRoot.addEventListener("click", onFormClick);
-  modalRoot.addEventListener("click", onModalClick);
-  modalRoot.addEventListener("keydown", onModalKeyDown);
+  const offFormInput = attachScopedEvent<Event>(formRoot, "input", onFormInput);
+  const offFormClick = attachScopedActivation(formRoot, onFormClick);
+  const offModalClick = attachScopedActivation(modalRoot, onModalClick);
+  const offModalKeyDown = attachScopedEvent<KeyboardEvent>(modalRoot, "keydown", onModalKeyDown);
   return () => {
-    formRoot.removeEventListener("input", onFormInput);
-    formRoot.removeEventListener("click", onFormClick);
-    modalRoot.removeEventListener("click", onModalClick);
-    modalRoot.removeEventListener("keydown", onModalKeyDown);
+    offFormInput();
+    offFormClick();
+    offModalClick();
+    offModalKeyDown();
   };
 }

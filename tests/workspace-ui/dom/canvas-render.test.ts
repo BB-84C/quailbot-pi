@@ -57,6 +57,7 @@ describe("canvas render", () => {
   it("renders a selected ROI using shared roiToCanvasRect geometry", () => {
     const root = document.createElement("div");
     const state = stateWithCanvas();
+    state.workspace.rois.push({ name: "roi-b", x: 10, y: 20, w: 30, h: 40, description: "", tags: "", active: true, group: "" });
     const scale = effectiveScale(frame, { ...state.canvas.viewport, zoom: state.canvas.zoom });
     const expected = roiToCanvasRect(frame, scale, state.workspace.rois[0]!);
 
@@ -68,6 +69,10 @@ describe("canvas render", () => {
     expect(num(rect, "y")).toBe(expected.top);
     expect(num(rect, "width")).toBe(expected.width);
     expect(num(rect, "height")).toBe(expected.height);
+    expect(rect?.getAttribute("fill")).toBe("none");
+    expect(rect?.getAttribute("stroke")).toBe("#00d1ff");
+    expect(rect?.getAttribute("stroke-width")).toBe("2");
+    expect(root.querySelector('rect.canvas-roi[data-name="roi-b"]')).toBeNull();
   });
 
   it("renders a selected anchor crosshair using shared screenToCanvas geometry", () => {
@@ -81,8 +86,33 @@ describe("canvas render", () => {
 
     const anchor = root.querySelector<SVGGElement>('g.canvas-anchor[data-name="anchor-a"]');
     expect(anchor?.classList.contains("canvas-anchor--selected")).toBe(true);
-    expect(num(anchor?.querySelector("circle") ?? null, "cx")).toBe(expected.x);
-    expect(num(anchor?.querySelector("circle") ?? null, "cy")).toBe(expected.y);
+    const circle = anchor?.querySelector("circle") ?? null;
+    const line = anchor?.querySelector("line") ?? null;
+    expect(num(circle, "cx")).toBe(expected.x);
+    expect(num(circle, "cy")).toBe(expected.y);
+    expect(circle?.getAttribute("fill")).toBe("none");
+    expect(circle?.getAttribute("stroke")).toBe("#ffcc00");
+    expect(circle?.getAttribute("stroke-width")).toBe("2");
+    expect(line?.getAttribute("stroke")).toBe("#ffcc00");
+    expect(line?.getAttribute("stroke-width")).toBe("2");
+  });
+
+  it("does not render ROI or anchor overlays for multi-selection or non-overlay items", () => {
+    const root = document.createElement("div");
+    const state = stateWithCanvas();
+
+    state.tree.selected = [
+      { kind: "roi", name: "roi-a" },
+      { kind: "anchor", name: "anchor-a" },
+    ];
+    renderCanvas(root, state);
+    expect(root.querySelector(".canvas-roi")).toBeNull();
+    expect(root.querySelector(".canvas-anchor")).toBeNull();
+
+    state.tree.selected = [{ kind: "group", name: "group-a" }];
+    renderCanvas(root, state);
+    expect(root.querySelector(".canvas-roi")).toBeNull();
+    expect(root.querySelector(".canvas-anchor")).toBeNull();
   });
 
   it("renders draft drag and pan transform at zoom", () => {
@@ -98,5 +128,7 @@ describe("canvas render", () => {
     expect(num(draft, "y")).toBe(150);
     expect(num(draft, "width")).toBe(80);
     expect(num(draft, "height")).toBe(40);
+    expect(draft?.getAttribute("fill")).toBe("none");
+    expect(draft?.getAttribute("stroke")).toBe("#00d1ff");
   });
 });

@@ -3,13 +3,14 @@ import { describe, expect, it } from "vitest";
 import { blur, input, mountForm, selectedState, typeInto } from "./form-test-helpers.js";
 
 describe("right-panel form field editing", () => {
-  it("keeps buffers live while typing and commits valid ROI text on blur", () => {
+  it("keeps buffers and draft live while typing valid ROI text", () => {
     const { root, store } = mountForm(selectedState("roi", "roi-1"));
     const name = input(root, "name");
 
     typeInto(name, "roi-renamed");
     expect(store.getState().form.buffers.name).toBe("roi-renamed");
     expect(input(root, "name").value).toBe("roi-renamed");
+    expect(store.getState().workspace.rois[0]?.name).toBe("roi-renamed");
 
     blur(input(root, "name"));
     expect(store.getState().workspace.rois[0]?.name).toBe("roi-renamed");

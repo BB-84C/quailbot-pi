@@ -44,11 +44,11 @@ function fieldsFor(kind: TreeItemKey["kind"], draft: RoiDraft | AnchorDraft | Gr
   }
   if (kind === "anchor") {
     const anchor = draft as AnchorDraft;
-    return { name: anchor.name, x: String(anchor.x), y: String(anchor.y), tags: anchor.tags, description: anchor.description };
+    return { name: anchor.name, x: String(anchor.x), y: String(anchor.y), w: "", h: "", tags: anchor.tags, description: anchor.description };
   }
   if (kind === "group") {
     const group = draft as GroupDraft;
-    return { name: group.name, tags: group.tags, description: group.description };
+    return { name: group.name, x: "", y: "", w: "", h: "", tags: group.tags, description: group.description };
   }
   const cli = draft as CliParamDraft;
   return { name: cli.name, tags: cli.tags, description: cli.description };
@@ -104,8 +104,16 @@ export function shouldShowField(itemKind: "roi" | "anchor" | "group" | "cli", fi
   if (field === "tags") return true;
   if (field === "name") return true;
   if (itemKind === "roi") return field === "x" || field === "y" || field === "w" || field === "h";
-  if (itemKind === "anchor") return field === "x" || field === "y";
+  if (itemKind === "anchor") return field === "x" || field === "y" || field === "w" || field === "h";
+  if (itemKind === "group") return field === "x" || field === "y" || field === "w" || field === "h";
   return false;
+}
+
+export function isFieldEnabled(itemKind: "roi" | "anchor" | "group" | "cli", field: FormFieldKey): boolean {
+  if (itemKind === "cli") return field !== "name";
+  if (itemKind === "anchor") return field !== "w" && field !== "h";
+  if (itemKind === "group") return field === "name" || field === "tags" || field === "description";
+  return true;
 }
 
 export function cliMetaVisibility(cli: CliParamDraft): CliMetaVisibility {

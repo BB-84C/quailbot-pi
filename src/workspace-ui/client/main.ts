@@ -6,6 +6,7 @@ import { attachFilterEvents } from "./events/filter.js";
 import { attachFileBrowserEvents } from "./events/file-browser.js";
 import { attachFormEvents } from "./events/form.js";
 import { attachItemsTreeEvents } from "./events/items-tree.js";
+import { attachMenuEvents } from "./events/menu.js";
 import { attachToolbarEvents } from "./events/toolbar.js";
 import { canvasFrameLoaded, formSelectionChanged, startupFinished, startupWorkspaceLoaded, type Action } from "./actions.js";
 import { postCapture, postFetchWorkspace } from "./api/workspace.js";
@@ -15,6 +16,7 @@ import { renderFilter } from "./render/filter.js";
 import { renderFileBrowserModal } from "./render/file-browser.js";
 import { renderForm } from "./render/form.js";
 import { renderItemsTree } from "./render/items-tree.js";
+import { renderMenu } from "./render/menu.js";
 import { renderToolbar } from "./render/toolbar.js";
 import { selectionSummary } from "./selectors/form.js";
 import { createStore } from "./store.js";
@@ -23,6 +25,9 @@ import type { AppState } from "./state.js";
 declare global {
   interface Window {
     __quailbotWorkspaceUiReady?: boolean;
+    __quailbotWorkspaceUiBooting?: boolean;
+    __quailbotWorkspaceUiBootStep?: string;
+    __quailbotWorkspaceUiError?: string;
     __quailbotShared?: {
       effectiveScale: typeof effectiveScale;
       screenToCanvas: typeof screenToCanvas;
@@ -30,8 +35,34 @@ declare global {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function bootWorkspaceUiOnce(): void {
+  if (window.__quailbotWorkspaceUiReady || window.__quailbotWorkspaceUiBooting) return;
+  window.__quailbotWorkspaceUiBooting = true;
+  try {
+    bootstrapWorkspaceUi();
+  } catch (error) {
+    reportStartupFatal(error);
+  } finally {
+    window.__quailbotWorkspaceUiBooting = false;
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootWorkspaceUiOnce, { once: true });
+} else {
+  bootWorkspaceUiOnce();
+}
+
+function bootstrapWorkspaceUi(): void {
+  window.__quailbotWorkspaceUiBootStep = "mount-roots";
   const appRoot = document.querySelector<HTMLElement>("[data-workspace-ui-root]") ?? document.body;
+  appRoot.dataset.workspaceUiBootStep = "mount-roots";
+  let menuRoot = appRoot.querySelector<HTMLElement>("[data-menu-root]");
+  if (!menuRoot) {
+    menuRoot = document.createElement("nav");
+    menuRoot.dataset.menuRoot = "true";
+    appRoot.prepend(menuRoot);
+  }
   let treeRoot = appRoot.querySelector<HTMLElement>("[data-items-tree-root]");
   if (!treeRoot) {
     treeRoot = document.createElement("section");
@@ -59,15 +90,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   let toolbarRoot = appRoot.querySelector<HTMLElement>("[data-workspace-toolbar-root]");
   if (!toolbarRoot) {
-    toolbarRoot = document.createElement("section");
+    toolbarRoot = document.createElement("div");
     toolbarRoot.dataset.workspaceToolbarRoot = "true";
-    formRoot.before(toolbarRoot);
+    filterRoot.after(toolbarRoot);
   }
   let startupRoot = appRoot.querySelector<HTMLElement>("[data-startup-banner-root]");
   if (!startupRoot) {
     startupRoot = document.createElement("section");
     startupRoot.dataset.startupBannerRoot = "true";
-    appRoot.prepend(startupRoot);
+    menuRoot.after(startupRoot);
   }
   let modalRoot = appRoot.querySelector<HTMLElement>("[data-cli-import-modal-root]");
   if (!modalRoot) {
@@ -81,8 +112,16 @@ document.addEventListener("DOMContentLoaded", () => {
     fileBrowserRoot.dataset.fileBrowserModalRoot = "true";
     modalRoot.after(fileBrowserRoot);
   }
+  let helpRoot = appRoot.querySelector<HTMLElement>("[data-help-modal-root]");
+  if (!helpRoot) {
+    helpRoot = document.createElement("section");
+    helpRoot.dataset.helpModalRoot = "true";
+    fileBrowserRoot.after(helpRoot);
+  }
 
   const store = createStore();
+  window.__quailbotWorkspaceUiBootStep = "create-store";
+  appRoot.dataset.workspaceUiBootStep = "create-store";
   const dispatch = (action: Action): void => {
     store.dispatch(action);
     if (action.type.startsWith("TREE_")) {
@@ -90,6 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
   const render = (): void => {
+    renderMenu(menuRoot);
     renderStartupBanner(startupRoot, store.getState());
     renderToolbar(toolbarRoot, store.getState());
     renderItemsTree(treeRoot, store.getState());
@@ -100,21 +140,57 @@ document.addEventListener("DOMContentLoaded", () => {
     renderFileBrowserModal(fileBrowserRoot, store.getState());
   };
   store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
+  window.__quailbotWorkspaceUiBootStep = "initial-render";
+  appRoot.dataset.workspaceUiBootStep = "initial-render";
   render();
   store.subscribe(render);
+  window.__quailbotWorkspaceUiBootStep = "attach-items-tree";
+  appRoot.dataset.workspaceUiBootStep = "attach-items-tree";
   attachItemsTreeEvents(treeRoot, dispatch);
+  window.__quailbotWorkspaceUiBootStep = "attach-filter";
+  appRoot.dataset.workspaceUiBootStep = "attach-filter";
   attachFilterEvents(filterRoot, dispatch);
+  window.__quailbotWorkspaceUiBootStep = "attach-canvas";
+  appRoot.dataset.workspaceUiBootStep = "attach-canvas";
   attachCanvasEvents(canvasRoot, dispatch, store.getState);
+  window.__quailbotWorkspaceUiBootStep = "attach-form";
+  appRoot.dataset.workspaceUiBootStep = "attach-form";
   attachFormEvents(formRoot, dispatch, store.getState);
-  attachCliImportEvents({ formRoot, modalRoot, dispatch, getState: store.getState });
-  attachFileBrowserEvents({ formRoot, modalRoot: fileBrowserRoot, dispatch, getState: store.getState });
+  window.__quailbotWorkspaceUiBootStep = "attach-cli-import";
+  appRoot.dataset.workspaceUiBootStep = "attach-cli-import";
+  attachCliImportEvents({ formRoot: toolbarRoot, modalRoot, dispatch, getState: store.getState });
+  window.__quailbotWorkspaceUiBootStep = "attach-file-browser";
+  appRoot.dataset.workspaceUiBootStep = "attach-file-browser";
+  attachFileBrowserEvents({ formRoots: [toolbarRoot, menuRoot], modalRoot: fileBrowserRoot, dispatch, getState: store.getState });
+  window.__quailbotWorkspaceUiBootStep = "attach-toolbar";
+  appRoot.dataset.workspaceUiBootStep = "attach-toolbar";
   attachToolbarEvents({ root: toolbarRoot, dispatch, getState: store.getState });
+  window.__quailbotWorkspaceUiBootStep = "attach-menu";
+  appRoot.dataset.workspaceUiBootStep = "attach-menu";
+  attachMenuEvents({ menuRoot, helpRoot });
 
+  window.__quailbotWorkspaceUiBootStep = "startup-fetch";
+  appRoot.dataset.workspaceUiBootStep = "startup-fetch";
   void runStartupFetch(dispatch);
 
   window.__quailbotWorkspaceUiReady = true;
+  window.__quailbotWorkspaceUiBootStep = "ready";
+  appRoot.dataset.workspaceUiReady = "true";
+  appRoot.dataset.workspaceUiBootStep = "ready";
   window.__quailbotShared = { effectiveScale, screenToCanvas };
-});
+}
+
+function reportStartupFatal(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  window.__quailbotWorkspaceUiError = message;
+  const root = document.querySelector<HTMLElement>("[data-startup-banner-root]") ?? document.querySelector<HTMLElement>("[data-workspace-ui-root]") ?? document.body;
+  root.dataset.startupError = message;
+  const banner = document.createElement("div");
+  banner.className = "startup-error-banner";
+  banner.textContent = `Workspace UI startup failed: ${message}`;
+  root.prepend(banner);
+  console.error("Workspace UI startup failed", error);
+}
 
 async function runStartupFetch(dispatch: (action: Action) => void): Promise<void> {
   const errors: string[] = [];

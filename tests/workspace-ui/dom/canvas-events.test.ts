@@ -52,6 +52,41 @@ describe("canvas events", () => {
     off();
   });
 
+  it("draws an ROI from ordinary mouse events for Tk-style browser input", () => {
+    const state = fixtureState();
+    state.form.buffers = { x: "0", y: "0", w: "0", h: "0" };
+    const { root, store, off } = mount(state);
+    const scale = effectiveScale(frame, { ...store.getState().canvas.viewport, zoom: 1 });
+    store.dispatch(canvasBeginDrawRoi());
+
+    pointer(root, "mousedown", 110, 120);
+    pointer(root, "mousemove", 210, 220);
+    pointer(root, "mouseup", 250, 260);
+
+    expect(store.getState().canvas.mode).toBe("idle");
+    expect(store.getState().canvas.draftDrag).toBeNull();
+    expect(store.getState().workspace.rois[0]).toMatchObject(dragToRoi(frame, scale, { x: 140, y: 110 }, { x: 280, y: 250 }));
+    expect(store.getState().form.buffers).toEqual({});
+    expect(store.getState().form.history).toEqual({});
+    off();
+  });
+
+  it("pick-anchor mouse click writes selected anchor screen coordinates and exits pick mode", () => {
+    const state = fixtureState();
+    state.tree.selected = [{ kind: "anchor", name: "anchor-a" }];
+    state.form.buffers = { x: "0", y: "0" };
+    const { root, store } = mount(state);
+    const scale = effectiveScale(frame, { ...store.getState().canvas.viewport, zoom: 1 });
+    store.dispatch(canvasBeginPickAnchor());
+
+    pointer(root, "mousedown", 160, 170);
+
+    expect(store.getState().canvas.mode).toBe("idle");
+    expect(store.getState().workspace.anchors[0]).toMatchObject(canvasToScreen(frame, scale, { x: 190, y: 160 }));
+    expect(store.getState().form.buffers).toEqual({});
+    expect(store.getState().form.history).toEqual({});
+  });
+
   it("pick-anchor click writes selected anchor screen coordinates and exits pick mode", () => {
     const state = fixtureState();
     state.tree.selected = [{ kind: "anchor", name: "anchor-a" }];

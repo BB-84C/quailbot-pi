@@ -8,8 +8,9 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K): SVGElementTagNameM
   return document.createElementNS(SVG_NS, tag);
 }
 
-function isSelected(selected: TreeItemKey[], kind: TreeItemKey["kind"], name: string): boolean {
-  return selected.some((item) => item.kind === kind && item.name === name);
+function singleSelectedOverlay(selected: TreeItemKey[]): TreeItemKey | null {
+  const item = selected.length === 1 ? selected[0] : null;
+  return item?.kind === "roi" || item?.kind === "anchor" ? item : null;
 }
 
 function setAttrs(el: Element, attrs: Record<string, string | number>): void {
@@ -55,38 +56,45 @@ export function renderCanvas(rootEl: HTMLElement, state: AppState): void {
   image.setAttribute("href", captureAssetHref(frame.captureId));
   content.append(image);
 
-  for (const roi of state.workspace.rois) {
-    const rectData = roiToCanvasRect(frame, scale, roi);
-    const rect = svgEl("rect");
-    rect.classList.add("canvas-roi");
-    if (isSelected(state.tree.selected, "roi", roi.name)) {
-      rect.classList.add("canvas-roi--selected");
+  const overlay = singleSelectedOverlay(state.tree.selected);
+  if (overlay?.kind === "roi") {
+    const roi = state.workspace.rois.find((item) => item.name === overlay.name);
+    if (roi) {
+      const rectData = roiToCanvasRect(frame, scale, roi);
+      const rect = svgEl("rect");
+      rect.classList.add("canvas-roi", "canvas-roi--selected");
+      rect.dataset.name = roi.name;
+      setAttrs(rect, {
+        x: rectData.left,
+        y: rectData.top,
+        width: rectData.width,
+        height: rectData.height,
+        fill: "none",
+        stroke: "#00d1ff",
+        "stroke-width": 2,
+      });
+      content.append(rect);
     }
-    rect.dataset.name = roi.name;
-    setAttrs(rect, { x: rectData.left, y: rectData.top, width: rectData.width, height: rectData.height });
-    content.append(rect);
-  }
+  } else if (overlay?.kind === "anchor") {
+    const anchor = state.workspace.anchors.find((item) => item.name === overlay.name);
+    if (anchor) {
+      const point = screenToCanvas(frame, scale, anchor);
+      const group = svgEl("g");
+      group.classList.add("canvas-anchor", "canvas-anchor--selected");
+      group.dataset.name = anchor.name;
 
-  for (const anchor of state.workspace.anchors) {
-    const point = screenToCanvas(frame, scale, anchor);
-    const group = svgEl("g");
-    group.classList.add("canvas-anchor");
-    if (isSelected(state.tree.selected, "anchor", anchor.name)) {
-      group.classList.add("canvas-anchor--selected");
+      const h = svgEl("line");
+      h.classList.add("canvas-anchor-line");
+      setAttrs(h, { x1: point.x - 8, y1: point.y, x2: point.x + 8, y2: point.y, stroke: "#ffcc00", "stroke-width": 2 });
+      const v = svgEl("line");
+      v.classList.add("canvas-anchor-line");
+      setAttrs(v, { x1: point.x, y1: point.y - 8, x2: point.x, y2: point.y + 8, stroke: "#ffcc00", "stroke-width": 2 });
+      const circle = svgEl("circle");
+      circle.classList.add("canvas-anchor-circle");
+      setAttrs(circle, { cx: point.x, cy: point.y, r: 4, fill: "none", stroke: "#ffcc00", "stroke-width": 2 });
+      group.append(h, v, circle);
+      content.append(group);
     }
-    group.dataset.name = anchor.name;
-
-    const h = svgEl("line");
-    h.classList.add("canvas-anchor-line");
-    setAttrs(h, { x1: point.x - 8, y1: point.y, x2: point.x + 8, y2: point.y });
-    const v = svgEl("line");
-    v.classList.add("canvas-anchor-line");
-    setAttrs(v, { x1: point.x, y1: point.y - 8, x2: point.x, y2: point.y + 8 });
-    const circle = svgEl("circle");
-    circle.classList.add("canvas-anchor-circle");
-    setAttrs(circle, { cx: point.x, cy: point.y, r: 4 });
-    group.append(h, v, circle);
-    content.append(group);
   }
 
   if (state.canvas.draftDrag) {
@@ -97,7 +105,7 @@ export function renderCanvas(rootEl: HTMLElement, state: AppState): void {
     const y = Math.min(startCanvas.y, currentCanvas.y);
     const width = Math.abs(currentCanvas.x - startCanvas.x);
     const height = Math.abs(currentCanvas.y - startCanvas.y);
-    setAttrs(draft, { x, y, width, height });
+    setAttrs(draft, { x, y, width, height, fill: "none", stroke: "#00d1ff", "stroke-width": 2 });
     content.append(draft);
   }
 

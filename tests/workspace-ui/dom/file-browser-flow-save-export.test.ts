@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { attachFileBrowserEvents } from "../../../src/workspace-ui/client/events/file-browser.js";
 import { renderFileBrowserModal } from "../../../src/workspace-ui/client/render/file-browser.js";
 import { renderForm } from "../../../src/workspace-ui/client/render/form.js";
+import { renderMenu } from "../../../src/workspace-ui/client/render/menu.js";
+import { renderToolbar } from "../../../src/workspace-ui/client/render/toolbar.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
 import { initialState, type AppState } from "../../../src/workspace-ui/client/state.js";
 import type { Action } from "../../../src/workspace-ui/client/actions.js";
@@ -22,18 +24,24 @@ function fixtureState(): AppState {
 
 function mount(state: AppState) {
   const formRoot = document.createElement("section");
+  const toolbarRoot = document.createElement("section");
+  const menuRoot = document.createElement("section");
   const modalRoot = document.createElement("section");
-  document.body.replaceChildren(formRoot, modalRoot);
+  document.body.replaceChildren(menuRoot, toolbarRoot, formRoot, modalRoot);
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
+    renderMenu(menuRoot);
+    renderToolbar(toolbarRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderFileBrowserModal(modalRoot, store.getState());
   };
+  renderMenu(menuRoot);
+  renderToolbar(toolbarRoot, store.getState());
   renderForm(formRoot, store.getState());
   renderFileBrowserModal(modalRoot, store.getState());
-  const off = attachFileBrowserEvents({ formRoot, modalRoot, dispatch, getState: store.getState });
-  return { formRoot, modalRoot, store, off };
+  const off = attachFileBrowserEvents({ formRoots: [toolbarRoot, menuRoot], modalRoot, dispatch, getState: store.getState });
+  return { menuRoot, toolbarRoot, formRoot, modalRoot, store, off };
 }
 
 function postedJson(fetchMock: ReturnType<typeof vi.fn>, callIndex: number): Record<string, unknown> {
@@ -48,10 +56,11 @@ describe("file browser save/export flow", () => {
   it("Save posts updateCurrent true and updates currentPath on success", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\active.json", hash: "abcd1234abcd1234" })));
     vi.stubGlobal("fetch", fetch);
-    const { formRoot, store } = mount(fixtureState());
+    const { toolbarRoot, formRoot, store } = mount(fixtureState());
     const expected = buildWorkspaceJson(store.getState().workspace);
 
-    formRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
+    expect(formRoot.querySelector('button[data-action="file-browser-save"]')).toBeNull();
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
     await flush();
 
     const body = postedJson(fetch, 0);
@@ -65,10 +74,11 @@ describe("file browser save/export flow", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\exported.json", hash: "abcd1234abcd1234" })));
     vi.stubGlobal("fetch", fetch);
-    const { formRoot, modalRoot, store } = mount(fixtureState());
+    const { menuRoot, formRoot, modalRoot, store } = mount(fixtureState());
     const before = store.getState().workspace.currentPath;
 
-    formRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
+    expect(formRoot.querySelector('button[data-action="file-browser-export"]')).toBeNull();
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
     await flush();
     const input = modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]');
     if (!input) throw new Error("missing export filename input");

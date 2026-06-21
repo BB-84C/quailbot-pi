@@ -4,6 +4,7 @@ import { formSelectionChanged, type Action } from "../../../src/workspace-ui/cli
 import { attachCliImportEvents } from "../../../src/workspace-ui/client/events/cli-import.js";
 import { renderCliImportModal } from "../../../src/workspace-ui/client/render/cli-import-modal.js";
 import { renderForm } from "../../../src/workspace-ui/client/render/form.js";
+import { renderToolbar } from "../../../src/workspace-ui/client/render/toolbar.js";
 import { selectionSummary } from "../../../src/workspace-ui/client/selectors/form.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
 import { initialState, type AppState } from "../../../src/workspace-ui/client/state.js";
@@ -68,17 +69,20 @@ function capabilitiesPayload(): Record<string, unknown> {
 
 function mount(state = fixtureState()) {
   const formRoot = document.createElement("section");
+  const toolbarRoot = document.createElement("section");
   const modalRoot = document.createElement("section");
-  document.body.replaceChildren(formRoot, modalRoot);
+  document.body.replaceChildren(toolbarRoot, formRoot, modalRoot);
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
+    renderToolbar(toolbarRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderCliImportModal(modalRoot, store.getState());
   };
   dispatch(formSelectionChanged(selectionSummary(store.getState())));
-  const off = attachCliImportEvents({ formRoot, modalRoot, dispatch, getState: store.getState });
-  return { formRoot, modalRoot, store, dispatch, off };
+  renderToolbar(toolbarRoot, store.getState());
+  const off = attachCliImportEvents({ formRoot: toolbarRoot, modalRoot, dispatch, getState: store.getState });
+  return { toolbarRoot, formRoot, modalRoot, store, dispatch, off };
 }
 
 async function flush(): Promise<void> {
@@ -93,9 +97,10 @@ describe("CLI import client flow", () => {
 
   it("probes, merges, opens conflicts, and applies Use loaded", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ ok: true, payload: capabilitiesPayload(), usedSubcommand: "capabilities", error: "" }) }));
-    const { formRoot, modalRoot, store } = mount();
+    const { toolbarRoot, formRoot, modalRoot, store } = mount();
 
-    formRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
+    expect(formRoot.querySelector('button[data-action="cli-import-load"]')).toBeNull();
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
     await flush();
 
     const pending = store.getState().cliImport;
@@ -113,10 +118,10 @@ describe("CLI import client flow", () => {
 
   it("Cancel leaves the workspace unchanged", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ ok: true, payload: capabilitiesPayload(), usedSubcommand: "capabilities", error: "" }) }));
-    const { formRoot, modalRoot, store } = mount();
+    const { toolbarRoot, formRoot, modalRoot, store } = mount();
     const before = store.getState().workspace.cliParams.map((draft) => cliParamToJson(draft));
 
-    formRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
     await flush();
     modalRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-cancel"]')?.click();
 

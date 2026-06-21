@@ -76,7 +76,9 @@ export type FormAction =
   | { type: "FORM_EDIT_CLI_RAMP_ENABLED"; payload: { value: boolean } }
   | { type: "LINKED_SEARCH_CHANGED"; payload: { text: string } }
   | { type: "LINKED_PICKER_CHANGED"; payload: { value: string } }
+  | { type: "LINKED_SELECT"; payload: { value: string; modifiers: { ctrl: boolean } } }
   | { type: "LINKED_ADD" }
+  | { type: "LINKED_REMOVE_SELECTED" }
   | { type: "LINKED_REMOVE"; payload: { value: string } };
 
 export type FilterAction =
@@ -108,7 +110,9 @@ export type FileBrowserAction =
   | { type: "FILE_BROWSER_FAILED"; payload: { error: string } }
   | { type: "FILE_BROWSER_CANCEL" };
 
-export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction;
+export type WorkspaceAction = { type: "WORKSPACE_CLI_ENABLED_CHANGED"; payload: { value: boolean } };
+
+export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction | WorkspaceAction;
 
 export function treeAddItem(kind: "roi" | "anchor" | "group"): Action {
   return { type: "TREE_ADD_ITEM", payload: { kind } };
@@ -254,6 +258,14 @@ export function linkedAdd(): Action {
   return { type: "LINKED_ADD" };
 }
 
+export function linkedSelect(value: string, modifiers: { ctrl: boolean } = { ctrl: false }): Action {
+  return { type: "LINKED_SELECT", payload: { value, modifiers } };
+}
+
+export function linkedRemoveSelected(): Action {
+  return { type: "LINKED_REMOVE_SELECTED" };
+}
+
 export function linkedRemove(value: string): Action {
   return { type: "LINKED_REMOVE", payload: { value } };
 }
@@ -276,6 +288,10 @@ export function filterClear(): Action {
 
 export function cliImportNameChanged(text: string): Action {
   return { type: "CLI_IMPORT_NAME_CHANGED", payload: { text } };
+}
+
+export function workspaceCliEnabledChanged(value: boolean): Action {
+  return { type: "WORKSPACE_CLI_ENABLED_CHANGED", payload: { value } };
 }
 
 export function cliImportProbeStarted(): Action {

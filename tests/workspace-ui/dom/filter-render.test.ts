@@ -60,6 +60,7 @@ describe("filter panel render", () => {
     renderFilter(root, state);
 
     expect(root.querySelector(".filter-empty")?.textContent).toBe("(no tags)");
+    expect(root.querySelector(".filter-keyword-row")?.textContent).toContain("Keyword");
     expect(root.querySelector<HTMLInputElement>(".filter-keyword")?.value).toBe("anchor, roi");
     expect(root.querySelector<HTMLButtonElement>(".filter-logic-toggle")?.textContent).toBe("AND");
   });

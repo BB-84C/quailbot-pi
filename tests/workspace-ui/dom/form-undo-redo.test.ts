@@ -15,13 +15,16 @@ describe("right-panel per-field undo/redo", () => {
     ctrlKey(input(root, "name"), "z");
     expect(input(root, "name").value).toBe("ab");
     expect(input(root, "name").selectionStart).toBe(2);
+    expect(store.getState().workspace.rois[0]?.name).toBe("ab");
 
     ctrlKey(input(root, "name"), "z");
     expect(input(root, "name").value).toBe("a");
     expect(input(root, "name").selectionStart).toBe(1);
+    expect(store.getState().workspace.rois[0]?.name).toBe("a");
 
     ctrlKey(input(root, "name"), "y");
     expect(input(root, "name").value).toBe("ab");
+    expect(store.getState().workspace.rois[0]?.name).toBe("ab");
 
     typeInto(input(root, "name"), "az", 2);
     ctrlKey(input(root, "name"), "y");
@@ -37,7 +40,7 @@ describe("right-panel per-field undo/redo", () => {
     const { root } = mountForm(selectedState("roi", "roi-1"));
 
     typeInto(textarea(root), "one", 3);
-    blur(textarea(root));
+    expect(root.querySelector("textarea")?.value).toBe("one");
     typeInto(textarea(root), "one two", 7);
     blur(textarea(root));
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { blur, mountForm, typeInto } from "./form-test-helpers.js";
+import { mountForm, typeInto } from "./form-test-helpers.js";
 import { actionParam, checkbox, cliTextarea, rampParam, safetyInput, stateWithCli, writableParam } from "./cli-meta-helpers.js";
 
 function change(el: HTMLElement): void {
@@ -27,24 +27,21 @@ describe("CLI metadata editing", () => {
     expect(store.getState().workspace.cliParams[0]?.safety_mode).toBe("blocked");
   });
 
-  it("description textareas buffer on input and write get_cmd/set_cmd descriptions on blur", () => {
+  it("description textareas write get_cmd/set_cmd descriptions on input", () => {
     const { root, store } = mountForm(stateWithCli(writableParam()));
     typeInto(cliTextarea(root, "getCmdDescription"), "fresh get");
     expect(store.getState().form.cliMeta.getCmdDescription).toBe("fresh get");
-    blur(cliTextarea(root, "getCmdDescription"));
     expect(store.getState().workspace.cliParams[0]?.get_cmd?.description).toBe("fresh get");
 
     typeInto(cliTextarea(root, "setCmdDescription"), "fresh set");
-    blur(cliTextarea(root, "setCmdDescription"));
     expect(store.getState().workspace.cliParams[0]?.set_cmd?.description).toBe("fresh set");
   });
 
-  it("safety field blur uses safeFloat fallback for garbage text", () => {
+  it("safety field input uses safeFloat fallback for garbage text", () => {
     const { root, store } = mountForm(stateWithCli(rampParam()));
     const maxStep = safetyInput(root, "max_step");
     maxStep.value = "garbage";
     maxStep.dispatchEvent(new InputEvent("input", { bubbles: true }));
-    blur(safetyInput(root, "max_step"));
     expect(store.getState().workspace.cliParams[0]?.safety?.max_step).toBe(3);
   });
 

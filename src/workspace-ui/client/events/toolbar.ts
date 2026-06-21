@@ -1,6 +1,7 @@
-import { canvasBeginDrawRoi, canvasBeginPickAnchor, canvasFrameLoaded, treeAddItem, treeDeleteSelected, type Action } from "../actions.js";
+import { canvasBeginDrawRoi, canvasBeginPickAnchor, canvasFrameLoaded, startupFinished, treeAddItem, treeDeleteSelected, workspaceCliEnabledChanged, type Action } from "../actions.js";
 import { postCapture } from "../api/workspace.js";
 import type { AppState } from "../state.js";
+import { attachScopedActivation, attachScopedEvent } from "./delegation.js";
 
 function closestButton(target: EventTarget | null, root: HTMLElement): HTMLButtonElement | null {
   if (!(target instanceof Element)) return null;
@@ -12,6 +13,9 @@ async function refreshCapture(dispatch: (action: Action) => void): Promise<void>
   const response = await postCapture();
   if (response.ok) {
     dispatch(canvasFrameLoaded(response.frame));
+    dispatch(startupFinished(null));
+  } else {
+    dispatch(startupFinished(response.error || "Screen capture unavailable."));
   }
 }
 
@@ -50,6 +54,15 @@ export function attachToolbarEvents(args: { root: HTMLElement; dispatch: (action
       }
     }
   };
-  root.addEventListener("click", onClick);
-  return () => root.removeEventListener("click", onClick);
+  const onChange = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.dataset.action !== "cli-tools-enabled") return;
+    dispatch(workspaceCliEnabledChanged(target.checked));
+  };
+  const offClick = attachScopedActivation(root, onClick);
+  const offChange = attachScopedEvent<Event>(root, "change", onChange);
+  return () => {
+    offClick();
+    offChange();
+  };
 }

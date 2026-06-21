@@ -8,6 +8,7 @@ import {
   type Action,
 } from "../actions.js";
 import type { AppState } from "../state.js";
+import { attachScopedEvent } from "./delegation.js";
 
 type Dispatch = (action: Action) => void;
 
@@ -54,7 +55,7 @@ export function attachCanvasEvents(rootEl: HTMLElement, dispatch: Dispatch, getS
     }, 75);
   };
 
-  const onPointerDown = (event: PointerEvent): void => {
+  const onPointerDown = (event: PointerEvent | MouseEvent): void => {
     if (!viewportFor(rootEl, event.target)) {
       return;
     }
@@ -64,7 +65,7 @@ export function attachCanvasEvents(rootEl: HTMLElement, dispatch: Dispatch, getS
     }
   };
 
-  const onPointerMove = (event: PointerEvent): void => {
+  const onPointerMove = (event: PointerEvent | MouseEvent): void => {
     if (!viewportFor(rootEl, event.target)) {
       return;
     }
@@ -74,7 +75,7 @@ export function attachCanvasEvents(rootEl: HTMLElement, dispatch: Dispatch, getS
     }
   };
 
-  const onPointerUp = (event: PointerEvent): void => {
+  const onPointerUp = (event: PointerEvent | MouseEvent): void => {
     const point = eventCanvasPoint(rootEl, event.target, event.clientX, event.clientY, getState());
     if (point) {
       dispatch(canvasPointerUp(point.x, point.y));
@@ -102,11 +103,15 @@ export function attachCanvasEvents(rootEl: HTMLElement, dispatch: Dispatch, getS
     dispatch(canvasPanWheel(0, event.deltaY));
   };
 
-  rootEl.addEventListener("pointerdown", onPointerDown as EventListener);
-  rootEl.addEventListener("pointermove", onPointerMove as EventListener);
-  rootEl.addEventListener("pointerup", onPointerUp as EventListener);
+  const offPointerDown = attachScopedEvent<PointerEvent>(rootEl, "pointerdown", onPointerDown);
+  const offPointerMove = attachScopedEvent<PointerEvent>(rootEl, "pointermove", onPointerMove);
+  const offPointerUp = attachScopedEvent<PointerEvent>(rootEl, "pointerup", onPointerUp);
+  const offMouseDown = attachScopedEvent<MouseEvent>(rootEl, "mousedown", onPointerDown);
+  const offMouseMove = attachScopedEvent<MouseEvent>(rootEl, "mousemove", onPointerMove);
+  const offMouseUp = attachScopedEvent<MouseEvent>(rootEl, "mouseup", onPointerUp);
   window.addEventListener("pointerup", onPointerUp as EventListener);
-  rootEl.addEventListener("wheel", onWheel, { passive: false });
+  window.addEventListener("mouseup", onPointerUp as EventListener);
+  const offWheel = attachScopedEvent<WheelEvent>(rootEl, "wheel", onWheel, { passive: false });
 
   const ResizeObserverCtor = globalThis.ResizeObserver;
   const observer = ResizeObserverCtor
@@ -121,11 +126,15 @@ export function attachCanvasEvents(rootEl: HTMLElement, dispatch: Dispatch, getS
   observer?.observe(rootEl);
 
   return () => {
-    rootEl.removeEventListener("pointerdown", onPointerDown as EventListener);
-    rootEl.removeEventListener("pointermove", onPointerMove as EventListener);
-    rootEl.removeEventListener("pointerup", onPointerUp as EventListener);
+    offPointerDown();
+    offPointerMove();
+    offPointerUp();
+    offMouseDown();
+    offMouseMove();
+    offMouseUp();
     window.removeEventListener("pointerup", onPointerUp as EventListener);
-    rootEl.removeEventListener("wheel", onWheel);
+    window.removeEventListener("mouseup", onPointerUp as EventListener);
+    offWheel();
     observer?.disconnect();
     if (resizeTimer !== null) {
       clearTimeout(resizeTimer);

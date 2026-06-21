@@ -26,6 +26,8 @@ describe("linked observables render", () => {
     expect(linkedFrame(root)?.classList.contains("linked-frame--anchor")).toBe(true);
     expect(linkedFrame(root)?.querySelector("h3")?.textContent).toBe("Linked Observables (anchor)");
     expect(pickerOptions(root)).toEqual(["roi-1", "roi-2"]);
+    expect(root.querySelector(".linked-list")?.getAttribute("role")).toBe("listbox");
+    expect(root.querySelector<HTMLButtonElement>('button[data-action="linked-remove-selected"]')?.textContent).toBe("Remove selected");
   });
 
   it("renders enabled CLI parameter mode when set_cmd is present", () => {
@@ -38,6 +40,8 @@ describe("linked observables render", () => {
     expect(linkedFrame(root)?.getAttribute("aria-disabled")).toBe("false");
     expect(root.querySelector<HTMLInputElement>('input[data-region="linked-search"]')?.disabled).toBe(false);
     expect(pickerOptions(root)).toEqual(["other"]);
+    expect(root.querySelector(".linked-hint")?.textContent).toContain("implicit self-observables");
+    expect(root.querySelector(".cli-actions-display")?.textContent).toContain("get");
   });
 
   it("renders disabled CLI parameter mode when set_cmd and action_cmd are absent", () => {
@@ -62,6 +66,8 @@ describe("linked observables render", () => {
     expect(linkedFrame(root)?.classList.contains("linked-frame--cli_action")).toBe(true);
     expect(linkedFrame(root)?.getAttribute("aria-disabled")).toBe("false");
     expect(pickerOptions(root)).toEqual(["other"]);
+    expect(root.querySelector(".linked-hint")).toBeNull();
+    expect(root.querySelector(".cli-actions-display")).toBeNull();
 
     expect(linkedFrame(renderSelected(selectedState("roi", "roi-1")))).toBeNull();
     expect(linkedFrame(renderSelected(selectedState("group", "A")))).toBeNull();
@@ -78,8 +84,9 @@ describe("linked observables render", () => {
 
     const renderedEntries = [...root.querySelectorAll<HTMLLIElement>(".linked-list li")].map((li) => ({ text: li.textContent ?? "", disabled: li.getAttribute("aria-disabled") }));
     const expected = runtimeLinkedObservables(cli).map((entry) => `${entry.name}${entry.editable ? "" : " (auto)"}`);
-    expect(renderedEntries.map((entry) => entry.text.replace("Remove", ""))).toEqual(expected);
+    expect(renderedEntries.map((entry) => entry.text)).toEqual(expected);
     expect(renderedEntries[0]?.disabled).toBe("true");
+    expect(root.querySelector<HTMLButtonElement>('button[data-action="linked-remove"]')).toBeNull();
     expect(pickerOptions(root)).toEqual(["other"]);
   });
 });

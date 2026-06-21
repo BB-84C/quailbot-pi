@@ -19,11 +19,17 @@ function ensureSection(rootEl: HTMLElement): HTMLElement {
   tags.className = "filter-tags";
   tags.dataset.region = "filter-tags";
 
+  const keywordRow = document.createElement("label");
+  keywordRow.className = "filter-keyword-row";
+  const keywordLabel = document.createElement("span");
+  keywordLabel.textContent = "Keyword";
+
   const keyword = document.createElement("input");
   keyword.type = "text";
   keyword.className = "filter-keyword";
   keyword.dataset.region = "filter-keyword";
   keyword.placeholder = "keyword (comma-separated terms)";
+  keywordRow.append(keywordLabel, keyword);
 
   const logic = document.createElement("button");
   logic.type = "button";
@@ -36,7 +42,9 @@ function ensureSection(rootEl: HTMLElement): HTMLElement {
   clear.dataset.action = "filter-clear";
   clear.textContent = "Clear";
 
-  section.append(header, tags, keyword, logic, clear);
+  keywordRow.append(logic, clear);
+
+  section.append(header, tags, keywordRow);
   rootEl.replaceChildren(section);
   return section;
 }

@@ -53,6 +53,7 @@ export interface CliMetaBuffers {
 export interface LinkedObsState {
   searchText: string;
   pickerValue: string;
+  selectedNames: string[];
 }
 
 export interface FormState {
@@ -166,7 +167,7 @@ export function initialState(): AppState {
       history: {},
       buffers: {},
       cliMeta: {},
-      linkedObs: { searchText: "", pickerValue: "" },
+      linkedObs: { searchText: "", pickerValue: "", selectedNames: [] },
     },
     cliImport: {
       cliName: "cli",
@@ -302,6 +303,9 @@ function fileBrowserReducer(state: AppState, action: Action): AppState {
 }
 
 export function reduceAppState(state: AppState, action: Action): AppState {
+  if (action.type === "WORKSPACE_CLI_ENABLED_CHANGED") {
+    return { ...state, workspace: { ...state.workspace, cliEnabled: action.payload.value } };
+  }
   if (action.type === "STARTUP_WORKSPACE_LOADED") {
     return {
       ...state,

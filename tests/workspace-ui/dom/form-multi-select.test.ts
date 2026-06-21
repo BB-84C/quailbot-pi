@@ -12,7 +12,17 @@ describe("right-panel multi-select group editing", () => {
     const mountedCommon = mountForm(common);
     expect(mountedCommon.root.querySelector(".form-header")?.textContent).toContain("Multiple items (2)");
     expect(select(mountedCommon.root).value).toBe("A");
-    expect([...mountedCommon.root.querySelectorAll("input, textarea")]).toHaveLength(0);
+    expect([...mountedCommon.root.querySelectorAll<HTMLInputElement>("input[data-field]")].map((input) => [input.dataset.field, input.value, input.disabled])).toEqual([
+      ["name", "", true],
+      ["x", "", true],
+      ["y", "", true],
+      ["w", "", true],
+      ["h", "", true],
+      ["tags", "", true],
+    ]);
+    const description = mountedCommon.root.querySelector<HTMLTextAreaElement>('textarea[data-field="description"]');
+    expect(description?.value).toBe("");
+    expect(description?.disabled).toBe(true);
 
     const mixed = fixtureState();
     mixed.tree.selected = [

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { CaptureFrame } from "../shared/geometry.js";
@@ -116,6 +116,9 @@ export function captureVirtualScreen(opts: { stateDir: string }): CaptureResult 
   fsyncFile(tmpMetadataPath);
   renameSync(tmpMetadataPath, finalMetadataPath);
   fsyncFile(tmpPngPath);
+  const versionedPngPath = join(opts.stateDir, `workspace-capture.${captureId}.png`);
+  copyFileSync(tmpPngPath, versionedPngPath);
+  fsyncFile(versionedPngPath);
   renameSync(tmpPngPath, finalPngPath);
 
   return { frame, pngPath: finalPngPath };

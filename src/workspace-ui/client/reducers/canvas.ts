@@ -58,6 +58,10 @@ function withCanvas(state: AppState, canvas: Partial<AppState["canvas"]>): AppSt
   return { ...state, canvas: { ...state.canvas, ...canvas } };
 }
 
+function resetFormBuffers(state: AppState): AppState {
+  return { ...state, form: { ...state.form, buffers: {}, history: {} } };
+}
+
 export function canvasReducer(state: AppState, action: CanvasAction): AppState {
   switch (action.type) {
     case "CANVAS_FRAME_LOADED":
@@ -95,11 +99,11 @@ export function canvasReducer(state: AppState, action: CanvasAction): AppState {
         }
         const point = canvasToScreen(state.canvas.frame, scale, { x: action.payload.canvasX, y: action.payload.canvasY });
         const anchors = state.workspace.anchors.map((anchor) => (anchor.name === name ? { ...anchor, x: point.x, y: point.y } : anchor));
-        return {
+        return resetFormBuffers({
           ...state,
           workspace: { ...state.workspace, anchors },
           canvas: { ...state.canvas, mode: "idle", drawingItemName: null, draftDrag: null },
-        };
+        });
       }
       return state;
     }
@@ -119,11 +123,11 @@ export function canvasReducer(state: AppState, action: CanvasAction): AppState {
       }
       const roiPatch = dragToRoi(state.canvas.frame, scale, state.canvas.draftDrag.startCanvas, { x: action.payload.canvasX, y: action.payload.canvasY });
       const rois = state.workspace.rois.map((roi) => (roi.name === name ? { ...roi, ...roiPatch } : roi));
-      return {
+      return resetFormBuffers({
         ...state,
         workspace: { ...state.workspace, rois },
         canvas: { ...state.canvas, mode: "idle", drawingItemName: null, draftDrag: null },
-      };
+      });
     }
     case "CANVAS_ZOOM_AT_POINTER": {
       if (!state.canvas.frame || state.canvas.mode === "draw_roi" || state.canvas.mode === "pick_anchor") {

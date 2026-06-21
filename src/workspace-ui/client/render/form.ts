@@ -5,6 +5,7 @@ import {
   cliPayloadPreviewText,
   cliSafetyFields,
   groupComboboxOptions,
+  isFieldEnabled,
   linkedControlsEnabled,
   linkedFrameMode,
   linkedListEntries,
@@ -15,7 +16,8 @@ import {
   type SelectionSummary,
 } from "../selectors/form.js";
 
-const fieldOrder: FormFieldKey[] = ["name", "x", "y", "w", "h", "tags", "description"];
+const topFieldOrder: FormFieldKey[] = ["name", "x", "y", "w", "h", "tags"];
+const editableFieldOrder: FormFieldKey[] = [...topFieldOrder, "description"];
 
 function labelForField(field: FormFieldKey): string {
   if (field === "w") return "Width";
@@ -71,67 +73,6 @@ function appendNotice(rootEl: HTMLElement, state: AppState): void {
   rootEl.prepend(notice);
 }
 
-function buildCliImportToolbar(state: AppState): HTMLElement {
-  const toolbar = document.createElement("section");
-  toolbar.className = "cli-import-toolbar";
-  const loadWorkspace = document.createElement("button");
-  loadWorkspace.type = "button";
-  loadWorkspace.dataset.action = "file-browser-load";
-  loadWorkspace.textContent = "Load workspace…";
-  const saveWorkspace = document.createElement("button");
-  saveWorkspace.type = "button";
-  saveWorkspace.dataset.action = "file-browser-save";
-  saveWorkspace.textContent = "Save";
-  saveWorkspace.disabled = state.workspace.currentPath.trim().length === 0;
-  const exportWorkspace = document.createElement("button");
-  exportWorkspace.type = "button";
-  exportWorkspace.dataset.action = "file-browser-export";
-  exportWorkspace.textContent = "Export…";
-  const label = document.createElement("label");
-  label.className = "form-row cli-import-name-row";
-  const text = document.createElement("span");
-  text.textContent = "CLI Name";
-  const input = document.createElement("span");
-  input.dataset.cliImportName = "true";
-  input.setAttribute("role", "textbox");
-  input.contentEditable = "true";
-  input.textContent = state.cliImport.cliName || state.workspace.cliName || "";
-  label.append(text, input);
-  const button = document.createElement("button");
-  button.type = "button";
-  button.dataset.action = "cli-import-load";
-  button.disabled = state.cliImport.inFlight;
-  button.textContent = state.cliImport.inFlight ? "Loading..." : "Load Param From CLI";
-  toolbar.append(loadWorkspace, saveWorkspace, exportWorkspace, label, button);
-  if (state.cliImport.lastError) {
-    const error = document.createElement("p");
-    error.className = "cli-import-error";
-    error.textContent = state.cliImport.lastError;
-    toolbar.append(error);
-  }
-  return toolbar;
-}
-
-function updateCliImportToolbar(rootEl: HTMLElement, state: AppState): void {
-  const input = rootEl.querySelector<HTMLElement>('[data-cli-import-name="true"]');
-  if (input && input.textContent !== state.cliImport.cliName) input.textContent = state.cliImport.cliName;
-  const button = rootEl.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]');
-  if (button) {
-    button.disabled = state.cliImport.inFlight;
-    button.textContent = state.cliImport.inFlight ? "Loading..." : "Load Param From CLI";
-  }
-  const saveWorkspace = rootEl.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]');
-  if (saveWorkspace) saveWorkspace.disabled = state.workspace.currentPath.trim().length === 0;
-  rootEl.querySelector(".cli-import-error")?.remove();
-  const toolbar = rootEl.querySelector<HTMLElement>(".cli-import-toolbar");
-  if (toolbar && state.cliImport.lastError) {
-    const error = document.createElement("p");
-    error.className = "cli-import-error";
-    error.textContent = state.cliImport.lastError;
-    toolbar.append(error);
-  }
-}
-
 function renderGroupSelect(select: HTMLSelectElement, state: AppState): void {
   const options = groupComboboxOptions(state);
   select.replaceChildren();
@@ -163,28 +104,56 @@ function labelTextForSafetyField(field: CliSafetyField): string {
   return field;
 }
 
-function buildField(summary: Extract<SelectionSummary, { kind: "single" }>, field: FormFieldKey, value: string, readOnly: boolean): HTMLElement {
+function buildField(field: FormFieldKey, value: string, enabled: boolean): HTMLElement {
   const row = document.createElement("label");
   row.className = "form-row";
+  if (!enabled) row.classList.add("form-row--disabled");
   const label = document.createElement("span");
   label.textContent = labelForField(field);
   if (field === "description") {
     const textarea = document.createElement("textarea");
     textarea.dataset.field = field;
     textarea.value = value;
-    textarea.readOnly = readOnly;
+    textarea.disabled = !enabled;
     row.append(label, textarea);
     return row;
   }
   const input = document.createElement("input");
   input.dataset.field = field;
   input.value = value;
-  input.readOnly = readOnly;
-  if (summary.itemKind === "cli") {
-    input.setAttribute("aria-readonly", "true");
-  }
+  input.disabled = !enabled;
   row.append(label, input);
   return row;
+}
+
+function buildDescriptionRow(state: AppState, summary: Extract<SelectionSummary, { kind: "single" }>): HTMLElement | null {
+  if (!shouldShowField(summary.itemKind, "description")) return null;
+  return buildField("description", valueFor(state, summary, "description"), isFieldEnabled(summary.itemKind, "description"));
+}
+
+function buildDisabledMultiField(field: FormFieldKey): HTMLElement {
+  const row = document.createElement("label");
+  row.className = "form-row form-row--disabled";
+  const label = document.createElement("span");
+  label.textContent = labelForField(field);
+  if (field === "description") {
+    const textarea = document.createElement("textarea");
+    textarea.dataset.field = field;
+    textarea.value = "";
+    textarea.disabled = true;
+    row.append(label, textarea);
+    return row;
+  }
+  const input = document.createElement("input");
+  input.dataset.field = field;
+  input.value = "";
+  input.disabled = true;
+  row.append(label, input);
+  return row;
+}
+
+function buildDisabledEmptyField(field: FormFieldKey): HTMLElement {
+  return buildDisabledMultiField(field);
 }
 
 function buildCliTextarea(className: string, metaKey: "getCmdDescription" | "setCmdDescription", labelText: string, value: string): HTMLElement {
@@ -364,26 +333,34 @@ function populateLinkedFrame(frame: HTMLElement, state: AppState, mode: Exclude<
   const list = document.createElement("ul");
   list.className = "linked-list";
   list.dataset.region = "linked-list";
+  list.setAttribute("role", "listbox");
+  list.setAttribute("aria-multiselectable", "true");
+  const selectedNames = new Set(state.form.linkedObs.selectedNames);
   for (const entry of entries) {
     const item = document.createElement("li");
+    item.tabIndex = enabled ? 0 : -1;
+    item.dataset.action = "linked-select";
     item.dataset.name = entry.name;
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", selectedNames.has(entry.name) ? "true" : "false");
     if (!entry.editable) {
       item.setAttribute("aria-disabled", "true");
     }
     const name = document.createElement("span");
     name.textContent = `${entry.name}${entry.editable ? "" : " (auto)"}`;
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.dataset.action = "linked-remove";
-    remove.dataset.name = entry.name;
-    remove.textContent = "Remove";
-    setDisabled(remove, !enabled || !entry.editable);
-    item.append(name, remove);
+    item.append(name);
     list.append(item);
   }
   frame.append(list);
 
-  if (mode === "cli" || mode === "cli_action") {
+  const removeSelected = document.createElement("button");
+  removeSelected.type = "button";
+  removeSelected.dataset.action = "linked-remove-selected";
+  removeSelected.textContent = "Remove selected";
+  setDisabled(removeSelected, !enabled || state.form.linkedObs.selectedNames.length === 0);
+  frame.append(removeSelected);
+
+  if (mode === "cli") {
     const hint = document.createElement("p");
     hint.className = "linked-hint";
     hint.textContent = "Entries marked '(auto)' are implicit self-observables and cannot be removed.";
@@ -449,24 +426,36 @@ function updateCliMetadata(rootEl: HTMLElement, state: AppState, cli: CliParamDr
 }
 
 function updateExisting(rootEl: HTMLElement, state: AppState, summary: SelectionSummary): boolean {
-  updateCliImportToolbar(rootEl, state);
   if (summary.kind === "none") return false;
   if (summary.kind === "multi") {
     const header = rootEl.querySelector<HTMLElement>(".form-header");
     if (!header) return false;
     header.textContent = `Multiple items (${summary.count})`;
+    for (const field of [...topFieldOrder, "description"] as FormFieldKey[]) {
+      const control = rootEl.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`);
+      if (control) {
+        setControlValue(control, "");
+        control.disabled = true;
+      }
+    }
     const select = rootEl.querySelector<HTMLSelectElement>('select[data-field="group"]');
-    if (select) renderGroupSelect(select, state);
+    if (select) {
+      renderGroupSelect(select, state);
+      select.disabled = false;
+    }
     appendNotice(rootEl, state);
     return true;
   }
   const header = rootEl.querySelector<HTMLElement>(".form-header");
   if (!header) return false;
   header.textContent = kindLabel(state, summary);
-  for (const field of fieldOrder) {
+  for (const field of editableFieldOrder) {
     const value = valueFor(state, summary, field);
     const control = rootEl.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`);
-    if (control) setControlValue(control, value);
+    if (control) {
+      setControlValue(control, value);
+      control.disabled = !isFieldEnabled(summary.itemKind, field);
+    }
   }
   const select = rootEl.querySelector<HTMLSelectElement>('select[data-field="group"]');
   if (select) renderGroupSelect(select, state);
@@ -481,23 +470,37 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
   rootEl.dataset.formKey = key;
   rootEl.classList.add("selected-form");
   rootEl.replaceChildren();
-  rootEl.append(buildCliImportToolbar(state));
-
-  if (summary.kind === "none") {
-    const empty = document.createElement("p");
-    empty.className = "form-empty";
-    empty.textContent = "Select an item to inspect it";
-    rootEl.append(empty);
-    return;
-  }
 
   const header = document.createElement("h2");
   header.className = "form-header";
   rootEl.append(header);
 
+  if (summary.kind === "none") {
+    header.textContent = "";
+    const grid = document.createElement("div");
+    grid.className = "form-grid";
+    for (const field of topFieldOrder) {
+      grid.append(buildDisabledEmptyField(field));
+    }
+    rootEl.append(grid);
+    const groupRow = createGroupRow(state);
+    const groupSelect = groupRow.querySelector<HTMLSelectElement>('select[data-field="group"]');
+    if (groupSelect) groupSelect.disabled = true;
+    rootEl.append(groupRow);
+    rootEl.append(buildDisabledEmptyField("description"));
+    return;
+  }
+
   if (summary.kind === "multi") {
     header.textContent = `Multiple items (${summary.count})`;
+    const grid = document.createElement("div");
+    grid.className = "form-grid";
+    for (const field of topFieldOrder) {
+      grid.append(buildDisabledMultiField(field));
+    }
+    rootEl.append(grid);
     rootEl.append(createGroupRow(state));
+    rootEl.append(buildDisabledMultiField("description"));
     appendNotice(rootEl, state);
     return;
   }
@@ -505,9 +508,9 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
   header.textContent = kindLabel(state, summary);
   const grid = document.createElement("div");
   grid.className = "form-grid";
-  for (const field of fieldOrder) {
+  for (const field of topFieldOrder) {
     if (!shouldShowField(summary.itemKind, field)) continue;
-    grid.append(buildField(summary, field, valueFor(state, summary, field), summary.itemKind === "cli" && field === "name"));
+    grid.append(buildField(field, valueFor(state, summary, field), isFieldEnabled(summary.itemKind, field)));
   }
   rootEl.append(grid);
 
@@ -515,9 +518,11 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
     rootEl.append(createGroupRow(state));
     const cli = selectedCli(state, summary);
     if (cli) {
-      rootEl.append(buildCliMetadataBlock(state, cli));
       const linked = buildLinkedFrame(state);
       if (linked) rootEl.append(linked);
+      const description = buildDescriptionRow(state, summary);
+      if (description) rootEl.append(description);
+      rootEl.append(buildCliMetadataBlock(state, cli));
     }
     return;
   }
@@ -525,12 +530,8 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
   rootEl.append(createGroupRow(state));
   const linked = buildLinkedFrame(state);
   if (linked) rootEl.append(linked);
-  const deleteButton = document.createElement("button");
-  deleteButton.type = "button";
-  deleteButton.disabled = true;
-  deleteButton.title = "Wired in next phase";
-  deleteButton.textContent = "Delete Selected";
-  rootEl.append(deleteButton);
+  const description = buildDescriptionRow(state, summary);
+  if (description) rootEl.append(description);
   appendNotice(rootEl, state);
 }
 

@@ -18,6 +18,10 @@ function click(el: HTMLElement): void {
   el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
+function ctrlClick(el: HTMLElement): void {
+  el.dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));
+}
+
 describe("linked observables editing", () => {
   it("adds and removes ROI links on an anchor through DOM events", () => {
     const { root, store } = mountForm(selectedState("anchor", "anchor-1"));
@@ -28,7 +32,9 @@ describe("linked observables editing", () => {
     click(root.querySelector<HTMLButtonElement>('button[data-action="linked-add"]')!);
     expect(store.getState().workspace.anchors[0]?.linked_rois).toEqual(["roi-2"]);
 
-    click(root.querySelector<HTMLButtonElement>('button[data-action="linked-remove"][data-name="roi-2"]')!);
+    click(root.querySelector<HTMLElement>('.linked-list [data-action="linked-select"][data-name="roi-2"]')!);
+    expect(root.querySelector<HTMLElement>('.linked-list [data-name="roi-2"]')?.getAttribute("aria-selected")).toBe("true");
+    click(root.querySelector<HTMLButtonElement>('button[data-action="linked-remove-selected"]')!);
     expect(store.getState().workspace.anchors[0]?.linked_rois).toEqual([]);
   });
 
@@ -42,10 +48,24 @@ describe("linked observables editing", () => {
 
     const autoName = runtimeLinkedObservables(cli).find((entry) => !entry.editable)?.name;
     expect(autoName).toBe(cli.name);
-    expect(root.querySelector<HTMLButtonElement>(`button[data-action="linked-remove"][data-name="${autoName}"]`)?.disabled).toBe(true);
+    expect(root.querySelector<HTMLElement>(`.linked-list [data-action="linked-select"][data-name="${autoName}"]`)?.getAttribute("aria-disabled")).toBe("true");
+    expect(root.querySelector<HTMLButtonElement>('button[data-action="linked-remove"]')).toBeNull();
 
     dispatch(linkedRemove(autoName ?? ""));
     expect(store.getState().workspace.cliParams[0]?.linked_observables).toEqual(["other"]);
+  });
+
+  it("removes multiple selected editable linked entries with the Tk-style Remove selected button", () => {
+    const state = selectedState("anchor", "anchor-1");
+    state.workspace.anchors[0]!.linked_rois = ["roi-1", "roi-2"];
+    const { root, store } = mountForm(state);
+
+    click(root.querySelector<HTMLElement>('.linked-list [data-action="linked-select"][data-name="roi-1"]')!);
+    ctrlClick(root.querySelector<HTMLElement>('.linked-list [data-action="linked-select"][data-name="roi-2"]')!);
+    expect(store.getState().form.linkedObs.selectedNames).toEqual(["roi-1", "roi-2"]);
+
+    click(root.querySelector<HTMLButtonElement>('button[data-action="linked-remove-selected"]')!);
+    expect(store.getState().workspace.anchors[0]?.linked_rois).toEqual([]);
   });
 
   it("adds CLI links into linked_observables and re-runs action derivation", () => {

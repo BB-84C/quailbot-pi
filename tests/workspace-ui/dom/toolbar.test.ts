@@ -30,6 +30,13 @@ function click(root: HTMLElement, label: string): void {
   button.click();
 }
 
+function pointerActivate(root: HTMLElement, label: string): HTMLButtonElement {
+  const button = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label);
+  if (!button) throw new Error(`missing button ${label}`);
+  button.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, button: 0 }));
+  return button;
+}
+
 describe("workspace toolbar events", () => {
   it("clicking Add ROI dispatches the tree add action and appends/selects a deduped ROI", () => {
     const { root, store, off } = mount();
@@ -69,6 +76,23 @@ describe("workspace toolbar events", () => {
     vi.unstubAllGlobals();
   });
 
+  it("Refresh screenshot surfaces capture failures as a short user-facing status", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: "Screen capture unavailable. Check desktop capture permissions and try Refresh screenshot again." }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { root, store } = mount();
+
+    click(root, "Refresh screenshot");
+    await vi.waitFor(() => expect(store.getState().startup.error).toBe("Screen capture unavailable. Check desktop capture permissions and try Refresh screenshot again."));
+
+    expect(store.getState().startup.error).not.toContain("EncodedCommand");
+    vi.unstubAllGlobals();
+  });
+
   it("Delete confirms and deletes a multi-select through shared deleteItems semantics", () => {
     const state = fixtureState();
     state.tree.selected = [{ kind: "roi", name: "roi-1" }, { kind: "anchor", name: "anchor-1" }];
@@ -94,6 +118,17 @@ describe("workspace toolbar events", () => {
     expect(store.getState().workspace.anchors.at(-1)?.name).toBe("new_anchor");
     expect(store.getState().tree.selected).toEqual([{ kind: "anchor", name: "new_anchor" }]);
     off();
+  });
+
+  it("handles pointer activation without duplicating the following click", () => {
+    const { root, store } = mount();
+    const before = store.getState().workspace.rois.length;
+
+    const button = pointerActivate(root, "Add ROI");
+    button.click();
+
+    expect(store.getState().workspace.rois).toHaveLength(before + 1);
+    expect(store.getState().workspace.rois.at(-1)?.name).toBe("new_roi");
   });
 
   it("clicking Add Group appends and selects a deduped group", () => {
@@ -141,5 +176,25 @@ describe("workspace toolbar events", () => {
 
     const button = [...root.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Pick anchor point");
     expect(button?.disabled).toBe(true);
+  });
+
+  it("renders Tk-style workspace controls and toggles CLI tools enabled", () => {
+    const state = fixtureState();
+    state.workspace.cliEnabled = false;
+    state.workspace.currentPath = "D:\\quailbot\\workspaces\\active.json";
+    const { root, store } = mount(state);
+
+    expect([...root.querySelectorAll<HTMLButtonElement>("button")].map((button) => button.textContent)).toEqual(
+      expect.arrayContaining(["Add ROI", "Add Anchor", "Add Group", "Load Param From CLI", "Delete", "Save", "Draw ROI box", "Pick anchor point", "Refresh screenshot"]),
+    );
+    expect([...root.querySelectorAll<HTMLButtonElement>("button")].map((button) => button.textContent)).not.toEqual(expect.arrayContaining(["Load workspace...", "Export..."]));
+    const cliEnabled = root.querySelector<HTMLInputElement>('input[data-action="cli-tools-enabled"]');
+    expect(cliEnabled?.checked).toBe(false);
+
+    if (!cliEnabled) throw new Error("missing CLI tools enabled checkbox");
+    cliEnabled.checked = true;
+    cliEnabled.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(store.getState().workspace.cliEnabled).toBe(true);
   });
 });

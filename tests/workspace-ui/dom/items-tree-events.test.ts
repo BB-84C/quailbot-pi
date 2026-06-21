@@ -42,6 +42,18 @@ function click(root: HTMLElement, kind: string, name: string, region: "body" | "
   target?.dispatchEvent(new MouseEvent("click", { bubbles: true, ...init }));
 }
 
+function clickRow(root: HTMLElement, kind: string, name: string, init: MouseEventInit = {}) {
+  const target = root.querySelector<HTMLElement>(`[data-kind="${kind}"][data-name="${name}"]`);
+  expect(target).not.toBeNull();
+  target?.dispatchEvent(new MouseEvent("click", { bubbles: true, ...init }));
+}
+
+function pointerRow(root: HTMLElement, kind: string, name: string, init: MouseEventInit = {}) {
+  const target = root.querySelector<HTMLElement>(`[data-kind="${kind}"][data-name="${name}"]`);
+  expect(target).not.toBeNull();
+  target?.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, button: 0, ...init }));
+}
+
 function dblclick(root: HTMLElement, kind: string, name: string) {
   const target = root.querySelector<HTMLElement>(`[data-kind="${kind}"][data-name="${name}"] .tree-body`);
   expect(target).not.toBeNull();
@@ -100,6 +112,24 @@ describe("items tree events", () => {
     dblclick(root, "group", "grp");
     expect(store.getState().tree.collapsedGroups.has("grp")).toBe(true);
     expect(selectedKeys(store.getState())).toEqual(["group:grp"]);
+  });
+
+  it("treats row blank-space clicks as body clicks like the Tk listbox", () => {
+    const { root, store } = mount();
+
+    clickRow(root, "group", "grp");
+
+    expect(selectedKeys(store.getState())).toEqual(["group:grp"]);
+    expect(store.getState().tree.activeAnchor).toEqual({ kind: "group", name: "grp" });
+  });
+
+  it("treats pointer activation on a row as selection for embedded browser surfaces", () => {
+    const { root, store } = mount();
+
+    pointerRow(root, "group", "grp");
+
+    expect(selectedKeys(store.getState())).toEqual(["group:grp"]);
+    expect(store.getState().tree.activeAnchor).toEqual({ kind: "group", name: "grp" });
   });
 
   it("keeps reducer behavior pure for direct action dispatch", () => {

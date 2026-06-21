@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -41,6 +41,8 @@ describe("workspace UI PowerShell capture", () => {
 
     expect(result.frame).toEqual({ imageWidth: 100, imageHeight: 50, originX: -10, originY: 20, captureId: expectedId });
     expect(result.pngPath).toBe(join(stateDir, "workspace-capture.png"));
+    expect(existsSync(join(stateDir, `workspace-capture.${expectedId}.png`))).toBe(true);
+    expect(readFileSync(join(stateDir, `workspace-capture.${expectedId}.png`))).toEqual(png);
   });
 });
 

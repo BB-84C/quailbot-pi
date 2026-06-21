@@ -7,19 +7,12 @@ import {
   type Action,
 } from "../actions.js";
 import type { TreeItemKind } from "../state.js";
-
-function closestWithin<T extends Element>(target: EventTarget | null, selector: string, root: HTMLElement): T | null {
-  if (!(target instanceof Element)) {
-    return null;
-  }
-  const found = target.closest<T>(selector);
-  return found && root.contains(found) ? found : null;
-}
+import { attachScopedActivation, attachScopedEvent, closestWithin } from "./delegation.js";
 
 function rowFromEvent(target: EventTarget | null, root: HTMLElement): { kind: TreeItemKind; name: string; region: "toggle" | "body" } | null {
   const regionEl = closestWithin<HTMLElement>(target, "[data-region]", root);
   const rowEl = closestWithin<HTMLElement>(target, ".tree-row[data-kind][data-name]", root);
-  const region = regionEl?.dataset.region;
+  const region = regionEl?.dataset.region ?? (rowEl ? "body" : undefined);
   const kind = rowEl?.dataset.kind;
   const name = rowEl?.dataset.name;
   if ((region !== "toggle" && region !== "body") || (kind !== "roi" && kind !== "anchor" && kind !== "group" && kind !== "cli") || !name) {
@@ -67,13 +60,13 @@ export function attachItemsTreeEvents(rootEl: HTMLElement, dispatch: (action: Ac
     dispatch(treeKeyboardNav(event.key, { shift: event.shiftKey }));
   };
 
-  rootEl.addEventListener("click", onClick);
-  rootEl.addEventListener("dblclick", onDoubleClick);
-  rootEl.addEventListener("keydown", onKeyDown);
+  const offClick = attachScopedActivation(rootEl, onClick);
+  const offDoubleClick = attachScopedEvent<MouseEvent>(rootEl, "dblclick", onDoubleClick);
+  const offKeyDown = attachScopedEvent<KeyboardEvent>(rootEl, "keydown", onKeyDown);
 
   return () => {
-    rootEl.removeEventListener("click", onClick);
-    rootEl.removeEventListener("dblclick", onDoubleClick);
-    rootEl.removeEventListener("keydown", onKeyDown);
+    offClick();
+    offDoubleClick();
+    offKeyDown();
   };
 }

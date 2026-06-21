@@ -1,12 +1,5 @@
 import { filterClear, filterKeywordChanged, filterToggleLogic, filterToggleTag, type Action } from "../actions.js";
-
-function closestWithin<T extends Element>(target: EventTarget | null, selector: string, root: HTMLElement): T | null {
-  if (!(target instanceof Element)) {
-    return null;
-  }
-  const found = target.closest<T>(selector);
-  return found && root.contains(found) ? found : null;
-}
+import { attachScopedActivation, attachScopedEvent, closestWithin } from "./delegation.js";
 
 export function attachFilterEvents(rootEl: HTMLElement, dispatch: (action: Action) => void): () => void {
   const onChange = (event: Event): void => {
@@ -39,13 +32,13 @@ export function attachFilterEvents(rootEl: HTMLElement, dispatch: (action: Actio
     }
   };
 
-  rootEl.addEventListener("change", onChange);
-  rootEl.addEventListener("input", onInput);
-  rootEl.addEventListener("click", onClick);
+  const offChange = attachScopedEvent<Event>(rootEl, "change", onChange);
+  const offInput = attachScopedEvent<Event>(rootEl, "input", onInput);
+  const offClick = attachScopedActivation(rootEl, onClick);
 
   return () => {
-    rootEl.removeEventListener("change", onChange);
-    rootEl.removeEventListener("input", onInput);
-    rootEl.removeEventListener("click", onClick);
+    offChange();
+    offInput();
+    offClick();
   };
 }

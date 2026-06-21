@@ -36,6 +36,7 @@ const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 const CLIENT_BUNDLE_PATH = resolveClientBundlePath("client.js");
 const CLIENT_BUNDLE_MAP_PATH = resolveClientBundlePath("client.js.map");
 const CLI_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
+const CAPTURE_ID_PATTERN = /^[a-f0-9]{16}$/;
 
 export async function ensureWorkspaceUiServer(runtime: QuailbotRuntime, cwd: string): Promise<WorkspaceUiServerHandle> {
   if (runtime.workspaceUiServer !== undefined) {
@@ -75,6 +76,11 @@ async function handleHttpRequest(request: IncomingMessage, response: ServerRespo
     }
 
     const url = requestUrl(request);
+    if (request.method === "GET" && url.pathname === "/favicon.ico") {
+      sendNoContent(response);
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/") {
       if (url.searchParams.get("token") !== context.token) {
         sendText(response, 403, "forbidden\n", "text/plain; charset=utf-8");
@@ -182,8 +188,15 @@ function handleWorkspaceApi(response: ServerResponse, context: ServerContext): v
 }
 
 function handleCaptureApi(response: ServerResponse, cwd: string): void {
-  const result = captureVirtualScreen({ stateDir: join(cwd, ".quailbot-pi") });
-  sendJson(response, 200, { ok: true, frame: result.frame, pngPath: result.pngPath });
+  try {
+    const result = captureVirtualScreen({ stateDir: join(cwd, ".quailbot-pi") });
+    sendJson(response, 200, { ok: true, frame: result.frame, pngPath: result.pngPath });
+  } catch {
+    sendJson(response, 200, {
+      ok: false,
+      error: "Screen capture unavailable. Check desktop capture permissions and try Refresh screenshot again.",
+    });
+  }
 }
 
 function handleBrowseApi(response: ServerResponse, context: ServerContext, body: JsonRecord): void {
@@ -274,10 +287,19 @@ function bodyDeclaredCliNames(body: JsonRecord): string[] {
 
 function handleCaptureAsset(url: URL, response: ServerResponse, cwd: string): void {
   const requestedId = url.searchParams.get("captureId") ?? "";
+  if (!CAPTURE_ID_PATTERN.test(requestedId)) {
+    sendText(response, 404, "workspace capture image not found\n", "text/plain; charset=utf-8");
+    return;
+  }
   const stateDir = join(cwd, ".quailbot-pi");
+  const versionedPngPath = join(stateDir, `workspace-capture.${requestedId}.png`);
+  if (existsSync(versionedPngPath)) {
+    sendBinary(response, 200, readFileSync(versionedPngPath), "image/png");
+    return;
+  }
   const metadataPath = join(stateDir, "workspace-capture.metadata.json");
   const pngPath = join(stateDir, "workspace-capture.png");
-  if (!requestedId || !existsSync(metadataPath) || !existsSync(pngPath)) {
+  if (!existsSync(metadataPath) || !existsSync(pngPath)) {
     sendText(response, 404, "workspace capture image not found\n", "text/plain; charset=utf-8");
     return;
   }
@@ -343,14 +365,18 @@ function renderWorkspacePage(token: string): string {
   </head>
   <body>
     <main class="workspace-ui-shell" data-workspace-ui-root>
+      <nav class="workspace-menu-bar" data-menu-root></nav>
+      <section data-startup-banner-root></section>
       <section class="workspace-pane workspace-pane-canvas" data-canvas-root id="canvas-root"></section>
       <section class="workspace-pane workspace-pane-items">
         <div data-items-tree-root></div>
         <div data-filter-root></div>
+        <div data-workspace-toolbar-root></div>
       </section>
       <section class="workspace-pane workspace-pane-form" data-form-root></section>
       <section data-cli-import-modal-root></section>
       <section data-file-browser-modal-root></section>
+      <section data-help-modal-root></section>
     </main>
     <script>window.__quailbotToken = document.querySelector('meta[name="quailbot-workspace-ui-token"]')?.content || "";</script>
     <script src="/assets/client.js?token=${encoded}"></script>
@@ -369,20 +395,162 @@ html, body {
 *, *::before, *::after { box-sizing: inherit; }
 .workspace-ui-shell {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  grid-template-areas: "canvas items form";
+  grid-template-columns: minmax(420px, 1fr) minmax(360px, 500px) minmax(360px, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "menu menu menu"
+    "startup startup startup"
+    "canvas items form";
   gap: 8px;
   height: 100dvh;
   overflow: hidden;
   padding: 8px;
-  background: #101316;
-  color: #e8edf2;
+  background: #d9d9d9;
+  color: #111;
 }
-.workspace-pane { min-width: 0; min-height: 0; overflow: auto; border: 1px solid #2f3b45; border-radius: 4px; background: #182027; padding: 8px; }
-.workspace-pane-canvas { grid-area: canvas; min-width: 600px; }
-.workspace-pane-items { grid-area: items; width: 260px; min-width: 260px; }
-.workspace-pane-form { grid-area: form; min-width: 360px; }
+.workspace-menu-bar {
+  grid-area: menu;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid #b8b8b8;
+  border-radius: 4px;
+  background: #f2f2f2;
+  overflow: visible;
+}
+.workspace-menu-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.workspace-menu-bar button {
+  padding: 2px 8px;
+}
+.workspace-menu-group > button[data-action="menu-toggle"] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #111;
+}
+.workspace-menu-group > button[data-action="menu-toggle"]:hover,
+.workspace-menu-group > button[data-action="menu-toggle"]:focus,
+.workspace-menu-group > button[data-action="menu-toggle"][aria-expanded="true"] {
+  background: #dcdcdc;
+}
+.workspace-menu-popup {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 2px);
+  z-index: 20;
+  display: grid;
+  min-width: 180px;
+  padding: 3px;
+  border: 1px solid #8f8f8f;
+  background: #f2f2f2;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.18);
+}
+.workspace-menu-popup[hidden] { display: none; }
+.workspace-menu-popup button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+}
+.workspace-menu-popup button:hover,
+.workspace-menu-popup button:focus {
+  background: #2f68a3;
+  color: #fff;
+}
+[data-startup-banner-root] { grid-area: startup; min-width: 0; }
+.startup-error-banner { padding: 4px 8px; border: 1px solid #c8a300; background: #fff4b8; color: #111; }
+.workspace-pane { min-width: 0; min-height: 0; overflow: auto; border: 1px solid #b8b8b8; border-radius: 4px; background: #efefef; padding: 8px; }
+.workspace-pane-canvas { grid-area: canvas; min-width: 0; background: #111; color: #f4f4f4; }
+.workspace-pane-items { grid-area: items; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.workspace-pane-form { grid-area: form; min-width: 0; }
 button, input, select, textarea { font: inherit; }
+.items-tree { min-height: 0; overflow: auto; }
+.tree-list { list-style: none; margin: 0; padding: 0; }
+.tree-row { display: flex; align-items: baseline; gap: 4px; min-height: 22px; padding: 1px 2px; white-space: nowrap; cursor: default; }
+.tree-row--selected { background: #2f68a3; color: #fff; }
+.tree-row--active:not(.tree-row--selected) { outline: 1px solid #6f8ead; outline-offset: -1px; }
+.tree-toggle { flex: 0 0 auto; border: 0; background: transparent; color: inherit; padding: 0 2px; line-height: inherit; cursor: default; }
+.tree-toggle:disabled { color: inherit; opacity: 1; }
+.tree-body { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.filter-panel { display: grid; gap: 6px; }
+.filter-header { font-weight: 600; }
+.filter-tags { display: grid; gap: 4px; max-height: 100px; overflow: auto; }
+.filter-tag { display: flex; align-items: center; gap: 4px; }
+.filter-keyword-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
+.filter-keyword { min-width: 0; }
+.workspace-toolbar { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.toolbar-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: stretch; }
+.toolbar-grid button { width: 100%; min-width: 0; white-space: normal; line-height: 1.2; }
+.toolbar-row-span { grid-column: 1 / -1; }
+.toolbar-label { display: contents; }
+.toolbar-label span { align-self: center; }
+.toolbar-label [role="textbox"] { min-width: 0; padding: 2px 4px; border: 1px solid #8a949e; background: #fff; color: #111; overflow: hidden; white-space: nowrap; }
+.toolbar-check { display: flex; gap: 6px; align-items: center; }
+.toolbar-fieldset { min-width: 0; margin: 2px 0 0; padding: 8px; border: 1px solid #c4c4c4; }
+.toolbar-fieldset legend { padding: 0 4px; }
+.toolbar-stack { display: grid; gap: 6px; }
+.toolbar-stack button { width: 100%; }
+.cli-import-error { color: #9f1d12; margin: 0; font-size: 0.9rem; }
+.selected-form { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.selected-form h2, .selected-form h3 { margin: 0 0 4px; font-size: 1rem; }
+.form-empty { margin: 0; }
+.form-grid { display: grid; gap: 6px; }
+.form-row { display: grid; grid-template-columns: 145px minmax(0, 1fr); gap: 8px; align-items: start; margin: 0; }
+.form-row > span { padding-top: 3px; }
+.form-row input, .form-row select, .form-row textarea { min-width: 0; width: 100%; }
+.form-row textarea { min-height: 5rem; resize: vertical; }
+.linked-frame, .cli-meta-block { display: grid; gap: 8px; min-width: 0; padding: 8px; border: 1px solid #c4c4c4; border-radius: 4px; }
+.linked-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.linked-list { min-height: 6rem; max-height: 6rem; overflow: auto; margin: 0; padding: 4px; list-style: none; border: 1px solid #b8b8b8; background: #fff; color: #111; }
+.linked-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.linked-hint { margin: 0; color: #333; }
+.cli-actions-display { display: flex; gap: 12px; align-items: center; margin: 0; padding: 6px 8px; border: 1px solid #c4c4c4; }
+.cli-actions-display__item { display: inline-flex; align-items: center; gap: 3px; }
+.cli-meta-block .form-row textarea { min-height: 4.5rem; }
+.cli-meta-payload-preview { max-height: 22rem; overflow: auto; margin: 0; padding: 8px; border: 1px solid #c4c4c4; background: #111; color: #f4f4f4; font-size: 0.85rem; }
+.help-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.45);
+  z-index: 1000;
+}
+.help-dialog {
+  max-width: min(640px, 100%);
+  max-height: min(720px, 100%);
+  overflow: auto;
+  border: 1px solid #657482;
+  border-radius: 4px;
+  background: #f7f7f7;
+  color: #111;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+.help-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #c8ced4;
+}
+.help-dialog h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.help-dialog pre {
+  margin: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
 `;
 
 function sendDistAsset(response: ServerResponse, path: string, contentType: string): void {
@@ -403,20 +571,29 @@ function resolveClientBundlePath(fileName: string): string {
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.statusCode = statusCode;
+  response.setHeader("cache-control", "no-store");
   response.setHeader("content-type", "application/json; charset=utf-8");
   response.end(JSON.stringify(payload));
 }
 
 function sendText(response: ServerResponse, statusCode: number, body: string, contentType: string): void {
   response.statusCode = statusCode;
+  response.setHeader("cache-control", "no-store");
   response.setHeader("content-type", contentType);
   response.end(body);
 }
 
 function sendBinary(response: ServerResponse, statusCode: number, body: Buffer, contentType: string): void {
   response.statusCode = statusCode;
+  response.setHeader("cache-control", "no-store");
   response.setHeader("content-type", contentType);
   response.end(body);
+}
+
+function sendNoContent(response: ServerResponse): void {
+  response.statusCode = 204;
+  response.setHeader("cache-control", "no-store");
+  response.end();
 }
 
 async function parseJsonBody(request: IncomingMessage): Promise<{ ok: true; body: unknown } | { ok: false; error: string }> {

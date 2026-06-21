@@ -15,12 +15,7 @@ import {
 import { postBrowse, postLoad, postSave } from "../api/file-browser.js";
 import type { AppState } from "../state.js";
 import { buildWorkspaceJson } from "../../shared/serialize.js";
-
-function closestWithin<T extends Element>(target: EventTarget | null, selector: string, root: HTMLElement): T | null {
-  if (!(target instanceof Element)) return null;
-  const found = target.closest<T>(selector);
-  return found && root.contains(found) ? found : null;
-}
+import { attachScopedActivation, attachScopedEvent, closestWithin } from "./delegation.js";
 
 function dirnameLike(filePath: string): string {
   const slash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
@@ -86,9 +81,12 @@ async function saveTarget(targetPath: string, updateCurrent: boolean, dispatch: 
   }
 }
 
-export function attachFileBrowserEvents(args: { formRoot: HTMLElement; modalRoot: HTMLElement; dispatch: (action: Action) => void; getState: () => AppState }): () => void {
-  const { formRoot, modalRoot, dispatch, getState } = args;
+export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoots?: HTMLElement[]; modalRoot: HTMLElement; dispatch: (action: Action) => void; getState: () => AppState }): () => void {
+  const { modalRoot, dispatch, getState } = args;
+  const formRoots = args.formRoots ?? (args.formRoot ? [args.formRoot] : []);
   const onFormClick = (event: MouseEvent): void => {
+    const formRoot = formRoots.find((root) => event.target instanceof Element && root.contains(event.target));
+    if (!formRoot) return;
     const load = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="file-browser-load"]', formRoot);
     if (load) {
       event.preventDefault();
@@ -153,14 +151,14 @@ export function attachFileBrowserEvents(args: { formRoot: HTMLElement; modalRoot
     event.preventDefault();
     dispatch(fileBrowserCancel());
   };
-  formRoot.addEventListener("click", onFormClick);
-  modalRoot.addEventListener("click", onModalClick);
-  modalRoot.addEventListener("input", onModalInput);
-  modalRoot.addEventListener("keydown", onKeyDown);
+  const offs = formRoots.map((formRoot) => attachScopedActivation(formRoot, onFormClick));
+  const offModalClick = attachScopedActivation(modalRoot, onModalClick);
+  const offModalInput = attachScopedEvent<Event>(modalRoot, "input", onModalInput);
+  const offModalKeyDown = attachScopedEvent<KeyboardEvent>(modalRoot, "keydown", onKeyDown);
   return () => {
-    formRoot.removeEventListener("click", onFormClick);
-    modalRoot.removeEventListener("click", onModalClick);
-    modalRoot.removeEventListener("input", onModalInput);
-    modalRoot.removeEventListener("keydown", onKeyDown);
+    for (const off of offs) off();
+    offModalClick();
+    offModalInput();
+    offModalKeyDown();
   };
 }

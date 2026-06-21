@@ -108,6 +108,20 @@ describe("workspace toolbar events", () => {
     confirm.mockRestore();
   });
 
+  it("Delete uses the Tk single-item prompt and leaves state untouched when cancelled", () => {
+    const state = fixtureState();
+    state.tree.selected = [{ kind: "roi", name: "roi-1" }];
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { root, store } = mount(state);
+
+    click(root, "Delete");
+
+    expect(confirm).toHaveBeenCalledWith("Delete selected item?");
+    expect(store.getState().workspace.rois.map((item) => item.name)).toEqual(["roi-1", "roi-2"]);
+    expect(store.getState().tree.selected).toEqual([{ kind: "roi", name: "roi-1" }]);
+    confirm.mockRestore();
+  });
+
   it("clicking Add Anchor appends and selects a deduped anchor", () => {
     const { root, store, off } = mount();
     const before = store.getState().workspace.anchors.length;

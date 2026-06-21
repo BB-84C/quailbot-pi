@@ -36,6 +36,12 @@ function pointer(root: HTMLElement, type: string, clientX: number, clientY: numb
   root.querySelector(".canvas-viewport")?.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX, clientY }));
 }
 
+function wheel(root: HTMLElement, options: WheelEventInit) {
+  const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, clientX: 210, clientY: 220, ...options });
+  root.querySelector(".canvas-viewport")?.dispatchEvent(event);
+  return event;
+}
+
 describe("canvas events", () => {
   it("draws an ROI from pointer down through release using panned canvas coordinates", () => {
     const { root, store, off } = mount();
@@ -110,5 +116,44 @@ describe("canvas events", () => {
 
     expect(store.getState().workspace.rois[0]).toMatchObject(dragToRoi(frame, scale, { x: 50, y: 20 }, { x: 640, y: 510 }));
     expect(store.getState().canvas.mode).toBe("idle");
+  });
+
+  it("maps preview wheel gestures to Tk-style vertical and horizontal panning", () => {
+    const state = fixtureState();
+    state.canvas.zoom = 2;
+    const { root, store, off } = mount(state);
+
+    const vertical = wheel(root, { deltaY: 50 });
+    expect(vertical.defaultPrevented).toBe(true);
+    expect(store.getState().canvas.pan).toEqual({ x: 40, y: 60 });
+
+    const horizontalShift = wheel(root, { deltaY: 30, shiftKey: true });
+    expect(horizontalShift.defaultPrevented).toBe(true);
+    expect(store.getState().canvas.pan).toEqual({ x: 70, y: 60 });
+
+    const horizontalAlt = wheel(root, { deltaY: -20, altKey: true });
+    expect(horizontalAlt.defaultPrevented).toBe(true);
+    expect(store.getState().canvas.pan).toEqual({ x: 50, y: 60 });
+    off();
+  });
+
+  it("zooms around the pointer on Ctrl-wheel and ignores zoom while drawing", () => {
+    const state = fixtureState();
+    state.canvas.zoom = 2;
+    const { root, store, off } = mount(state);
+    const before = store.getState().canvas;
+
+    const zoomIn = wheel(root, { deltaY: -120, ctrlKey: true });
+    expect(zoomIn.defaultPrevented).toBe(true);
+    expect(store.getState().canvas.zoom).toBeCloseTo(2.2);
+    expect(store.getState().canvas.pan).not.toEqual(before.pan);
+
+    store.dispatch(canvasBeginDrawRoi());
+    const duringDraw = store.getState().canvas;
+    const blocked = wheel(root, { deltaY: -120, ctrlKey: true });
+    expect(blocked.defaultPrevented).toBe(true);
+    expect(store.getState().canvas.zoom).toBe(duringDraw.zoom);
+    expect(store.getState().canvas.pan).toEqual(duringDraw.pan);
+    off();
   });
 });

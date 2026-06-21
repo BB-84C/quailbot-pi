@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { fileBrowserOpen } from "../../../src/workspace-ui/client/actions.js";
 import { attachFileBrowserEvents } from "../../../src/workspace-ui/client/events/file-browser.js";
 import { renderFileBrowserModal } from "../../../src/workspace-ui/client/render/file-browser.js";
 import { renderForm } from "../../../src/workspace-ui/client/render/form.js";
@@ -85,6 +86,7 @@ describe("file browser save/export flow", () => {
     await flush();
     const input = modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]');
     if (!input) throw new Error("missing export filename input");
+    expect(input.value).toBe("active.json");
     input.value = "exported.json";
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
     modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
@@ -125,6 +127,7 @@ describe("file browser save/export flow", () => {
     await flush();
     const input = modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]');
     if (!input) throw new Error("missing export filename input");
+    expect(input.value).toBe("active.json");
     input.value = "exported.json";
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
     modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.click();
@@ -134,5 +137,15 @@ describe("file browser save/export flow", () => {
     expect(store.getState().fileBrowser.lastError).toBe("ROI 'roi' must have positive w/h");
     expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("ROI 'roi' must have positive w/h");
     expect(alert).toHaveBeenCalledWith("ROI 'roi' must have positive w/h");
+  });
+
+  it("uses the Tk export fallback filename when the current workspace path is empty", () => {
+    const state = initialState();
+    const { modalRoot, store } = mount(state);
+
+    store.dispatch(fileBrowserOpen("export"));
+    renderFileBrowserModal(modalRoot, store.getState());
+
+    expect(modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]')?.value).toBe("workspace.json");
   });
 });

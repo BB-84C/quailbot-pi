@@ -225,6 +225,14 @@ function pruneMissingSelectedFilterTags(state: AppState): AppState {
   return { ...state, filter: { ...state.filter, selectedTags } };
 }
 
+function workspaceFileName(path: string): string {
+  const trimmed = path.trim().replace(/[\\/]+$/, "");
+  if (!trimmed) return "workspace.json";
+  const slash = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  const name = slash >= 0 ? trimmed.slice(slash + 1) : trimmed;
+  return name || "workspace.json";
+}
+
 function cliImportReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "CLI_IMPORT_NAME_CHANGED":
@@ -278,7 +286,18 @@ function cliImportReducer(state: AppState, action: Action): AppState {
 function fileBrowserReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "FILE_BROWSER_OPEN":
-      return { ...state, fileBrowser: { ...state.fileBrowser, open: true, mode: action.payload.mode, selectedFile: null, typedFilename: "", inFlight: true, lastError: null } };
+      return {
+        ...state,
+        fileBrowser: {
+          ...state.fileBrowser,
+          open: true,
+          mode: action.payload.mode,
+          selectedFile: null,
+          typedFilename: action.payload.mode === "export" ? workspaceFileName(state.workspace.currentPath) : "",
+          inFlight: true,
+          lastError: null,
+        },
+      };
     case "FILE_BROWSER_NAV":
       return { ...state, fileBrowser: { ...state.fileBrowser, currentPath: action.payload.path, selectedFile: null, inFlight: true, lastError: null } };
     case "FILE_BROWSER_BROWSE_RESULT":

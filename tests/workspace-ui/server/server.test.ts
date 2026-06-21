@@ -136,6 +136,35 @@ describe("integrated workspace UI server", () => {
     }
   });
 
+  it("rejects API routes with an incorrect workspace UI token header", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    for (const route of ["/api/workspace", "/api/capture", "/api/browse", "/api/load", "/api/save", "/api/cli-import"]) {
+      const response = await fetch(`${server.url}${route}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-quailbot-workspace-ui-token": `${server.token}-wrong` },
+        body: "{}",
+      });
+      const body = (await response.json()) as { ok: false; error: string };
+
+      expect(response.status, route).toBe(403);
+      expect(body).toEqual({ ok: false, error: "forbidden" });
+    }
+  });
+
+  it("rejects API methods other than POST after token authorization", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/api/workspace`, {
+      method: "GET",
+      headers: { "x-quailbot-workspace-ui-token": server.token },
+    });
+    const body = (await response.json()) as { ok: false; error: string };
+
+    expect(response.status).toBe(405);
+    expect(body).toEqual({ ok: false, error: "method not allowed" });
+  });
+
   it("rejects static assets without the query-string token", async () => {
     const { server } = await startServerWithWorkspace();
 
@@ -144,12 +173,43 @@ describe("integrated workspace UI server", () => {
     expect(response.status).toBe(403);
   });
 
+  it("rejects static assets with an incorrect query-string token", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    for (const route of ["/assets/client.js", "/assets/styles.css", "/assets/workspace-capture?captureId=a1b2c3d4e5f60789"]) {
+      const separator = route.includes("?") ? "&" : "?";
+      const response = await fetch(`${server.url}${route}${separator}token=${server.token}-wrong`);
+
+      expect(response.status, route).toBe(403);
+    }
+  });
+
   it("rejects the HTML shell without the query-string token", async () => {
     const { server } = await startServerWithWorkspace();
 
     const response = await fetch(`${server.url}/`);
 
     expect(response.status).toBe(403);
+  });
+
+  it("rejects the HTML shell with an incorrect query-string token", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    const response = await fetch(`${server.url}/?token=${server.token}-wrong`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("returns 404 for invalid or unavailable capture asset ids after token authorization", async () => {
+    const { server } = await startServerWithWorkspace();
+
+    for (const captureId of ["not-a-capture-id", "a1b2c3d4e5f60789"]) {
+      const response = await fetch(`${server.url}/assets/workspace-capture?captureId=${captureId}&token=${server.token}`);
+      const body = await response.text();
+
+      expect(response.status, captureId).toBe(404);
+      expect(body).toBe("workspace capture image not found\n");
+    }
   });
 
   it("does not expose the dropped pending-activation API route", async () => {

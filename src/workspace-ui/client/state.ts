@@ -92,6 +92,12 @@ export interface StartupState {
   error: string | null;
 }
 
+export interface ConfirmDialogState {
+  open: boolean;
+  message: string;
+  action: "delete-selected" | null;
+}
+
 export interface StartupWorkspacePayload {
   rois: RoiDraft[];
   anchors: AnchorDraft[];
@@ -127,6 +133,7 @@ export interface AppState {
   form: FormState;
   cliImport: CliImportState;
   fileBrowser: FileBrowserState;
+  confirmDialog: ConfirmDialogState;
 }
 
 export function initialState(): AppState {
@@ -189,6 +196,11 @@ export function initialState(): AppState {
       typedFilename: "",
       inFlight: false,
       lastError: null,
+    },
+    confirmDialog: {
+      open: false,
+      message: "",
+      action: null,
     },
   };
 }
@@ -333,6 +345,31 @@ function fileBrowserReducer(state: AppState, action: Action): AppState {
   }
 }
 
+function confirmDialogReducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case "CONFIRM_OPEN":
+      return {
+        ...state,
+        confirmDialog: {
+          open: true,
+          message: action.payload.message,
+          action: action.payload.action,
+        },
+      };
+    case "CONFIRM_CLOSE":
+      return {
+        ...state,
+        confirmDialog: {
+          open: false,
+          message: "",
+          action: null,
+        },
+      };
+    default:
+      return state;
+  }
+}
+
 export function reduceAppState(state: AppState, action: Action): AppState {
   let nextState: AppState = state;
   if (action.type === "WORKSPACE_CLI_ENABLED_CHANGED") {
@@ -365,6 +402,9 @@ export function reduceAppState(state: AppState, action: Action): AppState {
   }
   if (action.type.startsWith("FILE_BROWSER_")) {
     return pruneMissingSelectedFilterTags(fileBrowserReducer(state, action));
+  }
+  if (action.type.startsWith("CONFIRM_")) {
+    return pruneMissingSelectedFilterTags(confirmDialogReducer(state, action));
   }
   if (action.type.startsWith("CLI_IMPORT_")) {
     return pruneMissingSelectedFilterTags(cliImportReducer(state, action));

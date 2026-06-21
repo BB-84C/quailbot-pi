@@ -112,7 +112,11 @@ export type FileBrowserAction =
 
 export type WorkspaceAction = { type: "WORKSPACE_CLI_ENABLED_CHANGED"; payload: { value: boolean } };
 
-export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction | WorkspaceAction;
+export type ConfirmAction =
+  | { type: "CONFIRM_OPEN"; payload: { message: string; action: "delete-selected" } }
+  | { type: "CONFIRM_CLOSE" };
+
+export type Action = TreeAction | CanvasAction | FormAction | FilterAction | CliImportAction | FileBrowserAction | WorkspaceAction | ConfirmAction;
 
 export function treeAddItem(kind: "roi" | "anchor" | "group"): Action {
   return { type: "TREE_ADD_ITEM", payload: { kind } };
@@ -292,6 +296,14 @@ export function cliImportNameChanged(text: string): Action {
 
 export function workspaceCliEnabledChanged(value: boolean): Action {
   return { type: "WORKSPACE_CLI_ENABLED_CHANGED", payload: { value } };
+}
+
+export function confirmOpen(message: string, action: "delete-selected"): Action {
+  return { type: "CONFIRM_OPEN", payload: { message, action } };
+}
+
+export function confirmClose(): Action {
+  return { type: "CONFIRM_CLOSE" };
 }
 
 export function cliImportProbeStarted(): Action {

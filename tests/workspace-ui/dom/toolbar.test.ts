@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { formSelectionChanged, type Action } from "../../../src/workspace-ui/client/actions.js";
+import { attachConfirmDialogEvents } from "../../../src/workspace-ui/client/events/confirm-dialog.js";
 import { attachToolbarEvents } from "../../../src/workspace-ui/client/events/toolbar.js";
+import { renderConfirmDialog } from "../../../src/workspace-ui/client/render/confirm-dialog.js";
 import { renderToolbar } from "../../../src/workspace-ui/client/render/toolbar.js";
 import { selectionSummary } from "../../../src/workspace-ui/client/selectors/form.js";
 import { createStore } from "../../../src/workspace-ui/client/store.js";
@@ -11,6 +13,8 @@ import { fixtureState } from "./form-test-helpers.js";
 function mount(state: AppState = fixtureState()) {
   document.head.innerHTML = '<meta name="quailbot-workspace-ui-token" content="toolbar-token">';
   const root = document.createElement("section");
+  const confirmRoot = document.createElement("section");
+  document.body.replaceChildren(root, confirmRoot);
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
@@ -18,10 +22,16 @@ function mount(state: AppState = fixtureState()) {
       store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
     }
     renderToolbar(root, store.getState());
+    renderConfirmDialog(confirmRoot, store.getState());
   };
   renderToolbar(root, store.getState());
+  renderConfirmDialog(confirmRoot, store.getState());
   const off = attachToolbarEvents({ root, dispatch, getState: store.getState });
-  return { root, store, off };
+  const offConfirm = attachConfirmDialogEvents({ root: confirmRoot, dispatch, getState: store.getState });
+  return { root, confirmRoot, store, off: () => {
+    off();
+    offConfirm();
+  } };
 }
 
 function click(root: HTMLElement, label: string): void {
@@ -123,29 +133,35 @@ describe("workspace toolbar events", () => {
   it("Delete confirms and deletes a multi-select through shared deleteItems semantics", () => {
     const state = fixtureState();
     state.tree.selected = [{ kind: "roi", name: "roi-1" }, { kind: "anchor", name: "anchor-1" }];
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    const { root, store } = mount(state);
+    const confirm = vi.spyOn(window, "confirm");
+    const { root, confirmRoot, store } = mount(state);
 
     click(root, "Delete");
 
-    expect(confirm).toHaveBeenCalledWith("Delete 2 selected items?");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(confirmRoot.querySelector(".confirm-dialog-message")?.textContent).toBe("Delete 2 selected items?");
+    confirmRoot.querySelector<HTMLButtonElement>('button[data-action="confirm-accept"]')?.click();
     expect(store.getState().workspace.rois.map((item) => item.name)).toEqual(["roi-2"]);
     expect(store.getState().workspace.anchors).toHaveLength(0);
     expect(store.getState().tree.selected).toEqual([]);
+    expect(confirmRoot.querySelector(".confirm-dialog")).toBeNull();
     confirm.mockRestore();
   });
 
   it("Delete uses the Tk single-item prompt and leaves state untouched when cancelled", () => {
     const state = fixtureState();
     state.tree.selected = [{ kind: "roi", name: "roi-1" }];
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    const { root, store } = mount(state);
+    const confirm = vi.spyOn(window, "confirm");
+    const { root, confirmRoot, store } = mount(state);
 
     click(root, "Delete");
 
-    expect(confirm).toHaveBeenCalledWith("Delete selected item?");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(confirmRoot.querySelector(".confirm-dialog-message")?.textContent).toBe("Delete selected item?");
+    confirmRoot.querySelector<HTMLButtonElement>('button[data-action="confirm-cancel"]')?.click();
     expect(store.getState().workspace.rois.map((item) => item.name)).toEqual(["roi-1", "roi-2"]);
     expect(store.getState().tree.selected).toEqual([{ kind: "roi", name: "roi-1" }]);
+    expect(confirmRoot.querySelector(".confirm-dialog")).toBeNull();
     confirm.mockRestore();
   });
 
@@ -153,15 +169,13 @@ describe("workspace toolbar events", () => {
     const state = fixtureState();
     state.tree.selected = [{ kind: "group", name: "A" }];
     state.tree.collapsedGroups = new Set(["A", "B"]);
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    const { root, store } = mount(state);
+    const { root, confirmRoot, store } = mount(state);
 
     click(root, "Delete");
+    confirmRoot.querySelector<HTMLButtonElement>('button[data-action="confirm-accept"]')?.click();
 
-    expect(confirm).toHaveBeenCalledWith("Delete selected item?");
     expect(store.getState().workspace.groups.map((item) => item.name)).toEqual(["B", "C"]);
     expect([...store.getState().tree.collapsedGroups]).toEqual(["B"]);
-    confirm.mockRestore();
   });
 
   it("clicking Add Anchor appends and selects a deduped anchor", () => {

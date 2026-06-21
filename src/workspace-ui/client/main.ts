@@ -2,6 +2,7 @@ import { effectiveScale, screenToCanvas } from "../shared/geometry.js";
 import { loadWorkspaceData } from "../shared/parse.js";
 import { attachCanvasEvents } from "./events/canvas.js";
 import { attachCliImportEvents } from "./events/cli-import.js";
+import { attachConfirmDialogEvents } from "./events/confirm-dialog.js";
 import { attachFilterEvents } from "./events/filter.js";
 import { attachFileBrowserEvents } from "./events/file-browser.js";
 import { attachFormEvents } from "./events/form.js";
@@ -12,6 +13,7 @@ import { canvasFrameLoaded, formSelectionChanged, startupFinished, startupWorksp
 import { postCapture, postFetchWorkspace } from "./api/workspace.js";
 import { renderCanvas } from "./render/canvas.js";
 import { renderCliImportModal } from "./render/cli-import-modal.js";
+import { renderConfirmDialog } from "./render/confirm-dialog.js";
 import { renderFilter } from "./render/filter.js";
 import { renderFileBrowserModal } from "./render/file-browser.js";
 import { renderForm } from "./render/form.js";
@@ -119,6 +121,12 @@ function bootstrapWorkspaceUi(): void {
     helpRoot.dataset.helpModalRoot = "true";
     fileBrowserRoot.after(helpRoot);
   }
+  let confirmRoot = appRoot.querySelector<HTMLElement>("[data-confirm-modal-root]");
+  if (!confirmRoot) {
+    confirmRoot = document.createElement("section");
+    confirmRoot.dataset.confirmModalRoot = "true";
+    helpRoot.after(confirmRoot);
+  }
 
   const store = createStore();
   window.__quailbotWorkspaceUiBootStep = "create-store";
@@ -140,6 +148,7 @@ function bootstrapWorkspaceUi(): void {
     renderForm(formRoot, store.getState());
     renderCliImportModal(modalRoot, store.getState());
     renderFileBrowserModal(fileBrowserRoot, store.getState());
+    renderConfirmDialog(confirmRoot, store.getState());
   };
   store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
   window.__quailbotWorkspaceUiBootStep = "initial-render";
@@ -167,6 +176,7 @@ function bootstrapWorkspaceUi(): void {
   window.__quailbotWorkspaceUiBootStep = "attach-toolbar";
   appRoot.dataset.workspaceUiBootStep = "attach-toolbar";
   attachToolbarEvents({ root: toolbarRoot, dispatch, getState: store.getState });
+  attachConfirmDialogEvents({ root: confirmRoot, dispatch, getState: store.getState });
   window.__quailbotWorkspaceUiBootStep = "attach-menu";
   appRoot.dataset.workspaceUiBootStep = "attach-menu";
   attachMenuEvents({ menuRoot, helpRoot });

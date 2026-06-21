@@ -377,6 +377,7 @@ function renderWorkspacePage(token: string): string {
       <section data-cli-import-modal-root></section>
       <section data-file-browser-modal-root></section>
       <section data-help-modal-root></section>
+      <section data-confirm-modal-root></section>
     </main>
     <script>window.__quailbotToken = document.querySelector('meta[name="quailbot-workspace-ui-token"]')?.content || "";</script>
     <script src="/assets/client.js?token=${encoded}"></script>
@@ -550,6 +551,43 @@ button, input, select, textarea { font: inherit; }
   padding: 12px;
   white-space: pre-wrap;
   font-family: inherit;
+}
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.35);
+  z-index: 1100;
+}
+.confirm-dialog {
+  width: min(420px, 100%);
+  border: 1px solid #657482;
+  border-radius: 4px;
+  background: #f7f7f7;
+  color: #111;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+.confirm-dialog h2 {
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #c8ced4;
+  font-size: 1rem;
+}
+.confirm-dialog-message {
+  margin: 0;
+  padding: 18px 12px;
+}
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #d4d4d4;
+}
+.confirm-dialog-actions button {
+  min-width: 80px;
 }
 `;
 

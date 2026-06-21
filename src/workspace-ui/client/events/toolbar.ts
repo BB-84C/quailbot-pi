@@ -1,4 +1,4 @@
-import { canvasBeginDrawRoi, canvasBeginPickAnchor, canvasFrameLoaded, startupFinished, treeAddItem, treeDeleteSelected, workspaceCliEnabledChanged, type Action } from "../actions.js";
+import { canvasBeginDrawRoi, canvasBeginPickAnchor, canvasFrameLoaded, confirmOpen, startupFinished, treeAddItem, workspaceCliEnabledChanged, type Action } from "../actions.js";
 import { postCapture } from "../api/workspace.js";
 import type { AppState } from "../state.js";
 import { attachScopedActivation, attachScopedEvent } from "./delegation.js";
@@ -75,9 +75,7 @@ export function attachToolbarEvents(args: { root: HTMLElement; dispatch: (action
         const count = getState().tree.selected.length;
         if (count === 0) return true;
         const prompt = count === 1 ? "Delete selected item?" : `Delete ${count} selected items?`;
-        if (window.confirm(prompt)) {
-          dispatch(treeDeleteSelected());
-        }
+        dispatch(confirmOpen(prompt, "delete-selected"));
         return true;
       }
     }

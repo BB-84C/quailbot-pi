@@ -63,8 +63,9 @@ export function renderFileBrowserModal(rootEl: HTMLElement, state: AppState): vo
 
   const controls = document.createElement("footer");
   controls.className = "file-browser-controls";
+  const primaryDisabled = state.fileBrowser.inFlight || (state.fileBrowser.mode === "load" && !state.fileBrowser.selectedFile);
   controls.append(
-    button(state.fileBrowser.mode === "load" ? "file-browser-open" : "file-browser-save", state.fileBrowser.mode === "load" ? "Open" : "Save", state.fileBrowser.inFlight),
+    button(state.fileBrowser.mode === "load" ? "file-browser-open" : "file-browser-save", state.fileBrowser.mode === "load" ? "Open" : "Save", primaryDisabled),
     button("file-browser-cancel", "Cancel"),
   );
   modal.append(controls);

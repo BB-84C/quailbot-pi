@@ -107,7 +107,7 @@ export type FileBrowserAction =
   | { type: "FILE_BROWSER_LOAD_SUCCEEDED"; payload: { path: string; workspaceJson: Record<string, unknown> } }
   | { type: "FILE_BROWSER_SAVE_STARTED" }
   | { type: "FILE_BROWSER_SAVE_SUCCEEDED"; payload: { path: string; updateCurrent: boolean } }
-  | { type: "FILE_BROWSER_FAILED"; payload: { error: string } }
+  | { type: "FILE_BROWSER_FAILED"; payload: { error: string; restorePath?: string } }
   | { type: "FILE_BROWSER_CANCEL" };
 
 export type WorkspaceAction = { type: "WORKSPACE_CLI_ENABLED_CHANGED"; payload: { value: boolean } };
@@ -378,8 +378,8 @@ export function fileBrowserSaveSucceeded(path: string, updateCurrent: boolean): 
   return { type: "FILE_BROWSER_SAVE_SUCCEEDED", payload: { path, updateCurrent } };
 }
 
-export function fileBrowserFailed(error: string): Action {
-  return { type: "FILE_BROWSER_FAILED", payload: { error } };
+export function fileBrowserFailed(error: string, restorePath?: string): Action {
+  return { type: "FILE_BROWSER_FAILED", payload: { error, restorePath } };
 }
 
 export function fileBrowserCancel(): Action {

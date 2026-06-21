@@ -25,6 +25,12 @@ describe("file browser modal render", () => {
 
     expect(root.querySelector(".file-browser-modal")?.textContent).toContain("workspace.json");
     expect(root.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]')).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('button[data-action="file-browser-open"]')?.disabled).toBe(true);
+
+    state.fileBrowser.selectedFile = "D:\\quailbot\\workspaces\\workspace.json";
+    renderFileBrowserModal(root, state);
+
+    expect(root.querySelector<HTMLButtonElement>('button[data-action="file-browser-open"]')?.disabled).toBe(false);
   });
 
   it("renders typed filename input in export mode", () => {

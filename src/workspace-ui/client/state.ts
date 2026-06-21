@@ -347,7 +347,15 @@ function fileBrowserReducer(state: AppState, action: Action): AppState {
         fileBrowser: { ...state.fileBrowser, open: false, inFlight: false, lastError: null },
       };
     case "FILE_BROWSER_FAILED":
-      return { ...state, fileBrowser: { ...state.fileBrowser, inFlight: false, lastError: action.payload.error } };
+      return {
+        ...state,
+        fileBrowser: {
+          ...state.fileBrowser,
+          currentPath: action.payload.restorePath ?? state.fileBrowser.currentPath,
+          inFlight: false,
+          lastError: action.payload.error,
+        },
+      };
     case "FILE_BROWSER_CANCEL":
       return { ...state, fileBrowser: { ...state.fileBrowser, open: false, inFlight: false, lastError: null } };
     default:

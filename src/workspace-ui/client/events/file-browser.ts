@@ -41,22 +41,23 @@ function errorMessage(response: ResponseWithErrors, fallback: string): string {
   return fallback;
 }
 
-function fail(dispatch: (action: Action) => void, message: string, alertUser = false): void {
-  dispatch(fileBrowserFailed(message));
+function fail(dispatch: (action: Action) => void, message: string, alertUser = false, restorePath?: string): void {
+  dispatch(fileBrowserFailed(message, restorePath));
   if (alertUser) dispatch(noticeOpen(message));
 }
 
-async function browse(path: string, dispatch: (action: Action) => void): Promise<void> {
+async function browse(path: string, dispatch: (action: Action) => void, getState: () => AppState): Promise<void> {
+  const previousPath = getState().fileBrowser.currentPath;
   dispatch(fileBrowserNav(path));
   try {
     const response = await postBrowse(path);
     if (!response.ok || !response.entries || !response.resolved) {
-      fail(dispatch, errorMessage(response, "Browse failed"));
+      fail(dispatch, errorMessage(response, "Browse failed"), false, previousPath);
       return;
     }
     dispatch(fileBrowserBrowseResult(response.entries, response.resolved));
   } catch (error) {
-    fail(dispatch, error instanceof Error ? error.message : String(error));
+    fail(dispatch, error instanceof Error ? error.message : String(error), false, previousPath);
   }
 }
 
@@ -116,7 +117,7 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
     if (load) {
       event.preventDefault();
       dispatch(fileBrowserOpen("load"));
-      void browse(dirnameLike(getState().workspace.currentPath), dispatch);
+      void browse(dirnameLike(getState().workspace.currentPath), dispatch, getState);
       return;
     }
     const save = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="file-browser-save"]', formRoot);
@@ -129,7 +130,7 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
     if (exp) {
       event.preventDefault();
       dispatch(fileBrowserOpen("export"));
-      void browse(dirnameLike(getState().workspace.currentPath), dispatch);
+      void browse(dirnameLike(getState().workspace.currentPath), dispatch, getState);
     }
   };
   const onModalClick = (event: MouseEvent): void => {
@@ -140,7 +141,7 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
       const path = entry.dataset.path ?? "";
       if (kind === "dir") {
         lastLoadFileActivation = null;
-        void browse(path, dispatch);
+        void browse(path, dispatch, getState);
       } else {
         const state = getState();
         const now = Date.now();
@@ -161,7 +162,7 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
     const up = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="file-browser-up"]', modalRoot);
     if (up) {
       event.preventDefault();
-      void browse(dirnameLike(getState().fileBrowser.currentPath), dispatch);
+      void browse(dirnameLike(getState().fileBrowser.currentPath), dispatch, getState);
       return;
     }
     const open = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="file-browser-open"]', modalRoot);

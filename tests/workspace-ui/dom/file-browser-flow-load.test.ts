@@ -108,4 +108,38 @@ describe("file browser load flow", () => {
     expect(store.getState().fileBrowser.lastError).toBe("invalid workspace JSON");
     expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("invalid workspace JSON");
   });
+
+  it("keeps the last successful directory visible when parent browse is rejected by path policy", async () => {
+    const state = initialState();
+    state.workspace.currentPath = "D:\\quailbot\\.quailbot-pi\\workspace.json";
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            resolved: "D:\\quailbot\\.quailbot-pi",
+            entries: [{ name: "workspace.json", kind: "file", path: "D:\\quailbot\\.quailbot-pi\\workspace.json" }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: "path is outside the allowed roots" })));
+    vi.stubGlobal("fetch", fetch);
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
+    await flush();
+
+    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot\\.quailbot-pi");
+    expect(modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-open"]')?.disabled).toBe(true);
+
+    modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-up"]')?.click();
+    await flush();
+
+    expect(fetch).toHaveBeenNthCalledWith(2, "/api/browse", expect.objectContaining({ method: "POST" }));
+    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot\\.quailbot-pi");
+    expect(store.getState().fileBrowser.entries.map((entry) => entry.name)).toEqual(["workspace.json"]);
+    expect(store.getState().fileBrowser.lastError).toBe("path is outside the allowed roots");
+    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot\\.quailbot-pi");
+    expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("path is outside the allowed roots");
+  });
 });

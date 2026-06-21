@@ -11,8 +11,39 @@ function setMenuOpen(menuRoot: HTMLElement, menu: string | null): void {
   }
 }
 
+function focusFirstMenuItem(menuRoot: HTMLElement, menu: string): void {
+  menuRoot.querySelector<HTMLButtonElement>(`[data-menu-panel="${menu}"] button`)?.focus();
+}
+
 export function attachMenuEvents(args: { menuRoot: HTMLElement; helpRoot: HTMLElement }): () => void {
   const { menuRoot, helpRoot } = args;
+  let pendingAltMenu = false;
+  let pendingAltTimer = 0;
+  const clearPendingAltMenu = (): void => {
+    pendingAltMenu = false;
+    if (pendingAltTimer) {
+      window.clearTimeout(pendingAltTimer);
+      pendingAltTimer = 0;
+    }
+  };
+  const markPendingAltMenu = (): void => {
+    clearPendingAltMenu();
+    pendingAltMenu = true;
+    pendingAltTimer = window.setTimeout(clearPendingAltMenu, 1000);
+  };
+  const openAcceleratorMenu = (event: KeyboardEvent): boolean => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey) return false;
+    const key = event.key.toLowerCase();
+    const menu = key === "f" ? "file" : key === "h" ? "help" : null;
+    const isChord = event.altKey;
+    const isAltSequence = pendingAltMenu && !event.altKey;
+    if (!menu || (!isChord && !isAltSequence)) return false;
+    event.preventDefault();
+    clearPendingAltMenu();
+    setMenuOpen(menuRoot, menu);
+    focusFirstMenuItem(menuRoot, menu);
+    return true;
+  };
   const onMenuClick = (event: MouseEvent): void => {
     const toggle = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="menu-toggle"][data-menu]', menuRoot);
     if (toggle) {
@@ -46,8 +77,18 @@ export function attachMenuEvents(args: { menuRoot: HTMLElement; helpRoot: HTMLEl
     setMenuOpen(menuRoot, null);
   };
   const onDocumentKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape") return;
-    setMenuOpen(menuRoot, null);
+    if (event.key === "Escape") {
+      clearPendingAltMenu();
+      setMenuOpen(menuRoot, null);
+      return;
+    }
+    if (event.key === "Alt") {
+      markPendingAltMenu();
+      return;
+    }
+    if (!openAcceleratorMenu(event)) {
+      clearPendingAltMenu();
+    }
   };
   const onHelpClick = (event: MouseEvent): void => {
     const close = closestWithin<HTMLElement>(event.target, '[data-action="help-close"]', helpRoot);
@@ -82,6 +123,7 @@ export function attachMenuEvents(args: { menuRoot: HTMLElement; helpRoot: HTMLEl
     offHelpClick();
     offHelpKeyDown();
     offHelpFocusOut();
+    clearPendingAltMenu();
     document.removeEventListener("pointerup", onDocumentPointerUp, true);
     document.removeEventListener("keydown", onDocumentKeyDown, true);
   };

@@ -38,6 +38,42 @@ describe("workspace menu and help", () => {
     off();
   });
 
+  it("opens File and Help menus through Tk-style Alt accelerators", () => {
+    const menuRoot = document.createElement("nav");
+    const helpRoot = document.createElement("section");
+    document.body.replaceChildren(menuRoot, helpRoot);
+    renderMenu(menuRoot);
+    const off = attachMenuEvents({ menuRoot, helpRoot });
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", altKey: true, bubbles: true }));
+    expect(menuRoot.querySelector<HTMLButtonElement>('button[data-menu="file"]')?.getAttribute("aria-expanded")).toBe("true");
+    expect(menuRoot.querySelector<HTMLElement>('[data-menu-panel="file"]')?.hidden).toBe(false);
+    expect(document.activeElement?.textContent).toBe("Load workspace...");
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "h", altKey: true, bubbles: true }));
+    expect(menuRoot.querySelector<HTMLButtonElement>('button[data-menu="file"]')?.getAttribute("aria-expanded")).toBe("false");
+    expect(menuRoot.querySelector<HTMLButtonElement>('button[data-menu="help"]')?.getAttribute("aria-expanded")).toBe("true");
+    expect(menuRoot.querySelector<HTMLElement>('[data-menu-panel="help"]')?.hidden).toBe(false);
+    expect(document.activeElement?.textContent).toBe("Show help");
+    off();
+  });
+
+  it("opens File from the Windows-style Alt prefix sequence", () => {
+    const menuRoot = document.createElement("nav");
+    const helpRoot = document.createElement("section");
+    document.body.replaceChildren(menuRoot, helpRoot);
+    renderMenu(menuRoot);
+    const off = attachMenuEvents({ menuRoot, helpRoot });
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true }));
+
+    expect(menuRoot.querySelector<HTMLButtonElement>('button[data-menu="file"]')?.getAttribute("aria-expanded")).toBe("true");
+    expect(menuRoot.querySelector<HTMLElement>('[data-menu-panel="file"]')?.hidden).toBe(false);
+    expect(document.activeElement?.textContent).toBe("Load workspace...");
+    off();
+  });
+
   it("closes dropdown menus on global Escape and outside pointer activation", () => {
     const menuRoot = document.createElement("nav");
     const helpRoot = document.createElement("section");

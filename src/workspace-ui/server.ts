@@ -490,7 +490,7 @@ button, input, select, textarea { font: inherit; }
 .toolbar-row-span { grid-column: 1 / -1; }
 .toolbar-label { display: contents; }
 .toolbar-label span { align-self: center; }
-.toolbar-label [role="textbox"] { min-width: 0; padding: 2px 4px; border: 1px solid #8a949e; background: #fff; color: #111; overflow: hidden; white-space: nowrap; }
+.toolbar-label input { min-width: 0; padding: 2px 4px; border: 1px solid #8a949e; background: #fff; color: #111; }
 .toolbar-check { display: flex; gap: 6px; align-items: center; }
 .toolbar-fieldset { min-width: 0; margin: 2px 0 0; padding: 8px; border: 1px solid #c4c4c4; }
 .toolbar-fieldset legend { padding: 0 4px; }

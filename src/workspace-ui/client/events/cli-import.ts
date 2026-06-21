@@ -49,9 +49,9 @@ async function runImport(dispatch: (action: Action) => void, getState: () => App
 export function attachCliImportEvents(args: { formRoot: HTMLElement; modalRoot: HTMLElement; dispatch: (action: Action) => void; getState: () => AppState }): () => void {
   const { formRoot, modalRoot, dispatch, getState } = args;
   const onFormInput = (event: Event): void => {
-    const input = closestWithin<HTMLElement>(event.target, '[data-cli-import-name="true"]', formRoot);
+    const input = closestWithin<HTMLInputElement>(event.target, 'input[data-cli-import-name="true"]', formRoot);
     if (!input) return;
-    dispatch(cliImportNameChanged(input.textContent ?? ""));
+    dispatch(cliImportNameChanged(input.value));
   };
   const onFormClick = (event: MouseEvent): void => {
     const button = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="cli-import-load"]', formRoot);

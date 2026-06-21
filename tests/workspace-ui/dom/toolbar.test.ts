@@ -225,6 +225,7 @@ describe("workspace toolbar events", () => {
     const state = fixtureState();
     state.workspace.cliEnabled = false;
     state.workspace.currentPath = "D:\\quailbot\\workspaces\\active.json";
+    state.cliImport.cliName = "nqctl";
     const { root, store } = mount(state);
 
     expect([...root.querySelectorAll<HTMLButtonElement>("button")].map((button) => button.textContent)).toEqual(
@@ -233,6 +234,10 @@ describe("workspace toolbar events", () => {
     expect([...root.querySelectorAll<HTMLButtonElement>("button")].map((button) => button.textContent)).not.toEqual(expect.arrayContaining(["Load workspace...", "Export..."]));
     const cliEnabled = root.querySelector<HTMLInputElement>('input[data-action="cli-tools-enabled"]');
     expect(cliEnabled?.checked).toBe(false);
+    const cliName = root.querySelector<HTMLInputElement>('input[data-cli-import-name="true"]');
+    expect(cliName?.tagName).toBe("INPUT");
+    expect(cliName?.type).toBe("text");
+    expect(cliName?.value).toBe("nqctl");
 
     if (!cliEnabled) throw new Error("missing CLI tools enabled checkbox");
     pointerClickCheckbox(cliEnabled);

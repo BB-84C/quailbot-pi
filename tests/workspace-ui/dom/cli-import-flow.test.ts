@@ -129,4 +129,31 @@ describe("CLI import client flow", () => {
     expect(store.getState().workspace.cliEnabled).toBe(false);
     expect(store.getState().workspace.cliParams.map((draft) => cliParamToJson(draft))).toEqual(before);
   });
+
+  it("uses the edited native CLI Name input when probing the CLI", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({
+        ok: true,
+        payload: { parameters: { items: [] }, action_commands: { items: [] } },
+        usedSubcommand: "capabilities",
+        error: "",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { toolbarRoot, store } = mount();
+
+    const input = toolbarRoot.querySelector<HTMLInputElement>('input[data-cli-import-name="true"]');
+    if (!input) throw new Error("missing CLI Name input");
+    input.value = "customctl";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    toolbarRoot.querySelector<HTMLButtonElement>('button[data-action="cli-import-load"]')?.click();
+    await flush();
+
+    expect(store.getState().cliImport.cliName).toBe("customctl");
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+      cliName: "customctl",
+      declaredCliNames: expect.arrayContaining(["customctl"]),
+    });
+    expect(store.getState().workspace.cliName).toBe("customctl");
+  });
 });

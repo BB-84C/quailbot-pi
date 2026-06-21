@@ -22,11 +22,10 @@ function cliNameControl(state: AppState): HTMLElement {
   label.className = "toolbar-label";
   const text = document.createElement("span");
   text.textContent = "CLI Name";
-  const input = document.createElement("span");
+  const input = document.createElement("input");
+  input.type = "text";
   input.dataset.cliImportName = "true";
-  input.setAttribute("role", "textbox");
-  input.contentEditable = "true";
-  input.textContent = state.cliImport.cliName || state.workspace.cliName || "";
+  input.value = state.cliImport.cliName || state.workspace.cliName || "";
   label.append(text, input);
   return label;
 }

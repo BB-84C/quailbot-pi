@@ -172,4 +172,21 @@ describe("file browser save/export flow", () => {
 
     expect(modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]')?.value).toBe("workspace.json");
   });
+
+  it("keeps Export save disabled after a no-active-workspace browse failure", async () => {
+    const state = initialState();
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: "no active workspace" })));
+    vi.stubGlobal("fetch", fetch);
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
+    await flush();
+
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "." });
+    expect(store.getState().fileBrowser.currentPath).toBe("");
+    expect(store.getState().fileBrowser.lastError).toBe("no active workspace");
+    expect(modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]')?.value).toBe("workspace.json");
+    expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("no active workspace");
+    expect(modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.disabled).toBe(true);
+  });
 });

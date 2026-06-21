@@ -21,6 +21,7 @@ import { attachScopedActivation, attachScopedEvent, closestWithin } from "./dele
 type ResponseWithErrors = { error?: string; errors?: unknown[] };
 
 function dirnameLike(filePath: string): string {
+  if (filePath.trim().length === 0) return ".";
   const slash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
   return slash > 0 ? filePath.slice(0, slash) : filePath;
 }

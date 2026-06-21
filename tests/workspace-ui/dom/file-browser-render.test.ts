@@ -43,4 +43,17 @@ describe("file browser modal render", () => {
 
     expect(root.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]')).not.toBeNull();
   });
+
+  it("disables the export primary action when there is no current directory", () => {
+    const root = document.createElement("section");
+    const state = initialState();
+    state.fileBrowser.open = true;
+    state.fileBrowser.mode = "export";
+    state.fileBrowser.currentPath = "";
+    state.fileBrowser.typedFilename = "workspace.json";
+
+    renderFileBrowserModal(root, state);
+
+    expect(root.querySelector<HTMLButtonElement>('button[data-action="file-browser-save"]')?.disabled).toBe(true);
+  });
 });

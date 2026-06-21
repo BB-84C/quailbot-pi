@@ -142,4 +142,21 @@ describe("file browser load flow", () => {
     expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot\\.quailbot-pi");
     expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("path is outside the allowed roots");
   });
+
+  it("surfaces no-active-workspace browse failures instead of sending an empty path", async () => {
+    const state = initialState();
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: "no active workspace" })));
+    vi.stubGlobal("fetch", fetch);
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
+    await flush();
+
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "." });
+    expect(store.getState().fileBrowser.currentPath).toBe("");
+    expect(store.getState().fileBrowser.lastError).toBe("no active workspace");
+    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("");
+    expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("no active workspace");
+    expect(modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-open"]')?.disabled).toBe(true);
+  });
 });

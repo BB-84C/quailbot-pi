@@ -78,3 +78,6 @@
 - The Pi agent itself should be able to create and edit skills, not just consume them.
 - The recent full skill-body window defaults to 3 and should be made user-settable from the Pi agent UI/command surface.
 - The deployed Pi-agent-owned `AGENTS.md` should guide memory/skill maintenance in a know-how-oriented rewrite style: update or rewrite the relevant paragraph when new understanding overlaps prior guidance, rather than growing an append-only ledger.
+- The faithful web calibrator port is A3, not A6. Its canonical tie-breaker is the legacy Python in `D:\quailbot\src\quailbot\calibration\gui.py`, `cli_import.py`, and `D:\quailbot\src\quailbot\capture.py`.
+- Treat the TypeScript + web implementation as a 1:1 port of all Python behavior, including behavior not explicitly enumerated in task text. Surface-level UI parity is not sufficient.
+- `Set agent workspace` / activation-request support was explicitly dropped for this port. Treat residual `/api/request-activation`, `pendingWorkspaceActivation`, or activation UI as regression residue to remove, not scope to preserve.

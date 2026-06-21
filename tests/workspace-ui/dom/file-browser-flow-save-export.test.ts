@@ -56,6 +56,7 @@ describe("file browser save/export flow", () => {
   it("Save posts updateCurrent true and updates currentPath on success", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\active.json", hash: "abcd1234abcd1234" })));
     vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
     const { toolbarRoot, formRoot, store } = mount(fixtureState());
     const expected = buildWorkspaceJson(store.getState().workspace);
 
@@ -67,6 +68,7 @@ describe("file browser save/export flow", () => {
     expect(body.updateCurrent).toBe(true);
     expect(stringifyWorkspaceJson(body.workspaceJson as Record<string, unknown>)).toBe(stringifyWorkspaceJson(expected));
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\active.json");
+    expect(alert).toHaveBeenCalledWith("Saved to D:\\quailbot\\workspaces\\active.json");
   });
 
   it("Export posts updateCurrent false and does not update currentPath on success", async () => {
@@ -74,6 +76,7 @@ describe("file browser save/export flow", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\exported.json", hash: "abcd1234abcd1234" })));
     vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
     const { menuRoot, formRoot, modalRoot, store } = mount(fixtureState());
     const before = store.getState().workspace.currentPath;
 
@@ -91,5 +94,6 @@ describe("file browser save/export flow", () => {
     expect(body.path).toBe("D:\\quailbot\\workspaces\\exported.json");
     expect(body.updateCurrent).toBe(false);
     expect(store.getState().workspace.currentPath).toBe(before);
+    expect(alert).toHaveBeenCalledWith("Exported to D:\\quailbot\\workspaces\\exported.json");
   });
 });

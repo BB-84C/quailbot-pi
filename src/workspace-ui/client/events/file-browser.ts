@@ -56,6 +56,7 @@ async function loadSelected(dispatch: (action: Action) => void, getState: () => 
       return;
     }
     dispatch(fileBrowserLoadSucceeded(response.path, response.canonicalJson));
+    window.alert(`Loaded ${response.path}`);
   } catch (error) {
     dispatch(fileBrowserFailed(error instanceof Error ? error.message : String(error)));
   }
@@ -76,6 +77,7 @@ async function saveTarget(targetPath: string, updateCurrent: boolean, dispatch: 
       return;
     }
     dispatch(fileBrowserSaveSucceeded(response.path, updateCurrent));
+    window.alert(`${updateCurrent ? "Saved" : "Exported"} to ${response.path}`);
   } catch (error) {
     dispatch(fileBrowserFailed(error instanceof Error ? error.message : String(error)));
   }

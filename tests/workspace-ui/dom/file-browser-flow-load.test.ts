@@ -47,6 +47,7 @@ describe("file browser load flow", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [{ name: "loaded.json", kind: "file", path: "D:\\quailbot\\workspaces\\loaded.json" }] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\loaded.json", canonicalJson: { rois: [{ name: "loaded-roi", x: 1, y: 2, w: 3, h: 4, description: "", active: true }], anchors: [], groups: [], tools: {} }, summary: { path: "D:\\quailbot\\workspaces\\loaded.json", hash: "abcd1234abcd1234" } })));
     vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
     const { menuRoot, formRoot, modalRoot, store } = mount(state);
 
     expect(formRoot.querySelector('button[data-action="file-browser-load"]')).toBeNull();
@@ -60,6 +61,7 @@ describe("file browser load flow", () => {
     expect(fetch).toHaveBeenNthCalledWith(2, "/api/load", expect.objectContaining({ method: "POST" }));
     expect(store.getState().workspace.rois.map((roi) => roi.name)).toEqual(["loaded-roi"]);
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\loaded.json");
+    expect(alert).toHaveBeenCalledWith("Loaded D:\\quailbot\\workspaces\\loaded.json");
   });
 
   it("opens a selected file on a fast second activation like the Tk file dialog double-click path", async () => {
@@ -69,6 +71,7 @@ describe("file browser load flow", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot\\workspaces", entries: [{ name: "double.json", kind: "file", path: "D:\\quailbot\\workspaces\\double.json" }] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, path: "D:\\quailbot\\workspaces\\double.json", canonicalJson: { rois: [{ name: "double-roi", x: 1, y: 2, w: 3, h: 4, description: "", active: true }], anchors: [], groups: [], tools: {} }, summary: { path: "D:\\quailbot\\workspaces\\double.json", hash: "abcd1234abcd1234" } })));
     vi.stubGlobal("fetch", fetch);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
     const { menuRoot, modalRoot, store } = mount(state);
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
@@ -81,5 +84,6 @@ describe("file browser load flow", () => {
     expect(fetch).toHaveBeenNthCalledWith(2, "/api/load", expect.objectContaining({ method: "POST" }));
     expect(store.getState().workspace.rois.map((roi) => roi.name)).toEqual(["double-roi"]);
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\double.json");
+    expect(alert).toHaveBeenCalledWith("Loaded D:\\quailbot\\workspaces\\double.json");
   });
 });

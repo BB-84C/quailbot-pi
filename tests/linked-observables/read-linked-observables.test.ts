@@ -6,6 +6,7 @@ import { readLinkedObservables } from "../../src/linked-observables/read-linked-
 import type { RunCli } from "../../src/cli/cli-driver.js";
 import { createToolContext } from "../../src/tools/tool-context.js";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
+import type { Workspace } from "../../src/workspace/types.js";
 
 describe("readLinkedObservables", () => {
   it("reads CLI observables through the generic driver and stores payloads by ref", async () => {
@@ -37,13 +38,13 @@ describe("readLinkedObservables", () => {
             },
           },
         },
-        roi: { rois: [], results: {}, unavailable: [] },
+        roi: { rois: [], results: {}, unavailable: [], warnings: [] },
       },
       unresolved: [],
     });
   });
 
-  it("records partial CLI failures without throwing and marks ROI readback unavailable", async () => {
+  it("records partial CLI failures without throwing and captures ROI readback when available", async () => {
     const runCli = vi.fn<RunCli>().mockResolvedValue({
       ok: false,
       exitCode: 7,
@@ -54,7 +55,31 @@ describe("readLinkedObservables", () => {
       error_type: "driver_error",
       error_message: "read failed",
     });
-    const ctx = createToolContext({ workspace: loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json")), runCli });
+    const workspace = loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
+    workspace.rois.push({
+      ref: "roi:scan-window",
+      name: "scan_window",
+      active: true,
+      linkedObservables: [],
+      schema: { x: 1, y: 2, w: 3, h: 4 },
+    });
+    const ctx = createToolContext({
+      workspace,
+      runCli,
+      modelSupportsImages: true,
+      roiCaptureBackend: async ({ rois }) =>
+        rois.map((roi) => ({
+          ref: roi.ref,
+          ...(roi.name === undefined ? {} : { name: roi.name }),
+          rect: roi.schema as { x: number; y: number; w: number; h: number },
+          imagePath: "C:\\tmp\\scan-window.png",
+          mimeType: "image/png" as const,
+          width: 3,
+          height: 4,
+          captureId: "capture-test",
+          data: "iVBORw0KGgo=",
+        })),
+    });
 
     const observation = await readLinkedObservables(ctx, {
       cli: ["nqctl:current"],
@@ -73,13 +98,53 @@ describe("readLinkedObservables", () => {
       rois: ["roi:scan-window"],
       results: {
         "roi:scan-window": {
-          ok: false,
-          error_type: "roi_backend_unavailable",
-          error_message: "ROI linked-observable readback is not implemented in this round",
+          ok: true,
+          ref: "roi:scan-window",
+          name: "scan_window",
+          rect: { x: 1, y: 2, w: 3, h: 4 },
+          image_path: "C:\\tmp\\scan-window.png",
+          mime_type: "image/png",
+          width: 3,
+          height: 4,
+          capture_id: "capture-test",
+          model_can_read_image: true,
+          attached_image: true,
         },
       },
-      unavailable: ["roi:scan-window"],
+      unavailable: [],
+      warnings: [],
     });
     expect(observation.unresolved).toEqual(["missing_signal"]);
   });
+
+  it("marks ROI readback unavailable when no capture backend is configured", async () => {
+    const workspace = loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
+    addScanRoi(workspace);
+    const ctx = createToolContext({ workspace, runCli: vi.fn<RunCli>() });
+
+    const observation = await readLinkedObservables(ctx, { cli: [], roi: ["roi:scan-window"], unresolved: [] });
+
+    expect(observation.channels.roi).toMatchObject({
+      rois: ["roi:scan-window"],
+      results: {
+        "roi:scan-window": {
+          ok: false,
+          error_type: "roi_backend_unavailable",
+          error_message: "ROI screenshot backend is not configured",
+        },
+      },
+      unavailable: ["roi:scan-window"],
+      warnings: [],
+    });
+  });
 });
+
+function addScanRoi(workspace: Workspace): void {
+  workspace.rois.push({
+    ref: "roi:scan-window",
+    name: "scan_window",
+    active: true,
+    linkedObservables: [],
+    schema: { x: 1, y: 2, w: 3, h: 4 },
+  });
+}

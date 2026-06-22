@@ -82,9 +82,6 @@ function callSummaryParts(toolName: string, input: Record<string, unknown>): str
       `interval_s=${formatValue(input.interval_s)}`,
     ];
   }
-  if (toolName === "sleep_seconds" && input.seconds !== undefined) {
-    return [`seconds=${formatValue(input.seconds)}`];
-  }
   if (toolName === "quailbot_planwrite") {
     return firstEntries(input, ["mode", "clean"]);
   }

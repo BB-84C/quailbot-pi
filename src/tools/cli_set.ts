@@ -1,9 +1,9 @@
 import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
-import type { QuailbotToolResult } from "./tool-result.js";
+import { attachModelContent, type QuailbotToolResult } from "./tool-result.js";
 import { mutationPolicyDisabledResult } from "./mutation-policy.js";
 import type { CliParameter } from "../workspace/types.js";
-import { readLinkedObservables } from "../linked-observables/read-linked-observables.js";
+import { readLinkedObservablesWithContent } from "../linked-observables/read-linked-observables.js";
 import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
 
 export type CliSetInput = {
@@ -39,7 +39,7 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
     ? ["set", target.name, ...formatArgs(validateDeclaredArgs(parameter, input.args ?? {}))]
     : ["set", target.name, ...valueModeArgs(parameter, input.value)];
   const run = await ctx.runCli(target.cliName, cliArgs, { timeoutMs: input.timeout_ms });
-  const linkedObservation = await readLinkedObservables(
+  const { observation: linkedObservation, content } = await readLinkedObservablesWithContent(
     ctx,
     resolveLinkedObservables(ctx.workspace, {
       kind: "cli_set",
@@ -49,7 +49,7 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
     }),
   );
 
-  return {
+  return attachModelContent({
     ok: run.ok,
     action: "cli_set",
     action_input: input,
@@ -67,7 +67,7 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
       ...(run.error_message === undefined ? {} : { error_message: run.error_message }),
     },
     linked_observation: linkedObservation,
-  };
+  }, content);
 }
 
 type CliTarget = {

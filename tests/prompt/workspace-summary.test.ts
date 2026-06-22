@@ -46,7 +46,6 @@ describe("workspace prompt summary", () => {
       allowed_without_enable: [
         "cli_get",
         "observe",
-        "sleep_seconds",
         "quailbot_planwrite",
         "quailbot_plan_and_execute (read-only plans only)",
       ],
@@ -84,7 +83,6 @@ describe("workspace prompt summary", () => {
       allowed_without_enable: [
         "cli_get",
         "observe",
-        "sleep_seconds",
         "quailbot_planwrite",
         "quailbot_plan_and_execute (read-only plans only)",
       ],

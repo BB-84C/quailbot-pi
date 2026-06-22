@@ -1,4 +1,7 @@
 import type { ToolContext } from "../tools/tool-context.js";
+import { observeRois, type RoiObservationReadback, type RoiObservationResult } from "../tools/roi-observation.js";
+import type { QuailbotToolContent } from "../tools/tool-result.js";
+import type { WorkspaceRoi } from "../workspace/types.js";
 import type { ResolvedLinkedObservables } from "./resolve-linked-observables.js";
 
 export type LinkedCliObservationResult = {
@@ -12,24 +15,32 @@ export type LinkedCliObservationResult = {
   error_message?: string;
 };
 
-export type LinkedRoiObservationResult = {
-  ok: false;
-  error_type: "roi_backend_unavailable";
-  error_message: string;
-};
+export type LinkedRoiObservationResult = RoiObservationResult;
 
 export type LinkedObservation = {
   channels: {
     cli: { observables: string[]; results: Record<string, LinkedCliObservationResult> };
-    roi: { rois: string[]; results: Record<string, LinkedRoiObservationResult>; unavailable: string[] };
+    roi: RoiObservationReadback;
   };
   unresolved: string[];
+};
+
+export type ReadLinkedObservablesResult = {
+  observation: LinkedObservation;
+  content: QuailbotToolContent[];
 };
 
 export async function readLinkedObservables(
   ctx: ToolContext,
   resolved: ResolvedLinkedObservables,
 ): Promise<LinkedObservation> {
+  return (await readLinkedObservablesWithContent(ctx, resolved)).observation;
+}
+
+export async function readLinkedObservablesWithContent(
+  ctx: ToolContext,
+  resolved: ResolvedLinkedObservables,
+): Promise<ReadLinkedObservablesResult> {
   const cliResults: Record<string, LinkedCliObservationResult> = {};
   for (const ref of resolved.cli) {
     const [cliName, parameter] = splitCliRef(ref);
@@ -60,21 +71,17 @@ export async function readLinkedObservables(
     }
   }
 
-  const roiResults: Record<string, LinkedRoiObservationResult> = {};
-  for (const ref of resolved.roi) {
-    roiResults[ref] = {
-      ok: false,
-      error_type: "roi_backend_unavailable",
-      error_message: "ROI linked-observable readback is not implemented in this round",
-    };
-  }
+  const { observation: roiObservation, content } = await observeRois(ctx, resolvedRois(ctx, resolved.roi));
 
   return {
-    channels: {
-      cli: { observables: [...resolved.cli], results: cliResults },
-      roi: { rois: [...resolved.roi], results: roiResults, unavailable: [...resolved.roi] },
+    observation: {
+      channels: {
+        cli: { observables: [...resolved.cli], results: cliResults },
+        roi: roiObservation,
+      },
+      unresolved: [...resolved.unresolved],
     },
-    unresolved: [...resolved.unresolved],
+    content,
   };
 }
 
@@ -85,4 +92,22 @@ function splitCliRef(ref: string): [string, string] {
   }
 
   return [ref.slice(0, separator), ref.slice(separator + 1)];
+}
+
+function resolvedRois(ctx: ToolContext, refs: string[]): WorkspaceRoi[] {
+  const rois: WorkspaceRoi[] = [];
+  for (const ref of refs) {
+    const roi = ctx.workspace.rois.find((item) => item.active && (item.ref === ref || item.name === ref));
+    if (roi === undefined) {
+      rois.push({
+        ref,
+        active: false,
+        linkedObservables: [],
+        schema: {},
+      });
+      continue;
+    }
+    rois.push(roi);
+  }
+  return rois;
 }

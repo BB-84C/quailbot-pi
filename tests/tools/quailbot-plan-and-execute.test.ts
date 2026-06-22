@@ -340,7 +340,7 @@ describe("quailbot_plan_and_execute", () => {
     const result = await executeQuailbotPlanAndExecute(ctx, {
       steps: [
         { kind: "cli_get", cli_name: "nqctl", parameter: "current" },
-        { kind: "sleep_seconds", seconds: 0 },
+        { kind: "cli_get", cli_name: "nqctl", parameter: "current" },
       ],
     });
 
@@ -461,13 +461,12 @@ describe("quailbot_plan_and_execute", () => {
       "click_anchor",
       "set_field",
       "observe",
-      "sleep_seconds",
     ]) {
       expect(schemaText).toContain(kind);
     }
     expect(schemaText).not.toContain("additionalProperties");
 
-    const result = await tool?.execute("tool-call", { steps: [{ kind: "sleep_seconds", seconds: 0 }] });
+    const result = await tool?.execute("tool-call", { steps: [{ kind: "observe" }] });
 
     expect(result).toMatchObject({
       details: {
@@ -491,7 +490,13 @@ function fixtureWorkspace(): Workspace {
 
 function workspaceWithGuiTargets(): Workspace {
   const workspace = fixtureWorkspace();
-  workspace.rois.push({ ref: "roi:status", name: "status_roi", active: true, linkedObservables: [], schema: {} });
+  workspace.rois.push({
+    ref: "roi:status",
+    name: "status_roi",
+    active: true,
+    linkedObservables: [],
+    schema: { x: 0, y: 0, w: 1, h: 1 },
+  });
   workspace.anchors.push({
     ref: "anchor:active",
     name: "active_anchor",

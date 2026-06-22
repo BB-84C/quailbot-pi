@@ -1,8 +1,8 @@
 import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
-import type { QuailbotToolResult } from "./tool-result.js";
+import { attachModelContent, type QuailbotToolResult } from "./tool-result.js";
 import { mutationPolicyDisabledResult } from "./mutation-policy.js";
-import { readLinkedObservables } from "../linked-observables/read-linked-observables.js";
+import { readLinkedObservablesWithContent } from "../linked-observables/read-linked-observables.js";
 import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
 
 export type CliRampInput = {
@@ -38,7 +38,7 @@ export async function executeCliRamp(ctx: ToolContext, input: CliRampInput): Pro
     String(input.interval_s),
   ];
   const run = await ctx.runCli(target.cliName, cliArgs, { timeoutMs: input.timeout_ms });
-  const linkedObservation = await readLinkedObservables(
+  const { observation: linkedObservation, content } = await readLinkedObservablesWithContent(
     ctx,
     resolveLinkedObservables(ctx.workspace, {
       kind: "cli_ramp",
@@ -48,7 +48,7 @@ export async function executeCliRamp(ctx: ToolContext, input: CliRampInput): Pro
     }),
   );
 
-  return {
+  return attachModelContent({
     ok: run.ok,
     action: "cli_ramp",
     action_input: input,
@@ -68,7 +68,7 @@ export async function executeCliRamp(ctx: ToolContext, input: CliRampInput): Pro
       ...(run.error_message === undefined ? {} : { error_message: run.error_message }),
     },
     linked_observation: linkedObservation,
-  };
+  }, content);
 }
 
 type CliTarget = {

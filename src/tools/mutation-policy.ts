@@ -14,7 +14,6 @@ export const MUTATING_TOOL_KINDS = ["cli_set", "cli_ramp", "cli_action", "click_
 export const READ_ONLY_WITHOUT_MUTATION_ENABLE = [
   "cli_get",
   "observe",
-  "sleep_seconds",
   "quailbot_planwrite",
   "quailbot_plan_and_execute (read-only plans only)",
 ] as const;

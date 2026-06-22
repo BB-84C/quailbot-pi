@@ -7,9 +7,8 @@ import { executeCliSet, type CliSetInput } from "./cli_set.js";
 import { isMutatingToolKind, mutationPolicyValidationError } from "./mutation-policy.js";
 import { executeObserve, validateObserveInput, type ObserveInput } from "./observe.js";
 import { executeSetField, validateSetFieldInput, type SetFieldInput } from "./set_field.js";
-import { executeSleepSeconds, type SleepSecondsInput } from "./sleep_seconds.js";
 import type { ToolContext } from "./tool-context.js";
-import type { QuailbotToolResult } from "./tool-result.js";
+import { attachModelContent, modelContent, type QuailbotToolContent, type QuailbotToolResult } from "./tool-result.js";
 
 export type PlanAndExecuteStep =
   | ({ kind: "cli_get" } & CliGetInput)
@@ -18,8 +17,7 @@ export type PlanAndExecuteStep =
   | ({ kind: "cli_action" } & CliActionInput)
   | ({ kind: "click_anchor" } & ClickAnchorInput)
   | ({ kind: "set_field" } & SetFieldInput)
-  | ({ kind: "observe" } & ObserveInput)
-  | ({ kind: "sleep_seconds" } & SleepSecondsInput);
+  | ({ kind: "observe" } & ObserveInput);
 
 export type PlanAndExecuteInput = { steps: PlanAndExecuteStep[] };
 
@@ -43,7 +41,6 @@ async function runStep(ctx: ToolContext, step: PlanAndExecuteStep): Promise<Quai
   if (step.kind === "click_anchor") return await executeClickAnchor(ctx, step);
   if (step.kind === "set_field") return await executeSetField(ctx, step);
   if (step.kind === "observe") return await executeObserve(ctx, step);
-  if (step.kind === "sleep_seconds") return await executeSleepSeconds(step);
   const neverStep: never = step;
   throw new Error(`unsupported step: ${JSON.stringify(neverStep)}`);
 }
@@ -68,9 +65,6 @@ async function validateStep(ctx: ToolContext, step: unknown): Promise<void> {
       return;
     case "observe":
       validateObserveInput(ctx.workspace, step as ObserveInput);
-      return;
-    case "sleep_seconds":
-      validateSleepSeconds(step as Partial<SleepSecondsInput>);
       return;
     default:
       throw new Error(`unsupported step: ${JSON.stringify(step)}`);
@@ -112,13 +106,6 @@ function validationContext(ctx: ToolContext): ToolContext {
   };
 }
 
-function validateSleepSeconds(input: Partial<SleepSecondsInput>): void {
-  const seconds = input.seconds;
-  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
-    throw new Error("sleep_seconds requires a finite non-negative seconds value");
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -147,12 +134,14 @@ export async function executeQuailbotPlanAndExecute(
   }
 
   const steps: PlanStepResultRecord[] = [];
+  const content: QuailbotToolContent[] = [];
   let ok = true;
   let stopped_reason: "completed" | "step_failed" = "completed";
 
   for (let index = 0; index < input.steps.length; index += 1) {
     const step = input.steps[index];
     const result = await runStep(ctx, step);
+    content.push(...modelContent(result));
     const stepRecord: PlanStepResultRecord = {
       index,
       kind: step.kind,
@@ -175,10 +164,10 @@ export async function executeQuailbotPlanAndExecute(
     }
   }
 
-  return {
+  return attachModelContent({
     ok,
     action: "quailbot_plan_and_execute",
     action_input: input as unknown as Record<string, unknown>,
     primary_result: { ok, stopped_reason, steps },
-  };
+  }, content);
 }

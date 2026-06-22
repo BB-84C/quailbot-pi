@@ -36,7 +36,6 @@ describe("mutation policy", () => {
     expect(READ_ONLY_WITHOUT_MUTATION_ENABLE).toEqual([
       "cli_get",
       "observe",
-      "sleep_seconds",
       "quailbot_planwrite",
       "quailbot_plan_and_execute (read-only plans only)",
     ]);

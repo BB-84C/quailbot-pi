@@ -41,7 +41,6 @@ const expectedToolNames = [
   "quailbot_skill_edit",
   "quailbot_skill_write",
   "set_field",
-  "sleep_seconds",
 ];
 
 type PiEventName = "session_start" | "before_agent_start" | "context" | "session_shutdown" | string;

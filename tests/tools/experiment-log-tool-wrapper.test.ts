@@ -46,14 +46,15 @@ describe("registered tool experiment logging", () => {
       },
       content: [{ type: "text" }],
     });
-    expect((result as { details: unknown }).details).toEqual({
+    expect((result as { details: unknown }).details).toMatchObject({
       ok: false,
       action: "observe",
       action_input: params,
       primary_result: {
+        ok: false,
         requested_rois: ["status_roi"],
         error_type: "roi_backend_unavailable",
-        message: "ROI screenshot/OCR backend is not configured in this plugin implementation round.",
+        message: "One or more ROI observations failed.",
       },
     });
 
@@ -113,7 +114,7 @@ describe("registered tool experiment logging", () => {
     });
   });
 
-  it("logs plan-and-execute invocation, sleep step result, and aggregate result in order", async () => {
+  it("logs plan-and-execute invocation, observe step result, and aggregate result in order", async () => {
     const service = openExperimentLog([
       "exp_20260616-110200Z_plan_execute",
       "evt-open",
@@ -122,7 +123,7 @@ describe("registered tool experiment logging", () => {
       "evt-result",
     ]);
     const tools = registerTools(runtimeWithExperimentLog(service, fixtureWorkspace()));
-    const params = { steps: [{ kind: "sleep_seconds", seconds: 0 }] };
+    const params = { steps: [{ kind: "observe" }] };
 
     const result = await requireTool(tools, "quailbot_plan_and_execute").execute("tool-call-plan", params);
 
@@ -153,9 +154,9 @@ describe("registered tool experiment logging", () => {
       outcome: "measured",
       step: {
         index: 0,
-        kind: "sleep_seconds",
-        args: { kind: "sleep_seconds", seconds: 0 },
-        primary_result: { slept_seconds: 0 },
+        kind: "observe",
+        args: { kind: "observe" },
+        primary_result: { ok: true, requested_rois: [] },
       },
     });
     expect(events[3]).toMatchObject({
@@ -169,7 +170,7 @@ describe("registered tool experiment logging", () => {
     });
   });
 
-  it("does not log top-level planwrite or sleep_seconds calls", async () => {
+  it("does not log top-level planwrite calls", async () => {
     const service = openExperimentLog(["exp_20260616-110200Z_unwrapped", "evt-open"]);
     const tools = registerTools(runtimeWithExperimentLog(service, fixtureWorkspace()));
 
@@ -177,7 +178,6 @@ describe("registered tool experiment logging", () => {
       mode: "ephemeral",
       text: "Operator note",
     });
-    await requireTool(tools, "sleep_seconds").execute("tool-call-sleep", { seconds: 0 });
 
     const events = readEvents(service);
     expect(events.map((event) => event.event_kind)).toEqual(["experiment_open"]);
@@ -264,6 +264,12 @@ function fixtureWorkspace(): Workspace {
 
 function workspaceWithRoi(): Workspace {
   const workspace = fixtureWorkspace();
-  workspace.rois.push({ ref: "roi:status", name: "status_roi", active: true, linkedObservables: [], schema: {} });
+  workspace.rois.push({
+    ref: "roi:status",
+    name: "status_roi",
+    active: true,
+    linkedObservables: [],
+    schema: { x: 1, y: 2, w: 3, h: 4 },
+  });
   return workspace;
 }

@@ -104,6 +104,10 @@ function projectionBodyLines(
     return skillSummaryLines(result, primary, mode);
   }
 
+  if (result.action === "observe") {
+    return [...errorLines, ...observeSummaryLines(primary)];
+  }
+
   if (parseStatus === "parsed_payload") {
     return [...errorLines, ...payloadSummaryLines(result.action, primary, primary.payload), ...linkedObservationLines(result.linked_observation)];
   }
@@ -303,15 +307,12 @@ function linkedObservationLines(value: unknown): string[] {
   }
 
   const readbacks = linkedCliReadbackLines(observation, " = ");
-  const roiUnavailable = linkedRoiUnavailable(observation);
+  const roiReadbacks = linkedRoiReadbackLines(observation);
   const unresolved = stringArray(observation.unresolved);
   const lines: string[] = [];
 
-  if (readbacks.length > 0 || roiUnavailable.length > 0) {
-    lines.push("readback:", ...readbacks);
-    if (roiUnavailable.length > 0) {
-      lines.push("roi unavailable:", ...roiUnavailable.map((ref) => `- ${ref}`));
-    }
+  if (readbacks.length > 0 || roiReadbacks.length > 0) {
+    lines.push("readback:", ...readbacks, ...roiReadbacks);
   }
 
   if (unresolved.length > 0) {
@@ -319,6 +320,22 @@ function linkedObservationLines(value: unknown): string[] {
   }
 
   return lines;
+}
+
+function observeSummaryLines(primary: Record<string, unknown>): string[] {
+  const requested = stringArray(primary.requested_rois);
+  const roi = recordOrUndefined(recordOrUndefined(primary.channels)?.roi);
+  const lines: string[] = [];
+
+  if (requested.length > 0) {
+    lines.push(`requested_rois: ${requested.join(", ")}`);
+  }
+
+  if (roi !== undefined) {
+    lines.push(...roiReadbackLines(roi));
+  }
+
+  return lines.length > 0 ? lines : previewLines(primary);
 }
 
 function linkedCliReadbackLines(observation: Record<string, unknown>, separator: string): string[] {
@@ -344,9 +361,42 @@ function linkedCliReadbackLines(observation: Record<string, unknown>, separator:
   });
 }
 
-function linkedRoiUnavailable(observation: Record<string, unknown>): string[] {
+function linkedRoiReadbackLines(observation: Record<string, unknown>): string[] {
   const roi = recordOrUndefined(recordOrUndefined(observation.channels)?.roi);
-  return stringArray(roi?.unavailable);
+  if (roi === undefined) {
+    return [];
+  }
+
+  return roiReadbackLines(roi);
+}
+
+function roiReadbackLines(roi: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const results = recordOrUndefined(roi.results);
+  if (results !== undefined) {
+    for (const [ref, rawResult] of Object.entries(results)) {
+      const result = record(rawResult);
+      if (booleanValue(result.ok) === true) {
+        const imagePath = stringValue(result.image_path) ?? "<missing path>";
+        const width = numberValue(result.width);
+        const height = numberValue(result.height);
+        const attached = booleanValue(result.attached_image) === true ? "attached_image" : "metadata_only";
+        const size = width !== undefined && height !== undefined ? ` size=${width}x${height}` : "";
+        lines.push(`${ref} image_path=${imagePath}${size} [${attached}]`);
+        continue;
+      }
+
+      const diagnosticParts = structuredDiagnosticParts(result);
+      lines.push(`${ref} [${diagnosticParts.length > 0 ? diagnosticParts.join(" ") : "unavailable"}]`);
+    }
+  }
+
+  const warnings = stringArray(roi.warnings);
+  if (warnings.length > 0) {
+    lines.push(...warnings.map((warning) => `warning: ${warning}`));
+  }
+
+  return lines;
 }
 
 function planAndExecuteSummaryLines(primary: Record<string, unknown>): string[] {
@@ -402,6 +452,13 @@ function planStepResultSummary(kind: string, primary: Record<string, unknown>, l
     const diagnosticParts = [...structuredDiagnosticParts(primary), ...parseFailureDiagnosticParts(primary)];
     const diagnosticSuffix = diagnosticParts.length > 0 ? ` ${diagnosticParts.join(" ")}` : "";
     return `readback ${readbacks.join(" ")}${diagnosticSuffix}`;
+  }
+
+  const roiReadbacks = linkedRoiReadbackLines(record(linkedObservation));
+  if (roiReadbacks.length > 0) {
+    const diagnosticParts = [...structuredDiagnosticParts(primary), ...parseFailureDiagnosticParts(primary)];
+    const diagnosticSuffix = diagnosticParts.length > 0 ? ` ${diagnosticParts.join(" ")}` : "";
+    return `readback ${roiReadbacks.join(" ")}${diagnosticSuffix}`;
   }
 
   const payload = recordOrUndefined(primary.payload);

@@ -47,7 +47,7 @@ describe("classifyToolOutcome", () => {
         planResult([
           planStep({ kind: "cli_get" }),
           planStep({ kind: "observe" }),
-          planStep({ kind: "sleep_seconds" }),
+          planStep({ kind: "cli_get" }),
         ]),
       ),
     ).toBe("measured");
@@ -142,7 +142,6 @@ describe("classifyPlanStepOutcome", () => {
   it("classifies successful read-only plan steps as measured and mutating steps as applied", () => {
     expect(classifyPlanStepOutcome(planStep({ kind: "cli_get" }))).toBe("measured");
     expect(classifyPlanStepOutcome(planStep({ kind: "observe" }))).toBe("measured");
-    expect(classifyPlanStepOutcome(planStep({ kind: "sleep_seconds" }))).toBe("measured");
     expect(classifyPlanStepOutcome(planStep({ kind: "cli_set" }))).toBe("applied");
   });
 

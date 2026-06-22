@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 import type { QuailbotRuntime } from "../extension.js";
@@ -18,9 +18,8 @@ import { executeQuailbotSkill } from "./quailbot_skill.js";
 import { executeQuailbotSkillEdit } from "./quailbot_skill_edit.js";
 import { executeQuailbotSkillWrite } from "./quailbot_skill_write.js";
 import { executeSetField } from "./set_field.js";
-import { executeSleepSeconds } from "./sleep_seconds.js";
 import { createToolContext } from "./tool-context.js";
-import type { QuailbotToolResult } from "./tool-result.js";
+import { modelContent, type QuailbotToolResult } from "./tool-result.js";
 import { buildQuailbotToolContent } from "./tool-result-projection.js";
 import { makeQuailbotRenderCall, renderQuailbotToolResult } from "./tool-result-renderer.js";
 
@@ -30,9 +29,6 @@ const linkedObservablesSchema = Type.Array(Type.String({ minLength: 1 }), {
 });
 const roisSchema = Type.Array(Type.String({ minLength: 1 }), {
   description: "Workspace ROI names or refs to use for GUI readback.",
-});
-export const sleepSecondsParameters = Type.Object({
-  seconds: Type.Number({ minimum: 0, description: "Number of seconds to wait." }),
 });
 const planAndExecuteStepSchema = Type.Union([
   Type.Object({
@@ -84,10 +80,6 @@ const planAndExecuteStepSchema = Type.Union([
   Type.Object({
     kind: Type.Literal("observe"),
     rois: Type.Optional(roisSchema),
-  }),
-  Type.Object({
-    kind: Type.Literal("sleep_seconds"),
-    seconds: Type.Number({ minimum: 0 }),
   }),
 ]);
 const planAndExecuteParameters = Type.Object({ steps: Type.Array(planAndExecuteStepSchema, { minItems: 1 }) });
@@ -267,9 +259,9 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       parameter: Type.String({ minLength: 1, description: "Workspace parameter name to read." }),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
-        await executeLoggedTool(runtime, toolCallId, "cli_get", params, async () => executeCliGet(runtimeToolContext(runtime), params)),
+        await executeLoggedTool(runtime, toolCallId, "cli_get", params, async () => executeCliGet(runtimeToolContext(runtime, ctx), params)),
       );
     },
   });
@@ -290,9 +282,9 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
-        await executeLoggedTool(runtime, toolCallId, "cli_set", params, async () => executeCliSet(runtimeToolContext(runtime), params)),
+        await executeLoggedTool(runtime, toolCallId, "cli_set", params, async () => executeCliSet(runtimeToolContext(runtime, ctx), params)),
       );
     },
   });
@@ -315,9 +307,9 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
-        await executeLoggedTool(runtime, toolCallId, "cli_ramp", params, async () => executeCliRamp(runtimeToolContext(runtime), params)),
+        await executeLoggedTool(runtime, toolCallId, "cli_ramp", params, async () => executeCliRamp(runtimeToolContext(runtime, ctx), params)),
       );
     },
   });
@@ -337,9 +329,9 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       linked_observables: Type.Optional(linkedObservablesSchema),
       timeout_ms: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Optional CLI timeout in milliseconds." })),
     }),
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
-        await executeLoggedTool(runtime, toolCallId, "cli_action", params, async () => executeCliAction(runtimeToolContext(runtime), params)),
+        await executeLoggedTool(runtime, toolCallId, "cli_action", params, async () => executeCliAction(runtimeToolContext(runtime, ctx), params)),
       );
     },
   });
@@ -347,15 +339,15 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
   pi.registerTool({
     name: "observe",
     label: "Observe GUI ROIs",
-    description: "Request GUI ROI screenshot/OCR readback. This plugin round exposes the explicit unavailable backend boundary.",
+    description: "Capture one or more active workspace GUI ROI screenshots for readback.",
     renderCall: makeQuailbotRenderCall("observe"),
     renderResult: renderQuailbotToolResult,
     parameters: Type.Object({
       rois: Type.Optional(roisSchema),
     }),
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
-        await executeLoggedTool(runtime, toolCallId, "observe", params, async () => executeObserve(runtimeToolContext(runtime), params)),
+        await executeLoggedTool(runtime, toolCallId, "observe", params, async () => executeObserve(runtimeToolContext(runtime, ctx), params)),
       );
     },
   });
@@ -370,10 +362,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       anchor: Type.String({ minLength: 1, description: "Active workspace anchor name or ref to click." }),
       rois: Type.Optional(roisSchema),
     }),
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
         await executeLoggedTool(runtime, toolCallId, "click_anchor", params, async () =>
-          executeClickAnchor(runtimeToolContext(runtime), params),
+          executeClickAnchor(runtimeToolContext(runtime, ctx), params),
         ),
       );
     },
@@ -391,22 +383,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
       submit: Type.Optional(Type.Union([Type.Literal("enter"), Type.Literal("tab")], { description: "Optional submit key." })),
       rois: Type.Optional(roisSchema),
     }),
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
-        await executeLoggedTool(runtime, toolCallId, "set_field", params, async () => executeSetField(runtimeToolContext(runtime), params)),
+        await executeLoggedTool(runtime, toolCallId, "set_field", params, async () => executeSetField(runtimeToolContext(runtime, ctx), params)),
       );
-    },
-  });
-
-  pi.registerTool({
-    name: "sleep_seconds",
-    label: "Sleep seconds",
-    description: "Wait for a finite non-negative number of seconds before continuing.",
-    renderCall: makeQuailbotRenderCall("sleep_seconds"),
-    renderResult: renderQuailbotToolResult,
-    parameters: sleepSecondsParameters,
-    async execute(_toolCallId, params) {
-      return piToolResult(await executeSleepSeconds(params));
     },
   });
 
@@ -417,10 +397,10 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
     renderCall: makeQuailbotRenderCall("quailbot_plan_and_execute"),
     renderResult: renderQuailbotToolResult,
     parameters: planAndExecuteParameters,
-    async execute(toolCallId, params) {
+    async execute(toolCallId, params, _signal, _onUpdate, ctx) {
       return piToolResult(
         await executeLoggedTool(runtime, toolCallId, "quailbot_plan_and_execute", params, async (parentEventId) =>
-          executeQuailbotPlanAndExecute(runtimeToolContext(runtime), params as never, {
+          executeQuailbotPlanAndExecute(runtimeToolContext(runtime, ctx), params as never, {
             onStepResult: (step) => recordPlanStep(runtime, toolCallId, parentEventId, step),
           }),
         ),
@@ -429,8 +409,13 @@ export function registerQuailbotTools(pi: ExtensionAPI, runtime: QuailbotRuntime
   });
 }
 
-function runtimeToolContext(runtime: QuailbotRuntime) {
-  return createToolContext({ workspace: requireWorkspace(runtime) });
+function runtimeToolContext(runtime: QuailbotRuntime, ctx?: ExtensionContext) {
+  return createToolContext({
+    workspace: requireWorkspace(runtime),
+    cwd: ctx?.cwd,
+    modelSupportsImages: ctx?.model?.input.includes("image") === true,
+    notifyWarning: ctx?.hasUI === true ? (message) => ctx.ui.notify(message, "warning") : undefined,
+  });
 }
 
 function requireWorkspace(runtime: QuailbotRuntime): Workspace {
@@ -542,7 +527,7 @@ function durationSince(startedAt: number): number {
 
 function piToolResult(result: QuailbotToolResult) {
   return {
-    content: [{ type: "text" as const, text: buildQuailbotToolContent(result) }],
+    content: [{ type: "text" as const, text: buildQuailbotToolContent(result) }, ...modelContent(result)],
     details: result,
   };
 }

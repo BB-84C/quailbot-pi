@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 import type { Workspace } from "../../src/workspace/types.js";
@@ -12,7 +12,7 @@ import { createToolContext } from "../../src/tools/tool-context.js";
 import { executeSetField } from "../../src/tools/set_field.js";
 
 describe("GUI backup tool boundaries", () => {
-  it("executeObserve validates requested active ROI names and refs before reporting backend unavailable", async () => {
+  it("executeObserve validates requested active ROI names and refs before capturing screenshots", async () => {
     const workspace = workspaceWithRois();
 
     await expect(executeObserve({ workspace }, { rois: ["missing_roi"] })).rejects.toThrow(
@@ -22,17 +22,57 @@ describe("GUI backup tool boundaries", () => {
       /unknown or inactive ROI: inactive_roi/,
     );
 
-    const result = await executeObserve({ workspace }, { rois: ["named_roi", "roi:ref-only"] });
+    const result = await executeObserve(
+      { workspace, roiCaptureBackend: fakeRoiCaptureBackend(), modelSupportsImages: true },
+      { rois: ["named_roi", "roi:ref-only"] },
+    );
 
     expect(result).toMatchObject({
-      ok: false,
+      ok: true,
       action: "observe",
       action_input: { rois: ["named_roi", "roi:ref-only"] },
       primary_result: {
+        ok: true,
         requested_rois: ["named_roi", "roi:ref-only"],
-        error_type: "roi_backend_unavailable",
-        message: "ROI screenshot/OCR backend is not configured in this plugin implementation round.",
+        channels: {
+          roi: {
+            rois: ["roi:named", "roi:ref-only"],
+            unavailable: [],
+            results: {
+              "roi:named": { ok: true, image_path: expect.stringContaining("roi-named_roi.png"), attached_image: true },
+              "roi:ref-only": { ok: true, image_path: expect.stringContaining("roi-roi_ref-only.png"), attached_image: true },
+            },
+          },
+        },
       },
+    });
+    expect(result.model_content).toEqual([
+      { type: "image", data: TEST_PNG_BASE64, mimeType: "image/png" },
+      { type: "image", data: TEST_PNG_BASE64, mimeType: "image/png" },
+    ]);
+  });
+
+  it("executeObserve warns and omits image blocks when the model cannot read images", async () => {
+    const workspace = workspaceWithRois();
+    const warnings: string[] = [];
+
+    const result = await executeObserve(
+      {
+        workspace,
+        roiCaptureBackend: fakeRoiCaptureBackend(),
+        modelSupportsImages: false,
+        notifyWarning: (message) => warnings.push(message),
+      },
+      { rois: ["named_roi"] },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.model_content).toBeUndefined();
+    expect(warnings).toEqual([
+      "ROI screenshots were captured, but the current model does not accept image input; continuing with ROI metadata only.",
+    ]);
+    expect(result.primary_result).toMatchObject({
+      channels: { roi: { warnings, results: { "roi:named": { ok: true, attached_image: false } } } },
     });
   });
 
@@ -64,26 +104,47 @@ describe("GUI backup tool boundaries", () => {
   it("executeClickAnchor throws for unknown or inactive anchors and reports unavailable for active anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    await expect(executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "missing" })).rejects.toThrow(
+    await expect(executeClickAnchor(toolCtx(workspace), { anchor: "missing" })).rejects.toThrow(
       /unknown or inactive anchor: missing/,
     );
-    await expect(executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "inactive_anchor" })).rejects.toThrow(
+    await expect(executeClickAnchor(toolCtx(workspace), { anchor: "inactive_anchor" })).rejects.toThrow(
       /unknown or inactive anchor: inactive_anchor/,
     );
 
-    const result = await executeClickAnchor(
-      { workspace, mutationPolicy: enabledMutationPolicy() },
-      { anchor: "active_anchor", rois: ["status_roi"] },
-    );
+    const result = await executeClickAnchor(toolCtx(workspace), { anchor: "active_anchor", rois: ["status_roi"] });
 
     expect(result).toMatchObject({
       ok: false,
       action: "click_anchor",
       action_input: { anchor: "active_anchor", rois: ["status_roi"] },
       primary_result: {
+        ok: false,
         anchor: "active_anchor",
         error_type: "gui_backend_unavailable",
-        message: "GUI click backend is not configured in this plugin implementation round.",
+        message: "GUI click backend is not configured for this execution context.",
+      },
+    });
+  });
+
+  it("executeClickAnchor invokes the GUI backend for active anchors", async () => {
+    const workspace = workspaceWithAnchors();
+    const guiActionBackend = {
+      clickAnchor: vi.fn().mockResolvedValue({ ok: true, backend: "fake_gui", point: { x: 11, y: 22 } }),
+      setField: vi.fn(),
+    };
+
+    const result = await executeClickAnchor(toolCtx(workspace, { guiActionBackend }), { anchor: "active_anchor" });
+
+    expect(guiActionBackend.clickAnchor).toHaveBeenCalledWith({
+      anchor: expect.objectContaining({ name: "active_anchor", schema: { x: 11, y: 22 } }),
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      primary_result: {
+        ok: true,
+        anchor: "active_anchor",
+        backend: "fake_gui",
+        point: { x: 11, y: 22 },
       },
     });
   });
@@ -92,12 +153,12 @@ describe("GUI backup tool boundaries", () => {
     const workspace = workspaceWithAnchors();
 
     await expect(
-      executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", rois: ["missing_roi"] }),
+      executeClickAnchor(toolCtx(workspace), { anchor: "active_anchor", rois: ["missing_roi"] }),
     ).rejects.toThrow(
       /unknown or inactive ROI: missing_roi/,
     );
     await expect(
-      executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", rois: ["inactive_roi"] }),
+      executeClickAnchor(toolCtx(workspace), { anchor: "active_anchor", rois: ["inactive_roi"] }),
     ).rejects.toThrow(
       /unknown or inactive ROI: inactive_roi/,
     );
@@ -106,7 +167,7 @@ describe("GUI backup tool boundaries", () => {
   it("executeClickAnchor accepts active anchor refs including ref-only anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    const result = await executeClickAnchor({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "anchor:ref-only" });
+    const result = await executeClickAnchor(toolCtx(workspace), { anchor: "anchor:ref-only" });
 
     expect(result).toMatchObject({
       ok: false,
@@ -122,26 +183,61 @@ describe("GUI backup tool boundaries", () => {
   it("executeSetField throws for unknown or inactive anchors and reports unavailable for active anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "missing", typed_text: "42" })).rejects.toThrow(
+    await expect(executeSetField(toolCtx(workspace), { anchor: "missing", typed_text: "42" })).rejects.toThrow(
       /unknown or inactive anchor: missing/,
     );
-    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "inactive_anchor", typed_text: "42" })).rejects.toThrow(
+    await expect(executeSetField(toolCtx(workspace), { anchor: "inactive_anchor", typed_text: "42" })).rejects.toThrow(
       /unknown or inactive anchor: inactive_anchor/,
     );
 
-    const result = await executeSetField(
-      { workspace, mutationPolicy: enabledMutationPolicy() },
-      { anchor: "active_anchor", typed_text: "42", submit: "enter", rois: ["status_roi"] },
-    );
+    const result = await executeSetField(toolCtx(workspace), {
+      anchor: "active_anchor",
+      typed_text: "42",
+      submit: "enter",
+      rois: ["status_roi"],
+    });
 
     expect(result).toMatchObject({
       ok: false,
       action: "set_field",
       action_input: { anchor: "active_anchor", typed_text: "42", submit: "enter", rois: ["status_roi"] },
       primary_result: {
+        ok: false,
         anchor: "active_anchor",
         error_type: "gui_backend_unavailable",
-        message: "GUI text-entry backend is not configured in this plugin implementation round.",
+        message: "GUI text-entry backend is not configured for this execution context.",
+      },
+    });
+  });
+
+  it("executeSetField invokes the GUI backend with legacy clear-then-type semantics", async () => {
+    const workspace = workspaceWithAnchors();
+    const guiActionBackend = {
+      clickAnchor: vi.fn(),
+      setField: vi.fn().mockResolvedValue({ ok: true, backend: "fake_gui", point: { x: 11, y: 22 } }),
+    };
+
+    const result = await executeSetField(toolCtx(workspace, { guiActionBackend }), {
+      anchor: "active_anchor",
+      typed_text: "400",
+      submit: "tab",
+    });
+
+    expect(guiActionBackend.setField).toHaveBeenCalledWith({
+      anchor: expect.objectContaining({ name: "active_anchor", schema: { x: 11, y: 22 } }),
+      typedText: "400",
+      submit: "tab",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      primary_result: {
+        ok: true,
+        anchor: "active_anchor",
+        typed_text: "400",
+        submit: "tab",
+        backend: "fake_gui",
+        point: { x: 11, y: 22 },
+        clear_strategy: "legacy_pyautogui_sequence",
       },
     });
   });
@@ -151,13 +247,13 @@ describe("GUI backup tool boundaries", () => {
 
     await expect(
       executeSetField(
-        { workspace, mutationPolicy: enabledMutationPolicy() },
+        toolCtx(workspace),
         { anchor: "active_anchor", typed_text: "42", rois: ["missing_roi"] },
       ),
     ).rejects.toThrow(/unknown or inactive ROI: missing_roi/);
     await expect(
       executeSetField(
-        { workspace, mutationPolicy: enabledMutationPolicy() },
+        toolCtx(workspace),
         { anchor: "active_anchor", typed_text: "42", rois: ["inactive_roi"] },
       ),
     ).rejects.toThrow(/unknown or inactive ROI: inactive_roi/);
@@ -166,21 +262,21 @@ describe("GUI backup tool boundaries", () => {
   it("executeSetField rejects invalid text-entry arguments", async () => {
     const workspace = workspaceWithAnchors();
 
-    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", typed_text: "" })).rejects.toThrow(
+    await expect(executeSetField(toolCtx(workspace), { anchor: "active_anchor", typed_text: "" })).rejects.toThrow(
       /set_field requires non-empty typed_text/,
     );
-    await expect(executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", typed_text: 42 } as never)).rejects.toThrow(
+    await expect(executeSetField(toolCtx(workspace), { anchor: "active_anchor", typed_text: 42 } as never)).rejects.toThrow(
       /set_field requires non-empty typed_text/,
     );
     await expect(
-      executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "active_anchor", typed_text: "42", submit: "escape" } as never),
+      executeSetField(toolCtx(workspace), { anchor: "active_anchor", typed_text: "42", submit: "escape" } as never),
     ).rejects.toThrow(/set_field submit must be enter or tab/);
   });
 
   it("executeSetField accepts active anchor refs including ref-only anchors", async () => {
     const workspace = workspaceWithAnchors();
 
-    const result = await executeSetField({ workspace, mutationPolicy: enabledMutationPolicy() }, { anchor: "anchor:ref-only", typed_text: "42" });
+    const result = await executeSetField(toolCtx(workspace), { anchor: "anchor:ref-only", typed_text: "42" });
 
     expect(result).toMatchObject({
       ok: false,
@@ -236,9 +332,9 @@ function fixtureWorkspace(): Workspace {
 function workspaceWithRois(): Workspace {
   const workspace = fixtureWorkspace();
   workspace.rois.push(
-    { ref: "roi:named", name: "named_roi", active: true, linkedObservables: [], schema: {} },
-    { ref: "roi:inactive", name: "inactive_roi", active: false, linkedObservables: [], schema: {} },
-    { ref: "roi:ref-only", active: true, linkedObservables: [], schema: {} },
+    { ref: "roi:named", name: "named_roi", active: true, linkedObservables: [], schema: { x: 1, y: 2, w: 3, h: 4 } },
+    { ref: "roi:inactive", name: "inactive_roi", active: false, linkedObservables: [], schema: { x: 1, y: 2, w: 3, h: 4 } },
+    { ref: "roi:ref-only", active: true, linkedObservables: [], schema: { x: 5, y: 6, w: 7, h: 8 } },
   );
   return workspace;
 }
@@ -246,8 +342,8 @@ function workspaceWithRois(): Workspace {
 function workspaceWithAnchors(): Workspace {
   const workspace = fixtureWorkspace();
   workspace.rois.push(
-    { ref: "roi:status", name: "status_roi", active: true, linkedObservables: [], schema: {} },
-    { ref: "roi:inactive", name: "inactive_roi", active: false, linkedObservables: [], schema: {} },
+    { ref: "roi:status", name: "status_roi", active: true, linkedObservables: [], schema: { x: 1, y: 2, w: 3, h: 4 } },
+    { ref: "roi:inactive", name: "inactive_roi", active: false, linkedObservables: [], schema: { x: 1, y: 2, w: 3, h: 4 } },
   );
   workspace.anchors.push(
     {
@@ -256,7 +352,7 @@ function workspaceWithAnchors(): Workspace {
       active: true,
       linkedObservables: [],
       linkedRois: [],
-      schema: {},
+      schema: { x: 11, y: 22 },
     },
     {
       ref: "anchor:inactive",
@@ -264,15 +360,36 @@ function workspaceWithAnchors(): Workspace {
       active: false,
       linkedObservables: [],
       linkedRois: [],
-      schema: {},
+      schema: { x: 33, y: 44 },
     },
     {
       ref: "anchor:ref-only",
       active: true,
       linkedObservables: [],
       linkedRois: [],
-      schema: {},
+      schema: { x: 55, y: 66 },
     },
   );
   return workspace;
+}
+
+const TEST_PNG_BASE64 = "iVBORw0KGgo=";
+
+function fakeRoiCaptureBackend() {
+  return async ({ rois }: { rois: Workspace["rois"] }) =>
+    rois.map((roi) => ({
+      ref: roi.ref,
+      ...(roi.name === undefined ? {} : { name: roi.name }),
+      rect: roi.schema as { x: number; y: number; w: number; h: number },
+      imagePath: `C:\\tmp\\roi-${(roi.name ?? roi.ref).replace(/[^A-Za-z0-9_.-]+/g, "_")}.png`,
+      mimeType: "image/png" as const,
+      width: Number(roi.schema.w),
+      height: Number(roi.schema.h),
+      captureId: "capture-test",
+      data: TEST_PNG_BASE64,
+    }));
+}
+
+function toolCtx(workspace: Workspace, overrides: Partial<Parameters<typeof createToolContext>[0]> = {}) {
+  return createToolContext({ workspace, mutationPolicy: enabledMutationPolicy(), runCli: vi.fn(), ...overrides });
 }

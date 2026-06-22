@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { EXPERIMENT_LOG_SCHEMA_VERSION, type ExperimentLogEvent } from "../../src/experiment-log/experiment-log-types.js";
+import { EXPERIMENT_LOG_SCHEMA_VERSION, type ExperimentLogEvent, type PlanStepResultPayload } from "../../src/experiment-log/experiment-log-types.js";
 import { ExperimentLogService, experimentLogRoot } from "../../src/experiment-log/experiment-log-service.js";
 import { disabledMutationPolicy, enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
 import type { QuailbotToolResult } from "../../src/tools/tool-result.js";
@@ -162,6 +162,111 @@ describe("ExperimentLogService", () => {
     expect(exception.event).not.toHaveProperty("input");
     expect(typeof exception.event.error.stack).toBe("string");
     expect(step).toMatchObject({ ok: true, event: { event_kind: "plan_step_result", outcome: "applied" } });
+  });
+
+  it("copies ROI result images into experiment blobs and annotates tool results", () => {
+    const root = makeTempDir();
+    const sourcePath = join(root, "source-roi.png");
+    writeFileSync(sourcePath, Buffer.from("fake-png-data"));
+    const service = new ExperimentLogService({
+      root,
+      now: fixedNow,
+      idFactory: idFactory(["exp_20260616-063000Z_images", "evt-open", "evt-result"]),
+    });
+    service.open({ sessionStartReason: "fresh_session" });
+    const toolResult: QuailbotToolResult = {
+      ok: true,
+      action: "observe",
+      action_input: { rois: ["scan"] },
+      primary_result: {
+        ok: true,
+        channels: {
+          roi: {
+            rois: ["roi:scan"],
+            unavailable: [],
+            warnings: [],
+            results: {
+              "roi:scan": {
+                ok: true,
+                ref: "roi:scan",
+                image_path: sourcePath,
+                mime_type: "image/png",
+                width: 8,
+                height: 9,
+                capture_id: "capture-a",
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const result = service.recordToolResult({ toolCallId: "call-observe", toolName: "observe", result: toolResult });
+
+    expect(result).toMatchObject({ ok: true, event: { image_artifacts: [expect.objectContaining({ type: "image", mime_type: "image/png" })] } });
+    if (!result.ok) throw new Error("expected result write to pass");
+    const artifact = result.event.image_artifacts?.[0];
+    expect(artifact).toBeDefined();
+    expect(artifact?.blob_relative_path).toMatch(/^blobs\/images\/[a-f0-9]{64}\.png$/);
+    expect(artifact?.bytes).toBe(Buffer.byteLength("fake-png-data"));
+    expect(artifact?.source_path).toBe(sourcePath);
+    expect(artifact?.blob_path && existsSync(artifact.blob_path)).toBe(true);
+    expect(readFileSync(artifact!.blob_path, "utf8")).toBe("fake-png-data");
+
+    const events = readJsonl(service.currentIdentity()!.events_path);
+    const roiResult = (((events[1] as Extract<ExperimentLogEvent, { event_kind: "tool_result" }>).result.primary_result as Record<string, unknown>)
+      .channels as { roi: { results: Record<string, { experiment_log_artifact?: unknown }> } }).roi.results["roi:scan"];
+    expect(roiResult?.experiment_log_artifact).toEqual(artifact);
+  });
+
+  it("annotates plan step and aggregate result image artifacts with the same blob", () => {
+    const root = makeTempDir();
+    const sourcePath = join(root, "plan-roi.png");
+    writeFileSync(sourcePath, Buffer.from("plan-png-data"));
+    const service = new ExperimentLogService({
+      root,
+      now: fixedNow,
+      idFactory: idFactory(["exp_20260616-063000Z_plan_images", "evt-open", "evt-step", "evt-result"]),
+    });
+    service.open({ sessionStartReason: "fresh_session" });
+    const step: PlanStepResultPayload = {
+      index: 0,
+      kind: "observe",
+      args: { kind: "observe", rois: ["scan"] },
+      primary_result: {
+        ok: true,
+        channels: {
+          roi: {
+            results: {
+              "roi:scan": {
+                ok: true,
+                ref: "roi:scan",
+                image_path: sourcePath,
+                mime_type: "image/png",
+                width: 8,
+                height: 9,
+                capture_id: "capture-a",
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const stepResult = service.recordPlanStepResult({ toolCallId: "call-plan", step });
+    const aggregate: QuailbotToolResult = {
+      ok: true,
+      action: "quailbot_plan_and_execute",
+      action_input: { steps: [step.args] },
+      primary_result: { ok: true, stopped_reason: "completed", steps: [step] },
+    };
+    const aggregateResult = service.recordToolResult({ toolCallId: "call-plan", toolName: "quailbot_plan_and_execute", result: aggregate });
+
+    expect(stepResult).toMatchObject({ ok: true, event: { image_artifacts: [expect.objectContaining({ type: "image" })] } });
+    expect(aggregateResult).toMatchObject({ ok: true, event: { image_artifacts: [expect.objectContaining({ type: "image" })] } });
+    if (!stepResult.ok || !aggregateResult.ok) throw new Error("expected image artifact events to pass");
+    expect(stepResult.event.image_artifacts?.[0]?.blob_path).toBe(aggregateResult.event.image_artifacts?.[0]?.blob_path);
+    expect(step.image_artifacts?.[0]?.blob_path).toBe(stepResult.event.image_artifacts?.[0]?.blob_path);
   });
 
   it("fails soft when appending a line fails and emits a warning with the attempted event", () => {

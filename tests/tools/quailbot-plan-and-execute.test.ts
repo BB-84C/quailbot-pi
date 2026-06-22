@@ -374,6 +374,42 @@ describe("quailbot_plan_and_execute", () => {
     expect(runCli).not.toHaveBeenCalled();
   });
 
+  it("aggregates observe step image content into the plan tool result", async () => {
+    const workspace = workspaceWithGuiTargets();
+    const ctx = createToolContext({
+      workspace,
+      runCli: vi.fn<RunCli>(),
+      mutationPolicy: enabledMutationPolicy(),
+      roiCaptureBackend: async ({ rois }) =>
+        rois.map((roi) => ({
+          ref: roi.ref,
+          ...(roi.name === undefined ? {} : { name: roi.name }),
+          rect: roi.schema as { x: number; y: number; w: number; h: number },
+          imagePath: "C:\\tmp\\status-roi.png",
+          mimeType: "image/png" as const,
+          width: 1,
+          height: 1,
+          captureId: "capture-test",
+          data: "iVBORw0KGgo=",
+        })),
+    });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, { steps: [{ kind: "observe", rois: ["status_roi"] }] });
+
+    expect(result.ok).toBe(true);
+    expect(result.model_content).toEqual([{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }]);
+    expect(result.primary_result).toMatchObject({
+      steps: [
+        {
+          kind: "observe",
+          primary_result: {
+            channels: { roi: { results: { "roi:status": { attached_image: true } } } },
+          },
+        },
+      ],
+    });
+  });
+
   it("does not call GUI executors during preflight before validation completes", async () => {
     const executeClickAnchor = vi.fn().mockResolvedValue({
       ok: false,

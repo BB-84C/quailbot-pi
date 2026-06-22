@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process";
+import { execFile, type ExecFileOptions } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { captureVirtualScreen } from "../workspace-ui/server/capture.js";
+import { captureVirtualScreenAsync } from "../workspace-ui/server/capture.js";
 import type { Workspace, WorkspaceRoi } from "../workspace/types.js";
 import type { QuailbotToolContent } from "./tool-result.js";
 
@@ -80,29 +80,37 @@ const POWERSHELL_CROP_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $InputPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:QUAILBOT_ROI_INPUT_PATH_B64))
-$OutputPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:QUAILBOT_ROI_OUTPUT_PATH_B64))
-$x = [int]$env:QUAILBOT_ROI_X
-$y = [int]$env:QUAILBOT_ROI_Y
-$w = [int]$env:QUAILBOT_ROI_W
-$h = [int]$env:QUAILBOT_ROI_H
-if ($w -le 0 -or $h -le 0) { throw ("invalid ROI crop size " + $w + "x" + $h) }
+$CropsJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:QUAILBOT_ROI_CROPS_B64))
+$Crops = @($CropsJson | ConvertFrom-Json)
 
 $image = [System.Drawing.Image]::FromFile($InputPath)
-$bitmap = $null
-$graphics = $null
 try {
-  if ($x -lt 0 -or $y -lt 0 -or ($x + $w) -gt $image.Width -or ($y + $h) -gt $image.Height) {
-    throw ("ROI crop outside capture bounds: crop=" + $x + "," + $y + "," + $w + "," + $h + " image=" + $image.Width + "x" + $image.Height)
+  foreach ($crop in $Crops) {
+    $OutputPath = [string]$crop.outputPath
+    $x = [int]$crop.x
+    $y = [int]$crop.y
+    $w = [int]$crop.w
+    $h = [int]$crop.h
+    if ($w -le 0 -or $h -le 0) { throw ("invalid ROI crop size " + $w + "x" + $h) }
+    if ($x -lt 0 -or $y -lt 0 -or ($x + $w) -gt $image.Width -or ($y + $h) -gt $image.Height) {
+      throw ("ROI crop outside capture bounds: crop=" + $x + "," + $y + "," + $w + "," + $h + " image=" + $image.Width + "x" + $image.Height)
+    }
+
+    $bitmap = $null
+    $graphics = $null
+    try {
+      $bitmap = [System.Drawing.Bitmap]::new($w, $h, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+      $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+      $sourceRect = [System.Drawing.Rectangle]::new($x, $y, $w, $h)
+      $targetRect = [System.Drawing.Rectangle]::new(0, 0, $w, $h)
+      $graphics.DrawImage($image, $targetRect, $sourceRect, [System.Drawing.GraphicsUnit]::Pixel)
+      $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+      if ($graphics -ne $null) { $graphics.Dispose() }
+      if ($bitmap -ne $null) { $bitmap.Dispose() }
+    }
   }
-  $bitmap = [System.Drawing.Bitmap]::new($w, $h, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  $sourceRect = [System.Drawing.Rectangle]::new($x, $y, $w, $h)
-  $targetRect = [System.Drawing.Rectangle]::new(0, 0, $w, $h)
-  $graphics.DrawImage($image, $targetRect, $sourceRect, [System.Drawing.GraphicsUnit]::Pixel)
-  $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
 } finally {
-  if ($graphics -ne $null) { $graphics.Dispose() }
-  if ($bitmap -ne $null) { $bitmap.Dispose() }
   $image.Dispose()
 }
 `;
@@ -143,7 +151,7 @@ export async function observeRois(ctx: RoiObservationContext, rois: WorkspaceRoi
       try {
         const captures = await backend({ workspace: ctx.workspace, rois: captureTargets });
         const capturesByRef = new Map(captures.map((capture) => [capture.ref, capture]));
-        const modelCanReadImage = ctx.modelSupportsImages === true;
+        const modelCanReadImage = ctx.modelSupportsImages !== false;
 
         for (const roi of captureTargets) {
           const capture = capturesByRef.get(roi.ref);
@@ -212,11 +220,11 @@ export async function observeRois(ctx: RoiObservationContext, rois: WorkspaceRoi
 export function createDefaultRoiCaptureBackend(cwd: string): RoiCaptureBackend {
   return async ({ rois }) => {
     const stateDir = join(cwd, ".quailbot-pi");
-    const capture = captureVirtualScreen({ stateDir });
+    const capture = await captureVirtualScreenAsync({ stateDir });
     const outputDir = join(stateDir, "roi-observations");
     mkdirSync(outputDir, { recursive: true });
 
-    return rois.map((roi) => {
+    const pendingCaptures = rois.map((roi) => {
       const rect = requireRoiRect(roi);
       const crop = {
         x: Math.round(rect.x - capture.frame.originX),
@@ -225,7 +233,15 @@ export function createDefaultRoiCaptureBackend(cwd: string): RoiCaptureBackend {
         h: Math.round(rect.h),
       };
       const imagePath = join(outputDir, `roi-${safeFilePart(roi.name ?? roi.ref)}-${shortHash(roi.ref)}-${capture.frame.captureId}.png`);
-      cropPng(capture.pngPath, imagePath, crop);
+      return { roi, rect, crop, imagePath };
+    });
+
+    await cropPngBatch(
+      capture.pngPath,
+      pendingCaptures.map(({ imagePath, crop }) => ({ outputPath: imagePath, rect: crop })),
+    );
+
+    return pendingCaptures.map(({ roi, rect, crop, imagePath }) => {
       const bytes = readFileSync(imagePath);
 
       return {
@@ -277,26 +293,50 @@ function backendUnavailable(roi: WorkspaceRoi, message: string): RoiErrorObserva
   };
 }
 
-function cropPng(inputPath: string, outputPath: string, rect: RoiRect): void {
+async function cropPngBatch(inputPath: string, crops: Array<{ outputPath: string; rect: RoiRect }>): Promise<void> {
+  if (crops.length === 0) {
+    return;
+  }
+
   const encoded = Buffer.from(POWERSHELL_CROP_SCRIPT, "utf16le").toString("base64");
-  execFileSync(
+  await execFileBuffer(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
     {
       env: {
         ...process.env,
         QUAILBOT_ROI_INPUT_PATH_B64: Buffer.from(inputPath, "utf8").toString("base64"),
-        QUAILBOT_ROI_OUTPUT_PATH_B64: Buffer.from(outputPath, "utf8").toString("base64"),
-        QUAILBOT_ROI_X: String(Math.round(rect.x)),
-        QUAILBOT_ROI_Y: String(Math.round(rect.y)),
-        QUAILBOT_ROI_W: String(Math.round(rect.w)),
-        QUAILBOT_ROI_H: String(Math.round(rect.h)),
+        QUAILBOT_ROI_CROPS_B64: Buffer.from(
+          JSON.stringify(
+            crops.map(({ outputPath, rect }) => ({
+              outputPath,
+              x: Math.round(rect.x),
+              y: Math.round(rect.y),
+              w: Math.round(rect.w),
+              h: Math.round(rect.h),
+            })),
+          ),
+          "utf8",
+        ).toString("base64"),
       },
-      stdio: "pipe",
       timeout: 30_000,
       windowsHide: true,
     },
   );
+}
+
+function execFileBuffer(file: string, args: string[], options: ExecFileOptions): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { ...options, encoding: "buffer" }, (error, stdout, stderr) => {
+      if (error !== null) {
+        const stderrText = Buffer.isBuffer(stderr) ? stderr.toString("utf8").trim() : String(stderr ?? "").trim();
+        reject(new Error(stderrText ? `${error.message}\n${stderrText}` : error.message));
+        return;
+      }
+
+      resolve(Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout ?? "", "utf8"));
+    });
+  });
 }
 
 function uniqueRois(rois: WorkspaceRoi[]): WorkspaceRoi[] {

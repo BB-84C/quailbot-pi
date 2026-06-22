@@ -76,6 +76,23 @@ describe("GUI backup tool boundaries", () => {
     });
   });
 
+  it("executeObserve attaches image blocks when model image support is unknown", async () => {
+    const workspace = workspaceWithRois();
+
+    const result = await executeObserve(
+      { workspace, roiCaptureBackend: fakeRoiCaptureBackend() },
+      { rois: ["named_roi"] },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.model_content).toEqual([
+      { type: "image", data: TEST_PNG_BASE64, mimeType: "image/png" },
+    ]);
+    expect(result.primary_result).toMatchObject({
+      channels: { roi: { warnings: [], results: { "roi:named": { ok: true, attached_image: true, model_can_read_image: true } } } },
+    });
+  });
+
   it("executeObserve defaults to active workspace ROI names", async () => {
     const workspace = fixtureWorkspace();
     workspace.rois.push(

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { renameOrder } = vi.hoisted(() => ({ renameOrder: [] as Array<"metadata" | "png" | "other"> }));
 
-vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
+vi.mock("node:child_process", () => ({ execFile: vi.fn(), execFileSync: vi.fn() }));
 
 vi.mock("node:fs", async () => {
   const real = await vi.importActual<typeof import("node:fs")>("node:fs");

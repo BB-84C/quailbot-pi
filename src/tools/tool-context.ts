@@ -21,7 +21,7 @@ export function createToolContext({
   cwd,
   guiActionBackend,
   roiCaptureBackend,
-  modelSupportsImages = false,
+  modelSupportsImages,
   notifyWarning,
 }: {
   workspace: Workspace;

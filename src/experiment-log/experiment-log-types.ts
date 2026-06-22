@@ -1,6 +1,7 @@
 import type { MutationPolicy } from "../tools/mutation-policy.js";
 import type { QuailbotToolResult } from "../tools/tool-result.js";
 import type { LoadedWorkspace, WorkspaceSummaryReadback } from "../workspace/workspace-service.js";
+import type { ExperimentLogImageArtifact } from "./image-artifacts.js";
 
 export const EXPERIMENT_LOG_SCHEMA_VERSION = 1 as const;
 
@@ -64,6 +65,7 @@ export type ToolResultEvent = ExperimentLogEventBase<"tool_result"> & {
   parent_event_id?: string;
   tool_name: string;
   result: QuailbotToolResult;
+  image_artifacts?: ExperimentLogImageArtifact[];
   duration_ms?: number;
   outcome: ExperimentOutcome;
 };
@@ -89,12 +91,14 @@ export type PlanStepResultPayload = {
   args: Record<string, unknown>;
   primary_result: unknown;
   linked_observation?: unknown;
+  image_artifacts?: ExperimentLogImageArtifact[];
 };
 
 export type PlanStepResultEvent = ExperimentLogEventBase<"plan_step_result"> & {
   tool_call_id: string;
   parent_event_id?: string;
   step: PlanStepResultPayload;
+  image_artifacts?: ExperimentLogImageArtifact[];
   outcome: ExperimentOutcome;
 };
 

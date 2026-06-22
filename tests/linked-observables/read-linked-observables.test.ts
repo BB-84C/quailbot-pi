@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { readLinkedObservables } from "../../src/linked-observables/read-linked-observables.js";
+import { readLinkedObservables, readLinkedObservablesWithContent } from "../../src/linked-observables/read-linked-observables.js";
 import type { RunCli } from "../../src/cli/cli-driver.js";
 import { createToolContext } from "../../src/tools/tool-context.js";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
@@ -115,6 +115,66 @@ describe("readLinkedObservables", () => {
       warnings: [],
     });
     expect(observation.unresolved).toEqual(["missing_signal"]);
+  });
+
+  it("starts ROI capture without waiting for linked CLI get readbacks to finish", async () => {
+    const events: string[] = [];
+    let releaseCli: () => void = () => {};
+    let markCliStarted: () => void = () => {};
+    const cliStarted = new Promise<void>((resolve) => {
+      markCliStarted = resolve;
+    });
+    const cliBlocker = new Promise<void>((resolve) => {
+      releaseCli = resolve;
+    });
+    const runCli = vi.fn<RunCli>().mockImplementation(async () => {
+      events.push("cli-started");
+      markCliStarted();
+      await cliBlocker;
+      return {
+        ok: true,
+        exitCode: 0,
+        stdout: '{"current":1.2}',
+        stderr: "",
+        payload: { current: 1.2 },
+        argv: ["nqctl", "get", "current"],
+      };
+    });
+    const workspace = loadWorkspace(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"));
+    addScanRoi(workspace);
+    const ctx = createToolContext({
+      workspace,
+      runCli,
+      modelSupportsImages: true,
+      roiCaptureBackend: async ({ rois }) => {
+        events.push("roi-started");
+        return rois.map((roi) => ({
+          ref: roi.ref,
+          ...(roi.name === undefined ? {} : { name: roi.name }),
+          rect: roi.schema as { x: number; y: number; w: number; h: number },
+          imagePath: "C:\\tmp\\scan-window.png",
+          mimeType: "image/png" as const,
+          width: 3,
+          height: 4,
+          captureId: "capture-test",
+          data: "iVBORw0KGgo=",
+        }));
+      },
+    });
+
+    const readback = readLinkedObservablesWithContent(ctx, {
+      cli: ["nqctl:current"],
+      roi: ["roi:scan-window"],
+      unresolved: [],
+    });
+    await cliStarted;
+
+    expect(events).toEqual(["roi-started", "cli-started"]);
+
+    releaseCli();
+    const result = await readback;
+    expect(result.observation.channels.roi.results["roi:scan-window"]).toMatchObject({ ok: true });
+    expect(result.observation.channels.cli.results["nqctl:current"]).toMatchObject({ ok: true });
   });
 
   it("marks ROI readback unavailable when no capture backend is configured", async () => {

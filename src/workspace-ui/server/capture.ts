@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync, type ExecFileOptions } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { closeSync, copyFileSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { CaptureFrame } from "../shared/geometry.js";
 
@@ -83,14 +83,42 @@ try {
 export function captureVirtualScreen(opts: { stateDir: string }): CaptureResult {
   mkdirSync(opts.stateDir, { recursive: true });
 
-  const finalPngPath = join(opts.stateDir, CAPTURE_PNG_FILE);
-  const finalMetadataPath = join(opts.stateDir, CAPTURE_METADATA_FILE);
-  const suffix = randomBytes(8).toString("hex");
-  const tmpPngPath = `${finalPngPath}.tmp.${suffix}`;
-  const tmpMetadataPath = `${finalMetadataPath}.tmp.${suffix}`;
+  const paths = capturePaths(opts.stateDir);
 
-  const reported = runPowerShellCapture(tmpPngPath);
-  const pngBytes = readFileSync(tmpPngPath);
+  const reported = runPowerShellCapture(paths.tmpPngPath);
+  return publishCapture(paths, reported);
+}
+
+export async function captureVirtualScreenAsync(opts: { stateDir: string }): Promise<CaptureResult> {
+  mkdirSync(opts.stateDir, { recursive: true });
+
+  const paths = capturePaths(opts.stateDir);
+
+  const reported = await runPowerShellCaptureAsync(paths.tmpPngPath);
+  return publishCapture(paths, reported);
+}
+
+type CapturePaths = {
+  finalPngPath: string;
+  finalMetadataPath: string;
+  tmpPngPath: string;
+  tmpMetadataPath: string;
+};
+
+function capturePaths(stateDir: string): CapturePaths {
+  const finalPngPath = join(stateDir, CAPTURE_PNG_FILE);
+  const finalMetadataPath = join(stateDir, CAPTURE_METADATA_FILE);
+  const suffix = randomBytes(8).toString("hex");
+  return {
+    finalPngPath,
+    finalMetadataPath,
+    tmpPngPath: `${finalPngPath}.tmp.${suffix}`,
+    tmpMetadataPath: `${finalMetadataPath}.tmp.${suffix}`,
+  };
+}
+
+function publishCapture(paths: CapturePaths, reported: CaptureScriptResult): CaptureResult {
+  const pngBytes = readFileSync(paths.tmpPngPath);
   const pngDimensions = readPngDimensions(pngBytes);
   if (pngDimensions.width !== reported.imageWidth || pngDimensions.height !== reported.imageHeight) {
     throw new Error(
@@ -109,19 +137,19 @@ export function captureVirtualScreen(opts: { stateDir: string }): CaptureResult 
   };
 
   writeFileSync(
-    tmpMetadataPath,
+    paths.tmpMetadataPath,
     `${JSON.stringify({ ...frame, awarenessMode: reported.awarenessMode, capturedAt: new Date().toISOString() }, null, 2)}\n`,
     "utf8",
   );
-  fsyncFile(tmpMetadataPath);
-  renameSync(tmpMetadataPath, finalMetadataPath);
-  fsyncFile(tmpPngPath);
-  const versionedPngPath = join(opts.stateDir, `workspace-capture.${captureId}.png`);
-  copyFileSync(tmpPngPath, versionedPngPath);
+  fsyncFile(paths.tmpMetadataPath);
+  renameSync(paths.tmpMetadataPath, paths.finalMetadataPath);
+  fsyncFile(paths.tmpPngPath);
+  const versionedPngPath = join(dirname(paths.finalPngPath), `workspace-capture.${captureId}.png`);
+  copyFileSync(paths.tmpPngPath, versionedPngPath);
   fsyncFile(versionedPngPath);
-  renameSync(tmpPngPath, finalPngPath);
+  renameSync(paths.tmpPngPath, paths.finalPngPath);
 
-  return { frame, pngPath: finalPngPath };
+  return { frame, pngPath: paths.finalPngPath };
 }
 
 function fsyncFile(path: string): void {
@@ -146,6 +174,34 @@ function runPowerShellCapture(outputPath: string): CaptureScriptResult {
     },
   );
   return parseCaptureScriptResult(stdout.toString("utf8"));
+}
+
+async function runPowerShellCaptureAsync(outputPath: string): Promise<CaptureScriptResult> {
+  const encoded = Buffer.from(POWERSHELL_CAPTURE_SCRIPT, "utf16le").toString("base64");
+  const stdout = await execFileBuffer(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
+    {
+      env: { ...process.env, QUAILBOT_CAPTURE_PATH_B64: Buffer.from(outputPath, "utf8").toString("base64") },
+      timeout: 30_000,
+      windowsHide: true,
+    },
+  );
+  return parseCaptureScriptResult(stdout.toString("utf8"));
+}
+
+function execFileBuffer(file: string, args: string[], options: ExecFileOptions): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { ...options, encoding: "buffer" }, (error, stdout, stderr) => {
+      if (error !== null) {
+        const stderrText = Buffer.isBuffer(stderr) ? stderr.toString("utf8").trim() : String(stderr ?? "").trim();
+        reject(new Error(stderrText ? `${error.message}\n${stderrText}` : error.message));
+        return;
+      }
+
+      resolve(Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout ?? "", "utf8"));
+    });
+  });
 }
 
 type CaptureScriptResult = {

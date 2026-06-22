@@ -1,4 +1,5 @@
 import { validateRunCliOptions } from "../cli/cli-driver.js";
+import type { ExperimentLogImageArtifact } from "../experiment-log/image-artifacts.js";
 import { executeClickAnchor, validateClickAnchorInput, type ClickAnchorInput } from "./click_anchor.js";
 import { executeCliAction, type CliActionInput } from "./cli_action.js";
 import { executeCliGet, type CliGetInput } from "./cli_get.js";
@@ -27,6 +28,7 @@ export type PlanStepResultRecord = {
   args: Record<string, unknown>;
   primary_result: unknown;
   linked_observation?: unknown;
+  image_artifacts?: ExperimentLogImageArtifact[];
 };
 
 export type PlanAndExecuteOptions = {

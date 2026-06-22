@@ -41,8 +41,26 @@ export async function readLinkedObservablesWithContent(
   ctx: ToolContext,
   resolved: ResolvedLinkedObservables,
 ): Promise<ReadLinkedObservablesResult> {
+  const roiReadbackPromise = observeRois(ctx, resolvedRois(ctx, resolved.roi));
+  const cliResultsPromise = readCliObservables(ctx, resolved.cli);
+
+  const [cliResults, { observation: roiObservation, content }] = await Promise.all([cliResultsPromise, roiReadbackPromise]);
+
+  return {
+    observation: {
+      channels: {
+        cli: { observables: [...resolved.cli], results: cliResults },
+        roi: roiObservation,
+      },
+      unresolved: [...resolved.unresolved],
+    },
+    content,
+  };
+}
+
+async function readCliObservables(ctx: ToolContext, refs: string[]): Promise<Record<string, LinkedCliObservationResult>> {
   const cliResults: Record<string, LinkedCliObservationResult> = {};
-  for (const ref of resolved.cli) {
+  for (const ref of refs) {
     const [cliName, parameter] = splitCliRef(ref);
     try {
       const run = await ctx.runCli(cliName, ["get", parameter]);
@@ -71,18 +89,7 @@ export async function readLinkedObservablesWithContent(
     }
   }
 
-  const { observation: roiObservation, content } = await observeRois(ctx, resolvedRois(ctx, resolved.roi));
-
-  return {
-    observation: {
-      channels: {
-        cli: { observables: [...resolved.cli], results: cliResults },
-        roi: roiObservation,
-      },
-      unresolved: [...resolved.unresolved],
-    },
-    content,
-  };
+  return cliResults;
 }
 
 function splitCliRef(ref: string): [string, string] {

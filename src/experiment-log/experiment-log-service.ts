@@ -24,6 +24,7 @@ import {
   type ToolInvocationStartedEvent,
   type ToolResultEvent,
 } from "./experiment-log-types.js";
+import { persistImageArtifactsInValue } from "./image-artifacts.js";
 
 export type ExperimentLogIdentity = {
   experiment_id: string;
@@ -191,12 +192,15 @@ export class ExperimentLogService {
       return { ok: false, error: "experiment log is not open" };
     }
 
+    const imageArtifacts = this.persistImageArtifacts(input.result);
+
     return this.appendEvent(
       this.buildEvent("tool_result", this.now().toISOString(), {
         tool_call_id: input.toolCallId,
         ...withDefined("parent_event_id", input.parentEventId),
         tool_name: input.toolName,
         result: input.result,
+        ...withNonEmptyArray("image_artifacts", imageArtifacts),
         ...withDefined("duration_ms", input.durationMs),
         outcome: classifyToolOutcome(input.result),
       }),
@@ -228,11 +232,17 @@ export class ExperimentLogService {
       return { ok: false, error: "experiment log is not open" };
     }
 
+    const imageArtifacts = this.persistImageArtifacts(input.step);
+    if (imageArtifacts.length > 0) {
+      input.step.image_artifacts = imageArtifacts;
+    }
+
     return this.appendEvent(
       this.buildEvent("plan_step_result", this.now().toISOString(), {
         tool_call_id: input.toolCallId,
         ...withDefined("parent_event_id", input.parentEventId),
         step: input.step,
+        ...withNonEmptyArray("image_artifacts", imageArtifacts),
         outcome: classifyPlanStepOutcome(input.step),
       }),
     );
@@ -315,6 +325,14 @@ export class ExperimentLogService {
     }
   }
 
+  private persistImageArtifacts(value: unknown) {
+    if (this.identity === undefined) {
+      return [];
+    }
+
+    return persistImageArtifactsInValue(this.identity, value, (message) => this.emitWarning(message));
+  }
+
   private nextExperimentId(startedAt: Date): string {
     const candidate = this.idFactory?.();
     if (candidate?.startsWith("exp_")) {
@@ -385,4 +403,8 @@ function windowsSafe(value: string): string {
 
 function withDefined<TKey extends string, TValue>(key: TKey, value: TValue | undefined): Record<TKey, TValue> | {} {
   return value === undefined ? {} : { [key]: value } as Record<TKey, TValue>;
+}
+
+function withNonEmptyArray<TKey extends string, TValue>(key: TKey, value: TValue[]): Record<TKey, TValue[]> | {} {
+  return value.length === 0 ? {} : { [key]: value } as Record<TKey, TValue[]>;
 }

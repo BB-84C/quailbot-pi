@@ -413,9 +413,18 @@ function runtimeToolContext(runtime: QuailbotRuntime, ctx?: ExtensionContext) {
   return createToolContext({
     workspace: requireWorkspace(runtime),
     cwd: ctx?.cwd,
-    modelSupportsImages: ctx?.model?.input.includes("image") === true,
+    modelSupportsImages: modelSupportsImageInput(ctx?.model),
     notifyWarning: ctx?.hasUI === true ? (message) => ctx.ui.notify(message, "warning") : undefined,
   });
+}
+
+function modelSupportsImageInput(model: unknown): boolean | undefined {
+  const input = isRecord(model) ? model.input : undefined;
+  return Array.isArray(input) ? input.includes("image") : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function requireWorkspace(runtime: QuailbotRuntime): Workspace {

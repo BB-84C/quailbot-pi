@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:child_process", () => ({
+  execFile: vi.fn(),
   execFileSync: vi.fn(),
 }));
 

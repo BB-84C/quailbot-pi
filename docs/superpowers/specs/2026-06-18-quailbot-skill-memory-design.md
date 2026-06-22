@@ -45,8 +45,9 @@ availability in the active workspace.** No upstream skill system has this.
   Registration key `${cliName}:${name}`. `cli_*` tools allow-list via `requireParameter`
   and reject when `workspace.cli.enabled` is false or the param/action is disabled.
 - The system prompt is authored per turn in `before_agent_start` via `result.systemPrompt`
-  (`src/extension.ts`). A hidden `quailbot-context` message also returned lands in the
-  conversation TAIL (`role:custom`→`user`), NOT the cached prefix.
+  (`src/extension.ts`). Stable workspace authority belongs in this cached prefix. Hidden
+  `quailbot-context` messages land in the conversation TAIL (`role:custom`→`user`) and
+  are reserved for dynamic plan context, not the active workspace summary.
 - Current `buildQuailbotSystemPrompt` (`src/prompt/quailbot-system-prompt.ts`) injects
   `new Date()` and does NOT render `contextFiles` (so AGENTS.md does not currently reach
   the model — fixed by §10/§11).
@@ -106,12 +107,14 @@ domain: tip-conditioning         # optional soft link to a memory domain
 
 **Cached prefix** (rendered per turn in `before_agent_start` via `result.systemPrompt`):
 - Quailbot identity (static)
+- Active WORKSPACE summary and mutation policy (stable while the selected workspace and
+  mutation gate are unchanged)
 - AGENTS.md content (self-read from disk, mtime-cached)
 - Skill catalog: per skill `name` + `description` + `drivers:[...]` + `[OK]`/`[MISSING]`
 - Memory index (available domains; which loaded) + currently-loaded memory bodies
 
-**Tail** (tool results): skill bodies from `quailbot_skill`; newest **N=3** full, older
-degraded to a re-invokable stub. N runtime-settable (§8).
+**Tail**: dynamic plan context and tool results. Skill bodies from `quailbot_skill` keep
+newest **N=3** full, older degraded to a re-invokable stub. N runtime-settable (§8).
 
 **Byte-stability is mandatory** (or caching collapses). Required normalization:
 - Deterministic sort: skill names, domain names, `drivers` arrays, loaded-domain list.

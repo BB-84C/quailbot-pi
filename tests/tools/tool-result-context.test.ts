@@ -83,24 +83,22 @@ describe("tool result context projection", () => {
     expect(textOf(projected[1])).toContain("new_roi image_path=C:\\tmp\\new_roi.png");
   });
 
-  it("keeps only the newest hidden quailbot context message", () => {
-    const oldContext = {
-      role: "custom",
+  it("drops legacy hidden workspace context messages while preserving plan context", () => {
+    const workspaceContext = {
       customType: "quailbot-context",
-      content: "old workspace context",
+      content: "WORKSPACE (Quailbot active workspace)\n{}",
       display: false,
     };
-    const newContext = {
-      role: "custom",
+    const planContext = {
       customType: "quailbot-context",
-      content: "new workspace context",
+      content: "QUAILBOT PLAN CONTEXT\nKeep this plan visible.",
       display: false,
     };
     const userMessage = { role: "user", content: "continue" };
 
-    const projected = projectQuailbotContextMessages([oldContext, userMessage, newContext]);
+    const projected = projectQuailbotContextMessages([workspaceContext, userMessage, planContext]);
 
-    expect(projected).toEqual([userMessage, newContext]);
+    expect(projected).toEqual([userMessage, planContext]);
   });
 
   it("leaves malformed and non-Quailbot tool messages unchanged", () => {

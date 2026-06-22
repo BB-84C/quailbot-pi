@@ -89,7 +89,7 @@ describe("workspace prompt summary", () => {
     });
   });
 
-  it("injects hidden quailbot context before agent start when a workspace is loaded", async () => {
+  it("renders active workspace in the stable system prompt before agent start", async () => {
     const cwd = makeTempDir();
     const workspaceDir = join(cwd, ".quailbot-pi");
     mkdirSync(workspaceDir, { recursive: true });
@@ -110,16 +110,17 @@ describe("workspace prompt summary", () => {
       { cwd, hasUI: false },
     );
 
-    expect(result).toEqual(
-      expect.objectContaining({
-        systemPrompt: expect.stringContaining("quantum uncertain action-outcome instrument loop agent"),
-        message: expect.objectContaining({
-          customType: "quailbot-context",
-          display: false,
-          content: expect.stringContaining("WORKSPACE (Quailbot active workspace)"),
-        }),
-      }),
+    const systemPrompt = systemPromptText(result);
+    expect(systemPrompt).toContain("quantum uncertain action-outcome instrument loop agent");
+    expect(systemPrompt).toContain("WORKSPACE (Quailbot active workspace)");
+    expect(systemPrompt).toContain("nqctl:zctrl_setpnt");
+    expect((result as { message?: unknown }).message).toBeUndefined();
+
+    const repeated = await handlers.get("before_agent_start")?.(
+      { type: "before_agent_start", prompt: "", systemPrompt: "", systemPromptOptions: {} },
+      { cwd, hasUI: false },
     );
+    expect(systemPromptText(repeated)).toBe(systemPrompt);
   });
 
   it("replaces the system prompt even when no workspace context is loaded", async () => {
@@ -181,6 +182,7 @@ describe("workspace prompt summary", () => {
       { type: "before_agent_start", prompt: "", systemPrompt: "", systemPromptOptions: {} },
       { cwd, hasUI: false },
     );
+    expect(systemPromptText(sessionAContext)).toContain("WORKSPACE (Quailbot active workspace)");
     expect(renderedContent(sessionAContext)).toContain("Session A plan must not leak");
 
     await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, { cwd, hasUI: false });
@@ -209,4 +211,13 @@ function renderedContent(result: unknown): string {
 
   const message = (result as { message?: { content?: unknown } }).message;
   return typeof message?.content === "string" ? message.content : "";
+}
+
+function systemPromptText(result: unknown): string {
+  if (!result || typeof result !== "object") {
+    return "";
+  }
+
+  const systemPrompt = (result as { systemPrompt?: unknown }).systemPrompt;
+  return typeof systemPrompt === "string" ? systemPrompt : "";
 }

@@ -29,6 +29,8 @@ type ImageContentLike = {
   mimeType: string;
 };
 
+const WORKSPACE_CONTEXT_HEADER = "WORKSPACE (Quailbot active workspace)";
+
 export function projectQuailbotContextMessages<T extends ToolResultMessageLike>(
   messages: T[],
   policy?: ToolResultContextPolicy,
@@ -47,7 +49,7 @@ export function projectQuailbotContextMessages<T>(
     DEFAULT_RECENT_FULL_SKILL_RESULT_COUNT,
   );
   const recentImageLimit = nonNegativeInteger(policy.recentImageResultCount, DEFAULT_RECENT_IMAGE_RESULT_COUNT);
-  const input = keepNewestQuailbotContext(messages);
+  const input = messages.filter((message) => !isLegacyWorkspaceContextMessage(message));
   const output = [...input];
   let directCliResultsSeen = 0;
   let skillResultsSeen = 0;
@@ -94,22 +96,6 @@ export function projectQuailbotContextMessages<T>(
   return output;
 }
 
-function keepNewestQuailbotContext<T>(messages: T[]): T[] {
-  let latestIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (isQuailbotContextMessage(messages[index])) {
-      latestIndex = index;
-      break;
-    }
-  }
-
-  if (latestIndex === -1) {
-    return messages;
-  }
-
-  return messages.filter((message, index) => index === latestIndex || !isQuailbotContextMessage(message));
-}
-
 function projectionOptions(mode: "summary" | "recent-full", policy: ToolResultContextPolicy): ProjectionOptions {
   return {
     mode,
@@ -148,8 +134,13 @@ function imageContent(message: ToolResultMessageLike): ImageContentLike[] {
   });
 }
 
-function isQuailbotContextMessage(value: unknown): boolean {
-  return isRecord(value) && value.role === "custom" && value.customType === "quailbot-context";
+function isLegacyWorkspaceContextMessage(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    value.customType === "quailbot-context" &&
+    typeof value.content === "string" &&
+    value.content.trimStart().startsWith(WORKSPACE_CONTEXT_HEADER)
+  );
 }
 
 function nonNegativeInteger(value: number | undefined, fallback: number): number {

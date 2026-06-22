@@ -85,11 +85,10 @@ describe("semantic E2E scenarios", () => {
   it("surfaces the active workspace summary in context", () => {
     const artifact = readScenarioArtifact("workspace-to-context");
     expectPiSdkProvenance(artifact);
-    expectSemanticPass(artifact, "workspace-summary-visible");
     expect(textOf(artifact.events)).toContain("emitBeforeAgentStart");
-    const messages = textOf(artifact.messages);
-    expect(messages).toContain("WORKSPACE (Quailbot active workspace)");
-    expect(messages).toContain("nqctl:zctrl_setpnt");
+    const contextText = `${textOf(evidence(artifact).systemPrompt)}\n${textOf(artifact.messages)}`;
+    expect(contextText).toContain("WORKSPACE (Quailbot active workspace)");
+    expect(contextText).toContain("nqctl:zctrl_setpnt");
   });
 
   it("runs CLI tools through the driver-agnostic seam", () => {

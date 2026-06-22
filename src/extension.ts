@@ -73,17 +73,15 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
 
   pi.on("before_agent_start", (event) => {
     const mutationPolicy = mutationPolicyFromEnvironment();
-    const content = [
-      runtime.workspace ? buildWorkspaceContextText(runtime.workspace, mutationPolicy) : undefined,
-      runtime.planStore.render(),
-    ].filter((item): item is string => item !== undefined);
+    const workspaceContext = runtime.workspace ? buildWorkspaceContextText(runtime.workspace, mutationPolicy) : undefined;
+    const planContext = runtime.planStore.render();
 
     const knowledgePrefix = renderKnowledgePrefixFromRuntime(runtime.knowledge, runtime.workspace);
-    const systemPrompt = [buildQuailbotSystemPrompt(event.systemPromptOptions), knowledgePrefix]
-      .filter((part) => part.length > 0)
+    const systemPrompt = [buildQuailbotSystemPrompt(event.systemPromptOptions), workspaceContext, knowledgePrefix]
+      .filter((part): part is string => part !== undefined && part.length > 0)
       .join("\n\n");
 
-    if (content.length === 0) {
+    if (planContext === undefined) {
       return { systemPrompt };
     }
 
@@ -91,7 +89,7 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
       systemPrompt,
       message: {
         customType: "quailbot-context",
-        content: content.join("\n\n"),
+        content: planContext,
         display: false,
       },
     };

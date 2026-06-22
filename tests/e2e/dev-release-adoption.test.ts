@@ -202,7 +202,7 @@ describe("local Pi dev release adoption", () => {
     await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, extensionContext);
   });
 
-  it("loads the generic starter workspace into hidden context on Pi lifecycle events", async () => {
+  it("loads the generic starter workspace into the stable system prompt on Pi lifecycle events", async () => {
     const tempCwd = makeTempDir();
     const quailbotStateRoot = join(tempCwd, ".quailbot-pi");
     const workspacePath = join(quailbotStateRoot, "workspace.json");
@@ -242,26 +242,9 @@ describe("local Pi dev release adoption", () => {
     expect(context?.systemPrompt).not.toContain("ReAct");
     expect(context?.systemPrompt).not.toContain("Plan+Execute");
     expect(context?.systemPrompt).not.toContain("wait_until");
-    const message = context?.message;
+    expect(context?.message).toBeUndefined();
 
-    expect(message).toEqual(
-      expect.objectContaining({
-        customType: "quailbot-context",
-        display: false,
-      }),
-    );
-
-    const content = message?.content;
-    expect(typeof content).toBe("string");
-    if (typeof content !== "string") {
-      throw new Error("before_agent_start did not return string hidden context content");
-    }
-
-    const workspaceHeader = "WORKSPACE (Quailbot active workspace)";
-    expect(content.startsWith(`${workspaceHeader}\n`)).toBe(true);
-    expect(content).toContain(workspaceHeader);
-
-    const workspaceSummary = JSON.parse(content.slice(`${workspaceHeader}\n`.length)) as {
+    const workspaceSummary = workspaceSummaryFromSystemPrompt(context) as {
       workspace_path: string;
       mutation_policy: { enable_env_var: string };
       cli: { enabledParameters: Array<{ ref: string }> };
@@ -274,7 +257,7 @@ describe("local Pi dev release adoption", () => {
     expect(workspaceSummary.mutation_policy.enable_env_var).toBe("QUAILBOT_ALLOW_MUTATING_TOOLS");
   });
 
-  it("switches workspace through the command adapter, persists settings, reloads, and refreshes hidden context", async () => {
+  it("switches workspace through the command adapter, persists settings, reloads, and refreshes system prompt context", async () => {
     const tempCwd = makeTempDir();
     const candidatePath = join(tempCwd, "candidate.workspace.json");
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
@@ -307,14 +290,8 @@ describe("local Pi dev release adoption", () => {
 
     handlers.get("session_start")?.(sessionStartEvent, extensionContext);
     const context = await handlers.get("before_agent_start")?.(beforeAgentStartEvent, extensionContext);
-    const content = context?.message?.content;
-    expect(typeof content).toBe("string");
-    if (typeof content !== "string") {
-      throw new Error("before_agent_start did not return string hidden context content");
-    }
-    const workspaceHeader = "WORKSPACE (Quailbot active workspace)";
-    expect(content.startsWith(`${workspaceHeader}\n`)).toBe(true);
-    const switchedSummary = JSON.parse(content.slice(`${workspaceHeader}\n`.length)) as {
+    expect(context?.message).toBeUndefined();
+    const switchedSummary = workspaceSummaryFromSystemPrompt(context) as {
       workspace_path: string;
       cli: { enabledParameters: Array<{ ref: string }> };
     };
@@ -421,7 +398,7 @@ describe("local Pi dev release adoption", () => {
     expect(commandContext.notifications.join("\n")).toContain("show|read|validate|load|write|open");
   });
 
-  it("round-trips a web-edited workspace into the active hidden WORKSPACE context", async () => {
+  it("round-trips a web-edited workspace into the active system prompt WORKSPACE context", async () => {
     const tempCwd = makeTempDir();
     const workspacePath = join(tempCwd, ".quailbot-pi", "workspace.json");
     mkdirSync(dirname(workspacePath), { recursive: true });
@@ -485,13 +462,8 @@ describe("local Pi dev release adoption", () => {
       } satisfies BeforeAgentStartEvent,
       extensionContext,
     );
-    const content = context?.message?.content;
-    expect(typeof content).toBe("string");
-    if (typeof content !== "string") {
-      throw new Error("before_agent_start did not return string hidden context content");
-    }
-    const workspaceHeader = "WORKSPACE (Quailbot active workspace)";
-    const summary = JSON.parse(content.slice(`${workspaceHeader}\n`.length)) as {
+    expect(context?.message).toBeUndefined();
+    const summary = workspaceSummaryFromSystemPrompt(context) as {
       workspace_path: string;
       active_rois: Array<{ name?: string; schema: { x?: number; y?: number } }>;
       active_anchors: Array<{ name?: string; schema: { x?: number } }>;
@@ -737,6 +709,68 @@ function notificationJson(notifications: string[], title: string): unknown {
   }
 
   return JSON.parse(notification.slice(prefix.length));
+}
+
+function workspaceSummaryFromSystemPrompt(result: unknown): unknown {
+  if (!result || typeof result !== "object") {
+    throw new Error("before_agent_start did not return a result object");
+  }
+
+  const systemPrompt = (result as { systemPrompt?: unknown }).systemPrompt;
+  if (typeof systemPrompt !== "string") {
+    throw new Error("before_agent_start did not return string systemPrompt content");
+  }
+
+  const header = "WORKSPACE (Quailbot active workspace)\n";
+  const headerIndex = systemPrompt.indexOf(header);
+  expect(headerIndex).toBeGreaterThanOrEqual(0);
+  return JSON.parse(extractJsonObject(systemPrompt, headerIndex + header.length));
+}
+
+function extractJsonObject(text: string, startIndex: number): string {
+  let objectStart = -1;
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+
+  for (let index = startIndex; index < text.length; index += 1) {
+    const char = text[index];
+    if (objectStart === -1) {
+      if (/\s/.test(char)) {
+        continue;
+      }
+      if (char !== "{") {
+        throw new Error("WORKSPACE prompt block did not start with a JSON object");
+      }
+      objectStart = index;
+      depth = 1;
+      continue;
+    }
+
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+      } else if (char === "\\") {
+        escaping = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(objectStart, index + 1);
+      }
+    }
+  }
+
+  throw new Error("WORKSPACE prompt block did not contain a complete JSON object");
 }
 
 function createExtensionContextStub(cwd: string): ExtensionContext {

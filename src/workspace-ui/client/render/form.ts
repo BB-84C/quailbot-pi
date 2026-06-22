@@ -54,6 +54,25 @@ function selectedCli(state: AppState, summary: Extract<SelectionSummary, { kind:
   return state.workspace.cliParams.find((item) => item.name === summary.name) ?? null;
 }
 
+function formStructureKey(state: AppState, summary: SelectionSummary): string {
+  if (summary.kind !== "single") return summary.kind;
+  if (summary.itemKind !== "cli") return `single:${summary.itemKind}`;
+  const cli = selectedCli(state, summary);
+  if (!cli) return "single:cli:none";
+  const visibility = cliMetaVisibility(cli);
+  const safety = cliSafetyFields.map((field) => `${field}:${visibility.safetyFieldsEnabled[field] ? "1" : "0"}`).join(",");
+  return [
+    "single:cli",
+    linkedFrameMode(state),
+    visibility.showWritable ? "w" : "-",
+    visibility.showSafetyMode ? "mode" : "-",
+    visibility.showGetDesc ? "get" : "-",
+    visibility.showSetDesc ? "set" : "-",
+    visibility.rampEnabledVisible ? "ramp" : "-",
+    safety,
+  ].join(":");
+}
+
 function linkedTitle(mode: Exclude<LinkedFrameMode, "none">): string {
   if (mode === "anchor") return "Linked Observables (anchor)";
   if (mode === "cli_action") return "Linked Observables (cli action)";
@@ -537,7 +556,7 @@ function buildForm(rootEl: HTMLElement, state: AppState, summary: SelectionSumma
 
 export function renderForm(rootEl: HTMLElement, state: AppState): void {
   const summary = selectionSummary(state);
-  const key = summary.kind === "single" ? `single:${summary.itemKind}:${summary.name}` : summary.kind;
+  const key = formStructureKey(state, summary);
   if (rootEl.dataset.formKey !== key || !updateExisting(rootEl, state, summary)) {
     buildForm(rootEl, state, summary, key);
   }

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { mkdirSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, parse } from "node:path";
 
 import { probeCliCapabilities } from "./cli-import.js";
 import { browseDirectory, loadWorkspaceFile, saveWorkspaceFile } from "./file-browser.js";
@@ -17,9 +17,11 @@ export interface FileBrowserRouteContext {
 export function buildAllowedRoots(currentWorkspacePath: string, cwd: string): AllowedRoots {
   const statePath = join(cwd, ".quailbot-pi");
   mkdirSync(statePath, { recursive: true });
+  const realCwd = realpathSync(cwd);
   return {
     workspaceDir: realpathSync(dirname(realpathSync(currentWorkspacePath))),
     stateDir: realpathSync(statePath),
+    extraRoots: [realCwd, realpathSync(parse(realCwd).root)],
   };
 }
 

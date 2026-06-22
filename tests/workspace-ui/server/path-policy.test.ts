@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, parse } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -49,6 +49,22 @@ describe("Windows-hardened path policy", () => {
     writeFileSync(outside, "{}\n");
 
     expect(resolvePathUnderRoots(outside, roots)).toEqual(expect.objectContaining({ ok: false, error: expect.stringMatching(/outside|allowed root/i) }));
+  });
+
+  it("accepts explicitly configured extra roots without weakening default roots", () => {
+    const { root, roots } = fixtureRoots();
+    const outside = join(root, "outside.json");
+    writeFileSync(outside, "{}\n");
+
+    expect(resolvePathUnderRoots(outside, { ...roots, extraRoots: [root] })).toEqual({ ok: true, resolved: realpathSync(outside) });
+  });
+
+  it("accepts children under an explicitly configured filesystem root", () => {
+    const { root, roots } = fixtureRoots();
+    const outside = join(root, "outside.json");
+    writeFileSync(outside, "{}\n");
+
+    expect(resolvePathUnderRoots(outside, { ...roots, extraRoots: [parse(root).root] })).toEqual({ ok: true, resolved: realpathSync(outside) });
   });
 
   it("rejects symlink/junction segments even when the final realpath stays under an allowed root", () => {

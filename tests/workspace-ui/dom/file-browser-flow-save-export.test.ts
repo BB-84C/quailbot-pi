@@ -34,13 +34,13 @@ function mount(state: AppState) {
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
-    renderMenu(menuRoot);
+    renderMenu(menuRoot, store.getState());
     renderToolbar(toolbarRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderFileBrowserModal(modalRoot, store.getState());
     renderNoticeDialog(noticeRoot, store.getState());
   };
-  renderMenu(menuRoot);
+  renderMenu(menuRoot, store.getState());
   renderToolbar(toolbarRoot, store.getState());
   renderForm(formRoot, store.getState());
   renderFileBrowserModal(modalRoot, store.getState());
@@ -171,6 +171,21 @@ describe("file browser save/export flow", () => {
     renderFileBrowserModal(modalRoot, store.getState());
 
     expect(modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]')?.value).toBe("workspace.json");
+  });
+
+  it("starts export browsing from the project directory when current workspace is in the hidden state directory", async () => {
+    const state = fixtureState();
+    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspace.json";
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot-pi", entries: [] })));
+    vi.stubGlobal("fetch", fetch);
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
+    await flush();
+
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "D:\\quailbot-pi" });
+    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot-pi");
+    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot-pi");
   });
 
   it("keeps Export save disabled after a no-active-workspace browse failure", async () => {

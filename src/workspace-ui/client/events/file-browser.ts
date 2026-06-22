@@ -21,9 +21,23 @@ import { attachScopedActivation, attachScopedEvent, closestWithin } from "./dele
 type ResponseWithErrors = { error?: string; errors?: unknown[] };
 
 function dirnameLike(filePath: string): string {
-  if (filePath.trim().length === 0) return ".";
-  const slash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
-  return slash > 0 ? filePath.slice(0, slash) : filePath;
+  const trimmed = filePath.trim().replace(/[\\/]+$/, "");
+  if (trimmed.length === 0) return ".";
+  if (/^[A-Za-z]:$/.test(trimmed)) return `${trimmed}\\`;
+  const slash = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (slash === 2 && /^[A-Za-z]:[\\/]/.test(trimmed)) return trimmed.slice(0, 3);
+  return slash > 0 ? trimmed.slice(0, slash) : trimmed;
+}
+
+function basenameLike(filePath: string): string {
+  const trimmed = filePath.replace(/[\\/]+$/, "");
+  const slash = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return slash >= 0 ? trimmed.slice(slash + 1) : trimmed;
+}
+
+function fileBrowserStartDir(currentWorkspacePath: string): string {
+  const dir = dirnameLike(currentWorkspacePath);
+  return basenameLike(dir).toLowerCase() === ".quailbot-pi" ? dirnameLike(dir) : dir;
 }
 
 function joinLike(dir: string, name: string): string {
@@ -118,7 +132,7 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
     if (load) {
       event.preventDefault();
       dispatch(fileBrowserOpen("load"));
-      void browse(dirnameLike(getState().workspace.currentPath), dispatch, getState);
+      void browse(fileBrowserStartDir(getState().workspace.currentPath), dispatch, getState);
       return;
     }
     const save = closestWithin<HTMLButtonElement>(event.target, 'button[data-action="file-browser-save"]', formRoot);
@@ -131,7 +145,7 @@ export function attachFileBrowserEvents(args: { formRoot?: HTMLElement; formRoot
     if (exp) {
       event.preventDefault();
       dispatch(fileBrowserOpen("export"));
-      void browse(dirnameLike(getState().workspace.currentPath), dispatch, getState);
+      void browse(fileBrowserStartDir(getState().workspace.currentPath), dispatch, getState);
     }
   };
   const onModalClick = (event: MouseEvent): void => {

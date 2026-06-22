@@ -17,6 +17,24 @@ describe("right-panel form field editing", () => {
     expect(store.getState().workspace.rois[0]?.name).toBe("roi-renamed");
   });
 
+  it("keeps the focused name input mounted while a selected item is renamed", () => {
+    const { root, store } = mountForm(selectedState("roi", "roi-1"));
+    document.body.replaceChildren(root);
+    const name = input(root, "name");
+
+    name.focus();
+    typeInto(name, "L", 1);
+    expect(document.activeElement).toBe(name);
+    typeInto(name, "Li", 2);
+    expect(document.activeElement).toBe(name);
+    typeInto(name, "Liv", 3);
+
+    expect(document.activeElement).toBe(name);
+    expect(input(root, "name")).toBe(name);
+    expect(store.getState().workspace.rois[0]?.name).toBe("Liv");
+    expect(store.getState().tree.selected).toEqual([{ kind: "roi", name: "Liv" }]);
+  });
+
   it("keeps prior draft values for blank name, invalid integers, and non-positive ROI dimensions", () => {
     const { root, store } = mountForm(selectedState("roi", "roi-1"));
 

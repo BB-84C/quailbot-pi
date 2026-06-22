@@ -2,16 +2,27 @@ import { describe, expect, it } from "vitest";
 
 import { attachMenuEvents } from "../../../src/workspace-ui/client/events/menu.js";
 import { renderMenu, WORKSPACE_HELP_TEXT } from "../../../src/workspace-ui/client/render/menu.js";
+import { initialState, type AppState } from "../../../src/workspace-ui/client/state.js";
 
 function labels(root: HTMLElement): string[] {
   return [...root.querySelectorAll("button")].map((node) => node.textContent ?? "");
+}
+
+function menuState(currentPath = "D:\\quailbot\\workspaces\\active.json"): AppState {
+  const state = initialState();
+  state.workspace.currentPath = currentPath;
+  return state;
+}
+
+function renderTestMenu(root: HTMLElement, currentPath?: string): void {
+  renderMenu(root, menuState(currentPath));
 }
 
 describe("workspace menu and help", () => {
   it("renders the A3 Tk menu surface without dropped activation entries", () => {
     const menuRoot = document.createElement("nav");
 
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
 
     expect([...menuRoot.querySelectorAll<HTMLButtonElement>('button[data-action="menu-toggle"]')].map((button) => button.textContent)).toEqual(["File", "Help"]);
     expect(menuRoot.querySelector<HTMLElement>('[data-menu-panel="file"]')?.hidden).toBe(true);
@@ -21,11 +32,30 @@ describe("workspace menu and help", () => {
     expect(menuRoot.textContent).not.toContain("Use current workspace for agent");
   });
 
+  it("shows the current workspace filename and full path in the top bar", () => {
+    const menuRoot = document.createElement("nav");
+
+    renderTestMenu(menuRoot, "D:\\quailbot\\workspaces\\loaded.json");
+
+    expect(menuRoot.querySelector<HTMLElement>(".workspace-path-file")?.textContent).toBe("loaded.json");
+    expect(menuRoot.querySelector<HTMLElement>(".workspace-path-full")?.textContent).toBe("D:\\quailbot\\workspaces\\loaded.json");
+    expect(menuRoot.querySelector<HTMLElement>("[data-workspace-path-status]")?.title).toBe("D:\\quailbot\\workspaces\\loaded.json");
+  });
+
+  it("shows a no-active-workspace placeholder when no file path is known", () => {
+    const menuRoot = document.createElement("nav");
+
+    renderTestMenu(menuRoot, "");
+
+    expect(menuRoot.querySelector<HTMLElement>(".workspace-path-file")?.textContent).toBe("workspace.json");
+    expect(menuRoot.querySelector<HTMLElement>(".workspace-path-full")?.textContent).toBe("No active workspace path");
+  });
+
   it("opens and closes Tk-style dropdown menus", () => {
     const menuRoot = document.createElement("nav");
     const helpRoot = document.createElement("section");
     document.body.replaceChildren(menuRoot, helpRoot);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="menu-toggle"][data-menu="file"]')?.click();
@@ -42,7 +72,7 @@ describe("workspace menu and help", () => {
     const menuRoot = document.createElement("nav");
     const helpRoot = document.createElement("section");
     document.body.replaceChildren(menuRoot, helpRoot);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", altKey: true, bubbles: true }));
@@ -62,7 +92,7 @@ describe("workspace menu and help", () => {
     const menuRoot = document.createElement("nav");
     const helpRoot = document.createElement("section");
     document.body.replaceChildren(menuRoot, helpRoot);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", bubbles: true }));
@@ -79,7 +109,7 @@ describe("workspace menu and help", () => {
     const helpRoot = document.createElement("section");
     const outside = document.createElement("button");
     document.body.replaceChildren(menuRoot, helpRoot, outside);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="menu-toggle"][data-menu="file"]')?.click();
@@ -98,11 +128,11 @@ describe("workspace menu and help", () => {
     const menuRoot = document.createElement("nav");
     const helpRoot = document.createElement("section");
     document.body.replaceChildren(menuRoot, helpRoot);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="menu-toggle"][data-menu="file"]')?.click();
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
 
     expect(menuRoot.querySelector<HTMLButtonElement>('button[data-menu="file"]')?.getAttribute("aria-expanded")).toBe("true");
     expect(menuRoot.querySelector<HTMLElement>('[data-menu-panel="file"]')?.hidden).toBe(false);
@@ -113,7 +143,7 @@ describe("workspace menu and help", () => {
     const menuRoot = document.createElement("nav");
     const helpRoot = document.createElement("section");
     document.body.replaceChildren(menuRoot, helpRoot);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="menu-toggle"][data-menu="help"]')?.click();
@@ -132,7 +162,7 @@ describe("workspace menu and help", () => {
     const menuRoot = document.createElement("nav");
     const helpRoot = document.createElement("section");
     document.body.replaceChildren(menuRoot, helpRoot);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="menu-toggle"][data-menu="help"]')?.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, button: 0 }));
@@ -148,7 +178,7 @@ describe("workspace menu and help", () => {
     const helpRoot = document.createElement("section");
     const outside = document.createElement("button");
     document.body.replaceChildren(menuRoot, helpRoot, outside);
-    renderMenu(menuRoot);
+    renderTestMenu(menuRoot);
     const off = attachMenuEvents({ menuRoot, helpRoot });
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="menu-toggle"][data-menu="help"]')?.click();

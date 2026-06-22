@@ -1,3 +1,6 @@
+import type { AppState } from "../state.js";
+import { workspaceFileName } from "../title.js";
+
 export const WORKSPACE_HELP_TEXT = `Workflow:
 1) Select an item (or Add ROI/Anchor)
 2) Click "Draw ROI box" or "Pick anchor point"
@@ -12,6 +15,8 @@ Preview controls:
 Notes:
 - Coordinates are screen pixels (monitor-merged coordinate space).
 - Keep the instrument control window layout stable.`;
+
+type MenuState = Pick<AppState, "workspace">;
 
 function menuButton(action: string, label: string): HTMLButtonElement {
   const button = document.createElement("button");
@@ -49,13 +54,38 @@ function menuGroup(menu: "file" | "help", titleText: string, controls: HTMLEleme
   return group;
 }
 
-export function renderMenu(rootEl: HTMLElement): void {
+function workspacePathLabel(path: string): string {
+  const trimmed = path.trim();
+  return trimmed || "No active workspace path";
+}
+
+function workspacePathStatus(state: MenuState): HTMLElement {
+  const path = workspacePathLabel(state.workspace.currentPath);
+  const status = document.createElement("div");
+  status.className = "workspace-path-status";
+  status.dataset.workspacePathStatus = "true";
+  status.title = path;
+
+  const fileName = document.createElement("span");
+  fileName.className = "workspace-path-file";
+  fileName.textContent = workspaceFileName(state.workspace.currentPath);
+
+  const fullPath = document.createElement("span");
+  fullPath.className = "workspace-path-full";
+  fullPath.textContent = path;
+
+  status.append(fileName, fullPath);
+  return status;
+}
+
+export function renderMenu(rootEl: HTMLElement, state: MenuState): void {
   const openMenu = rootEl.querySelector<HTMLButtonElement>('button[data-action="menu-toggle"][aria-expanded="true"]')?.dataset.menu;
   rootEl.className = "workspace-menu-bar";
   rootEl.setAttribute("role", "menubar");
   rootEl.replaceChildren(
     menuGroup("file", "File", [menuButton("file-browser-load", "Load workspace..."), menuButton("file-browser-export", "Export workspace...")]),
     menuGroup("help", "Help", [menuButton("help-show", "Show help")]),
+    workspacePathStatus(state),
   );
   if (openMenu === "file" || openMenu === "help") {
     rootEl.querySelector<HTMLButtonElement>(`button[data-action="menu-toggle"][data-menu="${openMenu}"]`)?.setAttribute("aria-expanded", "true");

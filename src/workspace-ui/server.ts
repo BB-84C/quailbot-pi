@@ -465,6 +465,28 @@ html, body {
   background: #2f68a3;
   color: #fff;
 }
+.workspace-path-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+  padding-left: 16px;
+  color: #333;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  overflow: hidden;
+}
+.workspace-path-file {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.workspace-path-full {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 [data-startup-banner-root] { grid-area: startup; min-width: 0; }
 .startup-error-banner { padding: 4px 8px; border: 1px solid #c8a300; background: #fff4b8; color: #111; }
 .workspace-pane { min-width: 0; min-height: 0; overflow: auto; border: 1px solid #b8b8b8; border-radius: 4px; background: #efefef; padding: 8px; }
@@ -474,9 +496,13 @@ html, body {
 button, input, select, textarea { font: inherit; }
 .items-tree { min-height: 0; overflow: auto; }
 .tree-list { list-style: none; margin: 0; padding: 0; }
-.tree-row { display: flex; align-items: baseline; gap: 4px; min-height: 22px; padding: 1px 2px; white-space: nowrap; cursor: default; }
+.tree-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: baseline; gap: 4px; min-height: 22px; padding: 1px 2px; white-space: nowrap; cursor: default; }
 .tree-row--selected { background: #2f68a3; color: #fff; }
 .tree-row--active:not(.tree-row--selected) { outline: 1px solid #6f8ead; outline-offset: -1px; }
+.tree-depth-guides { align-self: stretch; display: grid; grid-auto-columns: 16px; grid-auto-flow: column; min-height: 22px; }
+.tree-depth-guide { position: relative; }
+.tree-depth-guide::before { content: ""; position: absolute; left: 8px; top: -3px; bottom: -3px; border-left: 1px solid #c5cbd3; }
+.tree-row--selected .tree-depth-guide::before { border-left-color: rgb(255 255 255 / 0.45); }
 .tree-toggle { flex: 0 0 auto; border: 0; background: transparent; color: inherit; padding: 0 2px; line-height: inherit; cursor: default; }
 .tree-toggle:disabled { color: inherit; opacity: 1; }
 .tree-body { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

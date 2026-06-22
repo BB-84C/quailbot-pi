@@ -24,13 +24,13 @@ function mount(state: AppState) {
   const store = createStore(state);
   const dispatch = (action: Action): void => {
     store.dispatch(action);
-    renderMenu(menuRoot);
+    renderMenu(menuRoot, store.getState());
     renderToolbar(toolbarRoot, store.getState());
     renderForm(formRoot, store.getState());
     renderFileBrowserModal(modalRoot, store.getState());
     renderNoticeDialog(noticeRoot, store.getState());
   };
-  renderMenu(menuRoot);
+  renderMenu(menuRoot, store.getState());
   renderToolbar(toolbarRoot, store.getState());
   renderForm(formRoot, store.getState());
   renderFileBrowserModal(modalRoot, store.getState());
@@ -63,6 +63,8 @@ describe("file browser load flow", () => {
     expect(fetch).toHaveBeenNthCalledWith(2, "/api/load", expect.objectContaining({ method: "POST" }));
     expect(store.getState().workspace.rois.map((roi) => roi.name)).toEqual(["loaded-roi"]);
     expect(store.getState().workspace.currentPath).toBe("D:\\quailbot\\workspaces\\loaded.json");
+    expect(menuRoot.querySelector(".workspace-path-file")?.textContent).toBe("loaded.json");
+    expect(menuRoot.querySelector(".workspace-path-full")?.textContent).toBe("D:\\quailbot\\workspaces\\loaded.json");
     expect(noticeRoot.querySelector(".notice-dialog-message")?.textContent).toBe("Loaded D:\\quailbot\\workspaces\\loaded.json");
   });
 
@@ -141,6 +143,49 @@ describe("file browser load flow", () => {
     expect(store.getState().fileBrowser.lastError).toBe("path is outside the allowed roots");
     expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot\\.quailbot-pi");
     expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("path is outside the allowed roots");
+  });
+
+  it("starts from the project directory when the active workspace is in the hidden state directory", async () => {
+    const state = initialState();
+    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspace.json";
+    const fetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          resolved: "D:\\quailbot-pi",
+          entries: [{ name: "workspaces", kind: "dir", path: "D:\\quailbot-pi\\workspaces" }],
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
+    await flush();
+
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "D:\\quailbot-pi" });
+    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot-pi");
+    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot-pi");
+    expect(store.getState().fileBrowser.entries.map((entry) => entry.name)).toEqual(["workspaces"]);
+  });
+
+  it("navigates from a drive child directory to the drive root with Parent", async () => {
+    const state = initialState();
+    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspace.json";
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot-pi", entries: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\", entries: [{ name: "quailbot", kind: "dir", path: "D:\\quailbot" }] })));
+    vi.stubGlobal("fetch", fetch);
+    const { menuRoot, modalRoot, store } = mount(state);
+
+    menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
+    await flush();
+    modalRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-up"]')?.click();
+    await flush();
+
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toMatchObject({ path: "D:\\" });
+    expect(store.getState().fileBrowser.currentPath).toBe("D:\\");
+    expect(store.getState().fileBrowser.entries.map((entry) => entry.name)).toEqual(["quailbot"]);
   });
 
   it("surfaces no-active-workspace browse failures instead of sending an empty path", async () => {

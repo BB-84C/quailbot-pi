@@ -40,6 +40,15 @@ export function renderItemsTree(rootEl: HTMLElement, state: AppState): void {
       item.classList.add("tree-row--forced-active");
     }
 
+    const guides = document.createElement("span");
+    guides.className = "tree-depth-guides";
+    guides.setAttribute("aria-hidden", "true");
+    for (let index = 0; index < Math.max(0, row.depth); index += 1) {
+      const guide = document.createElement("span");
+      guide.className = "tree-depth-guide";
+      guides.append(guide);
+    }
+
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "tree-toggle";
@@ -51,9 +60,9 @@ export function renderItemsTree(rootEl: HTMLElement, state: AppState): void {
     const body = document.createElement("span");
     body.className = "tree-body";
     body.dataset.region = "body";
-    body.textContent = `${"  ".repeat(Math.max(0, row.depth))}${row.tag} ${row.displayName}`;
+    body.textContent = `${row.tag} ${row.displayName}`;
 
-    item.append(toggle, body);
+    item.append(guides, toggle, body);
     list.append(item);
   }
 

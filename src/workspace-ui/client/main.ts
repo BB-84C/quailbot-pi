@@ -146,18 +146,19 @@ function bootstrapWorkspaceUi(): void {
     }
   };
   const render = (): void => {
-    document.title = workspaceDocumentTitle(store.getState());
-    renderMenu(menuRoot);
-    renderStartupBanner(startupRoot, store.getState());
-    renderToolbar(toolbarRoot, store.getState());
-    renderItemsTree(treeRoot, store.getState());
-    renderFilter(filterRoot, store.getState());
-    renderCanvas(canvasRoot, store.getState());
-    renderForm(formRoot, store.getState());
-    renderCliImportModal(modalRoot, store.getState());
-    renderFileBrowserModal(fileBrowserRoot, store.getState());
-    renderConfirmDialog(confirmRoot, store.getState());
-    renderNoticeDialog(noticeRoot, store.getState());
+    const state = store.getState();
+    document.title = workspaceDocumentTitle(state);
+    renderMenu(menuRoot, state);
+    renderStartupBanner(startupRoot, state);
+    renderToolbar(toolbarRoot, state);
+    renderItemsTree(treeRoot, state);
+    renderFilter(filterRoot, state);
+    renderCanvas(canvasRoot, state);
+    renderForm(formRoot, state);
+    renderCliImportModal(modalRoot, state);
+    renderFileBrowserModal(fileBrowserRoot, state);
+    renderConfirmDialog(confirmRoot, state);
+    renderNoticeDialog(noticeRoot, state);
   };
   store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
   window.__quailbotWorkspaceUiBootStep = "initial-render";

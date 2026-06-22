@@ -1,6 +1,6 @@
 import type { AppState } from "./state.js";
 
-function basename(path: string): string {
+export function workspaceFileName(path: string): string {
   const trimmed = path.trim().replace(/[\\/]+$/, "");
   if (!trimmed) return "workspace.json";
   const slash = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
@@ -15,5 +15,5 @@ function modeStatus(state: AppState): string {
 }
 
 export function workspaceDocumentTitle(state: AppState): string {
-  return `Workspace Calibrator - ${basename(state.workspace.currentPath)} - ${modeStatus(state)}`;
+  return `Workspace Calibrator - ${workspaceFileName(state.workspace.currentPath)} - ${modeStatus(state)}`;
 }

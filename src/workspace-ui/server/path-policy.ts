@@ -4,6 +4,7 @@ import path from "node:path";
 export interface AllowedRoots {
   workspaceDir: string;
   stateDir: string;
+  extraRoots?: string[];
 }
 
 export type PathPolicyResult = { ok: true; resolved: string } | { ok: false; error: string };
@@ -28,13 +29,14 @@ function validateRawPath(inputPath: unknown, roots: AllowedRoots): PathPolicyRes
   }
   if (path.win32.isAbsolute(inputPath) && /^[A-Za-z]:/.test(inputPath)) {
     const inputDrive = inputPath.slice(0, 2).toLowerCase();
-    const rootDrives = [roots.workspaceDir, roots.stateDir].map((root) => (/^[A-Za-z]:/.test(root) ? root.slice(0, 2).toLowerCase() : "")).filter(Boolean);
+    const rootDrives = allowedRootList(roots).map((root) => (/^[A-Za-z]:/.test(root) ? root.slice(0, 2).toLowerCase() : "")).filter(Boolean);
     if (rootDrives.length === 0 || !rootDrives.includes(inputDrive)) {
       return { ok: false, error: "drive switching is not allowed" };
     }
   }
   const comparableInput = normalizeForCompare(inputPath);
-  const rootPrefix = [roots.workspaceDir, roots.stateDir, commonAncestor(roots.workspaceDir, roots.stateDir)].map(normalizeForCompare).find((root) => comparableInput === root || comparableInput.startsWith(`${root}${path.sep}`));
+  const rootList = allowedRootList(roots);
+  const rootPrefix = [...rootList, commonAncestor(rootList[0] ?? roots.workspaceDir, rootList[1] ?? roots.stateDir)].map(normalizeForCompare).find((root) => comparableInput === root || comparableInput.startsWith(`${root}${path.sep}`));
   const segmentSource = rootPrefix ? path.relative(rootPrefix, path.resolve(inputPath)) : inputPath;
   const segments = splitSegments(segmentSource);
   for (let index = 0; index < segments.length; index += 1) {
@@ -57,7 +59,8 @@ function normalizeForCompare(value: string): string {
 function underRoot(resolved: string, root: string): boolean {
   const child = normalizeForCompare(resolved);
   const parent = normalizeForCompare(root);
-  return child === parent || child.startsWith(`${parent}${path.sep}`);
+  const parentPrefix = parent.endsWith(path.sep) ? parent : `${parent}${path.sep}`;
+  return child === parent || child.startsWith(parentPrefix);
 }
 
 function commonAncestor(left: string, right: string): string {
@@ -101,10 +104,19 @@ function hasSymlinkOrJunctionSegment(candidatePath: string): boolean {
 }
 
 function acceptingRoot(resolved: string, roots: AllowedRoots): string | null {
-  for (const root of [roots.workspaceDir, roots.stateDir]) {
+  for (const root of allowedRootList(roots)) {
     if (underRoot(resolved, root)) return root;
   }
   return null;
+}
+
+function allowedRootList(roots: AllowedRoots): string[] {
+  const out: string[] = [];
+  for (const root of [roots.workspaceDir, roots.stateDir, ...(roots.extraRoots ?? [])]) {
+    const normalized = normalizeForCompare(root);
+    if (!out.some((existing) => normalizeForCompare(existing) === normalized)) out.push(root);
+  }
+  return out;
 }
 
 /** Resolves `inputPath` against `roots` and verifies it's under one of them after symlink/junction resolution. */

@@ -70,9 +70,12 @@ describe("items tree render", () => {
 
     const active = root.querySelector<HTMLElement>('[data-kind="anchor"][data-name="anchor-child"]');
     expect(active?.classList.contains("tree-row--active")).toBe(true);
-    expect(active?.querySelector(".tree-body")?.textContent).toBe("    [ANCHOR] anchor-child");
+    expect(active?.dataset.depth).toBe("2");
+    expect(active?.querySelectorAll(".tree-depth-guide")).toHaveLength(2);
+    expect(active?.querySelector(".tree-body")?.textContent).toBe("[ANCHOR] anchor-child");
 
     const cliRoot = root.querySelector<HTMLElement>('[data-kind="cli"][data-name="cli-root"]');
+    expect(cliRoot?.querySelectorAll(".tree-depth-guide")).toHaveLength(0);
     expect(cliRoot?.querySelector(".tree-body")?.textContent).toBe("[nqctl] Root Voltage (cli-root)");
   });
 

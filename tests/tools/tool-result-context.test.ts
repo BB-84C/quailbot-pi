@@ -7,7 +7,7 @@ type TestToolResultMessage = {
   role: "tool";
   toolCallId: string;
   toolName: string;
-  content: Array<{ type: "text"; text: string }>;
+  content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }>;
   details?: unknown;
   createdAt?: string;
 };
@@ -64,6 +64,45 @@ describe("tool result context projection", () => {
     expect(textOf(projected[1])).toContain("DIRECT_RAW_MARKER");
   });
 
+  it("preserves image blocks for the newest Quailbot image result only", () => {
+    const messages: TestToolResultMessage[] = [
+      toolMessage("old-observe", "observe", observeWithRoi("old_roi"), [imageBlock("OLD_IMAGE_DATA")]),
+      toolMessage("new-observe", "observe", observeWithRoi("new_roi"), [imageBlock("NEW_IMAGE_DATA")]),
+    ];
+
+    const projected = projectQuailbotContextMessages(messages, {
+      recentImageResultCount: 1,
+    });
+
+    expect(projected[0].content).toHaveLength(1);
+    expect(projected[0].content.some((item) => item.type === "image")).toBe(false);
+    expect(textOf(projected[0])).toContain("old_roi image_path=C:\\tmp\\old_roi.png");
+
+    expect(projected[1].content).toHaveLength(2);
+    expect(projected[1].content[1]).toEqual({ type: "image", data: "NEW_IMAGE_DATA", mimeType: "image/png" });
+    expect(textOf(projected[1])).toContain("new_roi image_path=C:\\tmp\\new_roi.png");
+  });
+
+  it("keeps only the newest hidden quailbot context message", () => {
+    const oldContext = {
+      role: "custom",
+      customType: "quailbot-context",
+      content: "old workspace context",
+      display: false,
+    };
+    const newContext = {
+      role: "custom",
+      customType: "quailbot-context",
+      content: "new workspace context",
+      display: false,
+    };
+    const userMessage = { role: "user", content: "continue" };
+
+    const projected = projectQuailbotContextMessages([oldContext, userMessage, newContext]);
+
+    expect(projected).toEqual([userMessage, newContext]);
+  });
+
   it("leaves malformed and non-Quailbot tool messages unchanged", () => {
     const malformed: TestToolResultMessage = {
       role: "tool",
@@ -88,19 +127,24 @@ describe("tool result context projection", () => {
   });
 });
 
-function toolMessage(toolCallId: string, toolName: string, details: QuailbotToolResult): TestToolResultMessage {
+function toolMessage(
+  toolCallId: string,
+  toolName: string,
+  details: QuailbotToolResult,
+  extraContent: TestToolResultMessage["content"] = [],
+): TestToolResultMessage {
   return {
     role: "tool",
     toolCallId,
     toolName,
-    content: [{ type: "text", text: "stale model-facing tool content" }],
+    content: [{ type: "text", text: "stale model-facing tool content" }, ...extraContent],
     details,
     createdAt: "2026-06-15T00:00:00.000Z",
   };
 }
 
 function textOf(message: TestToolResultMessage): string {
-  return message.content.map((item) => item.text).join("\n");
+  return message.content.flatMap((item) => (item.type === "text" ? [item.text] : [])).join("\n");
 }
 
 function cliGetUnparsed(parameter: string, stdout: string): QuailbotToolResult {
@@ -172,4 +216,35 @@ function planAndExecuteWithNestedRaw(): QuailbotToolResult {
       ],
     },
   };
+}
+
+function observeWithRoi(ref: string): QuailbotToolResult {
+  return {
+    ok: true,
+    action: "observe",
+    action_input: { rois: [ref] },
+    primary_result: {
+      requested_rois: [ref],
+      channels: {
+        roi: {
+          results: {
+            [ref]: {
+              ok: true,
+              ref,
+              image_path: `C:\\tmp\\${ref}.png`,
+              mime_type: "image/png",
+              width: 10,
+              height: 20,
+              attached_image: true,
+            },
+          },
+          warnings: [],
+        },
+      },
+    },
+  };
+}
+
+function imageBlock(data: string): { type: "image"; data: string; mimeType: string } {
+  return { type: "image", data, mimeType: "image/png" };
 }

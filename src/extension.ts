@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { registerProviderPayloadLog } from "./debug/provider-payload-log.js";
 import { registerExperimentCommands } from "./experiment-log/register-experiment-commands.js";
 import { ExperimentLogService, experimentLogRoot } from "./experiment-log/experiment-log-service.js";
 import type { ExperimentCloseReason } from "./experiment-log/experiment-log-types.js";
@@ -39,6 +40,7 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   registerKnowledgeCommands(pi, runtime);
   registerMemoryCommands(pi, runtime);
   registerExperimentCommands(pi);
+  registerProviderPayloadLog(pi);
 
   pi.on("session_start", (event, ctx) => {
     runtime.planStore.clear();

@@ -80,8 +80,11 @@ describe("local Pi dev release adoption", () => {
     const { handlers, tools, commands } = await loadBuiltExtensionWithPiStub();
 
     expect([...handlers.keys()].sort(compareNames)).toEqual([
+      "after_provider_response",
       "before_agent_start",
+      "before_provider_request",
       "context",
+      "message_end",
       "session_shutdown",
       "session_start",
     ]);

@@ -11,13 +11,22 @@ import {
 export type ToolResultContextPolicy = {
   recentFullCliResultCount?: number;
   recentFullSkillResultCount?: number;
+  recentImageResultCount?: number;
   summaryMaxChars?: number;
   fullMaxChars?: number;
 };
 
+const DEFAULT_RECENT_IMAGE_RESULT_COUNT = 1;
+
 export type ToolResultMessageLike = {
   content?: unknown;
   details?: unknown;
+};
+
+type ImageContentLike = {
+  type: "image";
+  data: string;
+  mimeType: string;
 };
 
 export function projectQuailbotContextMessages<T extends ToolResultMessageLike>(
@@ -37,12 +46,15 @@ export function projectQuailbotContextMessages<T>(
     policy.recentFullSkillResultCount,
     DEFAULT_RECENT_FULL_SKILL_RESULT_COUNT,
   );
-  const output = [...messages];
+  const recentImageLimit = nonNegativeInteger(policy.recentImageResultCount, DEFAULT_RECENT_IMAGE_RESULT_COUNT);
+  const input = keepNewestQuailbotContext(messages);
+  const output = [...input];
   let directCliResultsSeen = 0;
   let skillResultsSeen = 0;
+  let imageResultsSeen = 0;
 
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
+  for (let index = input.length - 1; index >= 0; index -= 1) {
+    const message = input[index];
     const result = quailbotToolResultOrUndefined(isRecord(message) ? message.details : undefined);
     if (result === undefined) {
       continue;
@@ -61,6 +73,12 @@ export function projectQuailbotContextMessages<T>(
       skillResultsSeen += 1;
     }
 
+    const images = isRecord(message) ? imageContent(message) : [];
+    const keepImages = images.length > 0 && imageResultsSeen < recentImageLimit;
+    if (images.length > 0) {
+      imageResultsSeen += 1;
+    }
+
     output[index] = {
       ...(message as Record<string, unknown>),
       content: [
@@ -68,11 +86,28 @@ export function projectQuailbotContextMessages<T>(
           type: "text",
           text: buildQuailbotToolContent(result, projectionOptions(mode, policy)),
         },
+        ...(keepImages ? images : []),
       ],
     } as T;
   }
 
   return output;
+}
+
+function keepNewestQuailbotContext<T>(messages: T[]): T[] {
+  let latestIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (isQuailbotContextMessage(messages[index])) {
+      latestIndex = index;
+      break;
+    }
+  }
+
+  if (latestIndex === -1) {
+    return messages;
+  }
+
+  return messages.filter((message, index) => index === latestIndex || !isQuailbotContextMessage(message));
 }
 
 function projectionOptions(mode: "summary" | "recent-full", policy: ToolResultContextPolicy): ProjectionOptions {
@@ -97,6 +132,24 @@ function quailbotToolResultOrUndefined(value: unknown): QuailbotToolResult | und
   }
 
   return value as QuailbotToolResult;
+}
+
+function imageContent(message: ToolResultMessageLike): ImageContentLike[] {
+  if (!Array.isArray(message.content)) {
+    return [];
+  }
+
+  return message.content.filter((item): item is ImageContentLike => {
+    if (!isRecord(item)) {
+      return false;
+    }
+
+    return item.type === "image" && typeof item.data === "string" && typeof item.mimeType === "string";
+  });
+}
+
+function isQuailbotContextMessage(value: unknown): boolean {
+  return isRecord(value) && value.role === "custom" && value.customType === "quailbot-context";
 }
 
 function nonNegativeInteger(value: number | undefined, fallback: number): number {

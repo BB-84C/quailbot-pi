@@ -131,4 +131,24 @@ describe("canvas render", () => {
     expect(draft?.getAttribute("fill")).toBe("none");
     expect(draft?.getAttribute("stroke")).toBe("#00d1ff");
   });
+
+  it("reuses the capture image node while only the draft ROI overlay changes", () => {
+    const root = document.createElement("div");
+    const state = stateWithCanvas();
+
+    renderCanvas(root, state);
+    const image = root.querySelector("image.canvas-image");
+    expect(image).not.toBeNull();
+
+    renderCanvas(root, {
+      ...state,
+      canvas: {
+        ...state.canvas,
+        draftDrag: { startCanvas: { x: 10, y: 20 }, currentCanvas: { x: 40, y: 60 } },
+      },
+    });
+
+    expect(root.querySelector("image.canvas-image")).toBe(image);
+    expect(root.querySelector("rect.canvas-draft-roi")).not.toBeNull();
+  });
 });

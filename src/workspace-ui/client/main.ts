@@ -145,20 +145,67 @@ function bootstrapWorkspaceUi(): void {
       store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
     }
   };
+  let previousState: AppState | null = null;
   const render = (): void => {
     const state = store.getState();
-    document.title = workspaceDocumentTitle(state);
-    renderMenu(menuRoot, state);
-    renderStartupBanner(startupRoot, state);
-    renderToolbar(toolbarRoot, state);
-    renderItemsTree(treeRoot, state);
-    renderFilter(filterRoot, state);
-    renderCanvas(canvasRoot, state);
-    renderForm(formRoot, state);
-    renderCliImportModal(modalRoot, state);
-    renderFileBrowserModal(fileBrowserRoot, state);
-    renderConfirmDialog(confirmRoot, state);
-    renderNoticeDialog(noticeRoot, state);
+    const prev = previousState;
+    if (!prev || prev.workspace.currentPath !== state.workspace.currentPath || prev.canvas.mode !== state.canvas.mode) {
+      document.title = workspaceDocumentTitle(state);
+      renderMenu(menuRoot, state);
+    }
+    if (!prev || prev.startup !== state.startup) {
+      renderStartupBanner(startupRoot, state);
+    }
+    if (
+      !prev ||
+      prev.workspace.currentPath !== state.workspace.currentPath ||
+      prev.workspace.cliEnabled !== state.workspace.cliEnabled ||
+      prev.workspace.cliName !== state.workspace.cliName ||
+      prev.tree.selected !== state.tree.selected ||
+      prev.cliImport !== state.cliImport ||
+      prev.canvas.frame !== state.canvas.frame
+    ) {
+      renderToolbar(toolbarRoot, state);
+    }
+    if (
+      !prev ||
+      prev.workspace.rois !== state.workspace.rois ||
+      prev.workspace.anchors !== state.workspace.anchors ||
+      prev.workspace.groups !== state.workspace.groups ||
+      prev.workspace.cliParams !== state.workspace.cliParams ||
+      prev.tree !== state.tree ||
+      prev.filter !== state.filter
+    ) {
+      renderItemsTree(treeRoot, state);
+    }
+    if (!prev || prev.workspace !== state.workspace || prev.filter !== state.filter) {
+      renderFilter(filterRoot, state);
+    }
+    if (
+      !prev ||
+      prev.canvas !== state.canvas ||
+      prev.workspace.rois !== state.workspace.rois ||
+      prev.workspace.anchors !== state.workspace.anchors ||
+      prev.tree.selected !== state.tree.selected
+    ) {
+      renderCanvas(canvasRoot, state);
+    }
+    if (!prev || prev.workspace !== state.workspace || prev.tree.selected !== state.tree.selected || prev.form !== state.form) {
+      renderForm(formRoot, state);
+    }
+    if (!prev || prev.cliImport !== state.cliImport) {
+      renderCliImportModal(modalRoot, state);
+    }
+    if (!prev || prev.fileBrowser !== state.fileBrowser) {
+      renderFileBrowserModal(fileBrowserRoot, state);
+    }
+    if (!prev || prev.confirmDialog !== state.confirmDialog) {
+      renderConfirmDialog(confirmRoot, state);
+    }
+    if (!prev || prev.noticeDialog !== state.noticeDialog) {
+      renderNoticeDialog(noticeRoot, state);
+    }
+    previousState = state;
   };
   store.dispatch(formSelectionChanged(selectionSummary(store.getState())));
   window.__quailbotWorkspaceUiBootStep = "initial-render";

@@ -92,4 +92,28 @@ describe("items tree render", () => {
     renderItemsTree(root, state);
     expect(rowKeys(root)).toEqual(["group:parent", "group:child", "anchor:anchor-child"]);
   });
+
+  it("reuses row nodes when only selection state changes", () => {
+    const root = document.createElement("div");
+    const state = fixtureState();
+
+    renderItemsTree(root, state);
+    const roiRoot = root.querySelector<HTMLElement>('[data-kind="roi"][data-name="roi-root"]');
+    const cliRoot = root.querySelector<HTMLElement>('[data-kind="cli"][data-name="cli-root"]');
+
+    renderItemsTree(root, {
+      ...state,
+      tree: {
+        ...state.tree,
+        selected: [{ kind: "cli", name: "cli-root" }],
+        activeAnchor: { kind: "cli", name: "cli-root" },
+      },
+    });
+
+    expect(root.querySelector<HTMLElement>('[data-kind="roi"][data-name="roi-root"]')).toBe(roiRoot);
+    expect(root.querySelector<HTMLElement>('[data-kind="cli"][data-name="cli-root"]')).toBe(cliRoot);
+    expect(roiRoot?.classList.contains("tree-row--selected")).toBe(false);
+    expect(cliRoot?.classList.contains("tree-row--selected")).toBe(true);
+    expect(cliRoot?.classList.contains("tree-row--active")).toBe(true);
+  });
 });

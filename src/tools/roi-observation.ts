@@ -81,7 +81,12 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $InputPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:QUAILBOT_ROI_INPUT_PATH_B64))
 $CropsJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:QUAILBOT_ROI_CROPS_B64))
-$Crops = @($CropsJson | ConvertFrom-Json)
+$ParsedCrops = $CropsJson | ConvertFrom-Json
+if ($ParsedCrops -is [System.Array]) {
+  $Crops = $ParsedCrops
+} else {
+  $Crops = @($ParsedCrops)
+}
 
 $image = [System.Drawing.Image]::FromFile($InputPath)
 try {
@@ -193,7 +198,7 @@ export async function observeRois(ctx: RoiObservationContext, rois: WorkspaceRoi
           }
         }
       } catch (error) {
-        const message = errorMessage(error);
+        const message = sanitizeRoiCaptureError(errorMessage(error));
         for (const roi of captureTargets) {
           results[roi.ref] = backendUnavailable(roi, message);
           unavailable.push(roi.ref);
@@ -367,4 +372,38 @@ function numberValue(value: unknown): number | undefined {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function sanitizeRoiCaptureError(message: string): string {
+  const psErrors = [...message.matchAll(/<S S="Error">([\s\S]*?)<\/S>/g)]
+    .map((match) => decodePowerShellXmlText(match[1] ?? ""))
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (psErrors.length > 0) {
+    return compactDiagnostic(uniqueStrings(psErrors).join(" "));
+  }
+
+  const withoutEncodedCommand = message.replace(/-EncodedCommand\s+\S+/g, "-EncodedCommand <omitted>");
+  return compactDiagnostic(withoutEncodedCommand);
+}
+
+function decodePowerShellXmlText(value: string): string {
+  return value
+    .replace(/_x000D__x000A_/g, "\n")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function compactDiagnostic(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const maxChars = 500;
+  return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars - " [truncated]".length)} [truncated]`;
 }

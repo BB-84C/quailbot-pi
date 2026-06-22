@@ -67,7 +67,7 @@ export function discoverSkills(cwd: string, cache: SkillCache): SkillInfo[] {
 }
 
 export function parseSkillFile(content: string): SkillInfo | undefined {
-  const match = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(content);
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?([\s\S]*)$/.exec(content);
   if (!match) {
     return undefined;
   }

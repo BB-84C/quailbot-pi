@@ -29,6 +29,20 @@ describe("parseSkillFile", () => {
     });
   });
 
+  it("parses Windows CRLF frontmatter", () => {
+    const parsed = parseSkillFile(
+      "---\r\nname: stm-sample-exploration\r\ndescription: Explore an STM sample\r\ndrivers: [nqctl]\r\ndomain: approach\r\n---\r\nProcedure.",
+    );
+
+    expect(parsed).toEqual({
+      name: "stm-sample-exploration",
+      description: "Explore an STM sample",
+      drivers: ["nqctl"],
+      domain: "approach",
+      body: "Procedure.",
+    });
+  });
+
   it("rejects missing name or empty drivers", () => {
     expect(parseSkillFile("---\ndescription: x\ndrivers: [a]\n---\nbody")).toBeUndefined();
     expect(parseSkillFile("---\nname: x\ndescription: y\ndrivers: []\n---\nbody")).toBeUndefined();

@@ -11,11 +11,26 @@ function addError(errors: SaveValidationError[], error: SaveValidationError): vo
   errors.push(error);
 }
 
-function applyForcedRoiActivation(rois: RoiDraft[], anchors: AnchorDraft[]): void {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasMutatingCliSurface(param: CliParamDraft): boolean {
+  return Boolean(param.enabled && (isRecord(param.set_cmd) || isRecord(param.action_cmd)));
+}
+
+function applyForcedRoiActivation(rois: RoiDraft[], anchors: AnchorDraft[], cliParams: CliParamDraft[]): void {
   const forced = new Set<string>();
   for (const anchor of anchors) {
     if (!anchor.active) continue;
     for (const linked of anchor.linked_rois || []) {
+      const key = String(linked).trim();
+      if (key) forced.add(key);
+    }
+  }
+  for (const param of cliParams) {
+    if (!hasMutatingCliSurface(param)) continue;
+    for (const linked of param.linked_observables || []) {
       const key = String(linked).trim();
       if (key) forced.add(key);
     }
@@ -43,7 +58,7 @@ export function validateAndNormalizeForSave(args: {
 }): { ok: true } | { ok: false; errors: SaveValidationError[] } {
   const { rois, anchors, groups, cliParams } = args;
   const errors: SaveValidationError[] = [];
-  applyForcedRoiActivation(rois, anchors);
+  applyForcedRoiActivation(rois, anchors, cliParams);
 
   const names = new Set<string>();
   const roiNames = new Set<string>();

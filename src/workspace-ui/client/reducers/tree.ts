@@ -54,7 +54,22 @@ export function forcedRoiNames(state: AppState): Set<string> {
       }
     }
   }
+  for (const cli of state.workspace.cliParams) {
+    if (!cli.enabled || (!isRecord(cli.set_cmd) && !isRecord(cli.action_cmd))) {
+      continue;
+    }
+    for (const linked of cli.linked_observables || []) {
+      const name = String(linked || "").trim();
+      if (roiNames.has(name)) {
+        forced.add(name);
+      }
+    }
+  }
   return forced;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function cloneWorkspace(workspace: AppState["workspace"]): WorkspaceClone {

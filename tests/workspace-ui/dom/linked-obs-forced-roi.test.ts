@@ -20,4 +20,20 @@ describe("linked observables forced ROI readback", () => {
     expect(linkedRoi?.classList.contains("tree-row--forced-active")).toBe(true);
     expect(linkedRoi?.querySelector<HTMLButtonElement>(".tree-toggle")?.disabled).toBe(true);
   });
+
+  it("re-derives the forced ROI tree flag after adding a ROI link to an active mutating CLI parameter", () => {
+    const state = selectedState("cli", "bias");
+    state.workspace.rois[1]!.active = false;
+    state.workspace.cliParams[0]!.enabled = true;
+    const { store, dispatch } = mountForm(state);
+
+    dispatch(linkedPickerChanged("roi-2"));
+    dispatch(linkedAdd());
+
+    const treeRoot = document.createElement("div");
+    renderItemsTree(treeRoot, store.getState());
+    const linkedRoi = treeRoot.querySelector<HTMLElement>('[data-kind="roi"][data-name="roi-2"]');
+    expect(linkedRoi?.classList.contains("tree-row--forced-active")).toBe(true);
+    expect(linkedRoi?.querySelector<HTMLButtonElement>(".tree-toggle")?.disabled).toBe(true);
+  });
 });

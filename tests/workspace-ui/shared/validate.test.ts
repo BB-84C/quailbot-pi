@@ -52,6 +52,16 @@ describe("workspace shared save validation", () => {
     expect(rois[0].active).toBe(true);
   });
 
+  it("applies forced ROI activation from enabled mutating CLI linked observables", () => {
+    const rois = [roi({ name: "linked", active: false })];
+    const cliParams = [cli({ name: "p", enabled: true, set_cmd: { command: "set" }, linked_observables: ["linked"] })];
+
+    const result = validateAndNormalizeForSave({ rois, anchors: [], groups: [], cliParams });
+
+    expect(result).toEqual({ ok: true });
+    expect(rois[0].active).toBe(true);
+  });
+
   it("reports duplicate names across kinds", () => {
     const result = validateAndNormalizeForSave({ rois: [roi({ name: "same" })], anchors: [], groups: [group({ name: "same" })], cliParams: [] });
 

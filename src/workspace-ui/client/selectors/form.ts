@@ -217,6 +217,7 @@ export function linkedPickerOptions(state: AppState): string[] {
     const cli = selected.draft as CliParamDraft;
     values = uniqueNames([
       ...state.workspace.cliParams.map((param) => param.name).filter((name) => name.length > 0 && name !== currentName),
+      ...state.workspace.rois.map((roi) => roi.name).filter((name) => name.length > 0),
       ...linkedValuesFromRawItem(cli.raw_item),
       ...cli.linked_observables,
     ]).filter((name) => name.toLowerCase() !== currentKey);

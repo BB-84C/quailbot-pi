@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { formSelectionChanged, linkedAdd, linkedPickerChanged, linkedRemove, linkedSearchChanged } from "../../../src/workspace-ui/client/actions.js";
 import { linkedPickerOptions, selectionSummary } from "../../../src/workspace-ui/client/selectors/form.js";
 import { runtimeLinkedObservables } from "../../../src/workspace-ui/shared/model.js";
-import { cliDraft, rampParam, writableParam } from "./cli-meta-helpers.js";
+import { actionParam, cliDraft, rampParam, writableParam } from "./cli-meta-helpers.js";
 import { fixtureState, mountForm, selectedState } from "./form-test-helpers.js";
 
 function input(el: HTMLElement): void {
@@ -84,6 +84,41 @@ describe("linked observables editing", () => {
     expect(updated.allow_ramp).toBe(false);
   });
 
+  it("adds ROI links into CLI linked_observables", () => {
+    const cli = rampParam();
+    const state = fixtureState();
+    state.workspace.cliParams = [cli, cliDraft({ name: "aux" })];
+    state.tree.selected = [{ kind: "cli", name: cli.name }];
+    const { root, store, dispatch } = mountForm(state);
+
+    expect([...root.querySelectorAll<HTMLOptionElement>('select[data-region="linked-picker"] option')].map((option) => option.value)).toEqual([
+      "aux",
+      "roi-1",
+      "roi-2",
+    ]);
+
+    dispatch(linkedPickerChanged("roi-2"));
+    dispatch(linkedAdd());
+
+    expect(store.getState().workspace.cliParams[0]?.linked_observables).toEqual(["roi-2"]);
+    expect(root.querySelector<HTMLElement>('.linked-list [data-action="linked-select"][data-name="roi-2"]')).not.toBeNull();
+  });
+
+  it("adds ROI links into CLI action linked_observables", () => {
+    const action = actionParam("guarded");
+    const state = fixtureState();
+    state.workspace.cliParams = [action, cliDraft({ name: "current" })];
+    state.tree.selected = [{ kind: "cli", name: action.name }];
+    const { store, dispatch } = mountForm(state);
+
+    expect(linkedPickerOptions(store.getState())).toEqual(["current", "roi-1", "roi-2"]);
+
+    dispatch(linkedPickerChanged("roi-1"));
+    dispatch(linkedAdd());
+
+    expect(store.getState().workspace.cliParams[0]?.linked_observables).toEqual(["roi-1"]);
+  });
+
   it("offers raw and current CLI links in the picker so removed links can be restored", () => {
     const cli = cliDraft({
       name: "action",
@@ -103,7 +138,7 @@ describe("linked observables editing", () => {
     state.tree.selected = [{ kind: "cli", name: "action" }];
     const { root, store, dispatch } = mountForm(state);
 
-    expect(linkedPickerOptions(store.getState())).toEqual(["current", "scan_status", "scan_buffer", "scan_speed"]);
+    expect(linkedPickerOptions(store.getState())).toEqual(["current", "roi-1", "roi-2", "scan_status", "scan_buffer", "scan_speed"]);
 
     dispatch(linkedPickerChanged("scan_buffer"));
     dispatch(linkedAdd());
@@ -151,8 +186,8 @@ describe("linked observables editing", () => {
     dispatch(formSelectionChanged(selectionSummary(store.getState())));
 
     expect(store.getState().form.linkedObs.searchText).toBe("");
-    expect(linkedPickerOptions(store.getState())).toEqual(["aux"]);
+    expect(linkedPickerOptions(store.getState())).toEqual(["aux", "roi-1", "roi-2"]);
     expect(root.querySelector<HTMLInputElement>('input[data-region="linked-search"]')?.value).toBe("");
-    expect([...root.querySelectorAll<HTMLOptionElement>('select[data-region="linked-picker"] option')].map((option) => option.value)).toEqual(["aux"]);
+    expect([...root.querySelectorAll<HTMLOptionElement>('select[data-region="linked-picker"] option')].map((option) => option.value)).toEqual(["aux", "roi-1", "roi-2"]);
   });
 });

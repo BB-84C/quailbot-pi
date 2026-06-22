@@ -39,7 +39,7 @@ describe("linked observables render", () => {
     expect(linkedFrame(root)?.classList.contains("linked-frame--cli")).toBe(true);
     expect(linkedFrame(root)?.getAttribute("aria-disabled")).toBe("false");
     expect(root.querySelector<HTMLInputElement>('input[data-region="linked-search"]')?.disabled).toBe(false);
-    expect(pickerOptions(root)).toEqual(["other"]);
+    expect(pickerOptions(root)).toEqual(["other", "roi-1", "roi-2"]);
     expect(root.querySelector(".linked-hint")?.textContent).toContain("implicit self-observables");
     expect(root.querySelector(".cli-actions-display")?.textContent).toContain("get");
   });
@@ -65,7 +65,7 @@ describe("linked observables render", () => {
 
     expect(linkedFrame(root)?.classList.contains("linked-frame--cli_action")).toBe(true);
     expect(linkedFrame(root)?.getAttribute("aria-disabled")).toBe("false");
-    expect(pickerOptions(root)).toEqual(["other"]);
+    expect(pickerOptions(root)).toEqual(["other", "roi-1", "roi-2"]);
     expect(root.querySelector(".linked-hint")).toBeNull();
     expect(root.querySelector(".cli-actions-display")).toBeNull();
 
@@ -87,6 +87,6 @@ describe("linked observables render", () => {
     expect(renderedEntries.map((entry) => entry.text)).toEqual(expected);
     expect(renderedEntries[0]?.disabled).toBe("true");
     expect(root.querySelector<HTMLButtonElement>('button[data-action="linked-remove"]')).toBeNull();
-    expect(pickerOptions(root)).toEqual(["other"]);
+    expect(pickerOptions(root)).toEqual(["other", "roi-1", "roi-2"]);
   });
 });

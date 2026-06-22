@@ -6,9 +6,14 @@ import { quailbotStateRoot } from "../workspace/workspace-state.js";
 export type KnowledgeState = {
   loadedDomains: string[];
   skillBodyWindow: number;
+  recentFullCliResultWindow: number;
+  recentImageResultWindow: number;
 };
+export type KnowledgeStateInput = Partial<KnowledgeState>;
 
 export const DEFAULT_SKILL_BODY_WINDOW = 3;
+export const DEFAULT_RECENT_FULL_CLI_RESULT_WINDOW = 10;
+export const DEFAULT_RECENT_IMAGE_RESULT_WINDOW = 5;
 
 export function knowledgeStatePath(cwd = process.cwd()): string {
   return join(quailbotStateRoot(cwd), "knowledge-state.json");
@@ -26,14 +31,19 @@ export function loadKnowledgeState(cwd = process.cwd()): KnowledgeState {
   }
 }
 
-export function saveKnowledgeState(state: KnowledgeState, cwd = process.cwd()): void {
+export function saveKnowledgeState(state: KnowledgeStateInput, cwd = process.cwd()): void {
   mkdirSync(quailbotStateRoot(cwd), { recursive: true });
   const normalized = normalizeKnowledgeState(state);
   writeFileSync(knowledgeStatePath(cwd), `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
 }
 
 function defaultState(): KnowledgeState {
-  return { loadedDomains: [], skillBodyWindow: DEFAULT_SKILL_BODY_WINDOW };
+  return {
+    loadedDomains: [],
+    skillBodyWindow: DEFAULT_SKILL_BODY_WINDOW,
+    recentFullCliResultWindow: DEFAULT_RECENT_FULL_CLI_RESULT_WINDOW,
+    recentImageResultWindow: DEFAULT_RECENT_IMAGE_RESULT_WINDOW,
+  };
 }
 
 function normalizeKnowledgeState(value: unknown): KnowledgeState {
@@ -45,7 +55,16 @@ function normalizeKnowledgeState(value: unknown): KnowledgeState {
     typeof record.skillBodyWindow === "number" && Number.isInteger(record.skillBodyWindow) && record.skillBodyWindow > 0
       ? record.skillBodyWindow
       : DEFAULT_SKILL_BODY_WINDOW;
-  return { loadedDomains, skillBodyWindow: windowValue };
+  return {
+    loadedDomains,
+    skillBodyWindow: windowValue,
+    recentFullCliResultWindow: positiveInteger(record.recentFullCliResultWindow, DEFAULT_RECENT_FULL_CLI_RESULT_WINDOW),
+    recentImageResultWindow: positiveInteger(record.recentImageResultWindow, DEFAULT_RECENT_IMAGE_RESULT_WINDOW),
+  };
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

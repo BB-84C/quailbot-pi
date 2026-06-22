@@ -1,9 +1,8 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
-import type { SettingItem } from "@earendil-works/pi-tui";
-import { SettingsList } from "@earendil-works/pi-tui";
 
+import { openQuailbotSettingsMenu } from "../commands/quailbot-menu.js";
 import type { QuailbotRuntime } from "../extension.js";
+import { knowledgeStateFromRuntime } from "./knowledge-runtime.js";
 import { splitCommandArgs } from "../workspace/register-workspace-commands.js";
 import type { KnowledgeRuntime } from "./knowledge-runtime.js";
 import { saveKnowledgeState } from "./knowledge-state.js";
@@ -110,82 +109,32 @@ async function openMemoryMenu(ctx: ExtensionCommandContext, runtime: QuailbotRun
     domains.map((domain) => [domain, knowledge.loadedDomains.has(domain) ? LOADED : UNLOADED]),
   );
 
-  let finalState: Map<string, ToggleValue>;
-  try {
-    finalState = await ctx.ui.custom<Map<string, ToggleValue>>(
-      (_tui, _theme, _keybindings, done) => {
-        const state = new Map(initialState);
-        const items: SettingItem[] = domains.map((domain) => ({
-          id: domain,
-          label: domain,
-          description: knowledge.loadedDomains.has(domain)
-            ? "Currently rendered into the knowledge prefix."
-            : "Not currently rendered.",
-          currentValue: state.get(domain) ?? UNLOADED,
-          values: [LOADED, UNLOADED],
-        }));
-
-        return new SettingsList(
-          items,
-          Math.min(items.length, 12),
-          getSettingsListTheme(),
-          (id, newValue) => {
-            if (newValue === LOADED || newValue === UNLOADED) {
-              state.set(id, newValue);
-            }
-          },
-          () => done(state),
-        );
-      },
-      { overlay: true },
-    );
-  } catch (error) {
-    ctx.ui.notify(
-      `Could not open memory menu (${errorMessage(error)}). Use /quailbot-memory list|load|unload instead.`,
-      "warning",
-    );
-    return;
-  }
-
-  const before = new Set(knowledge.loadedDomains);
-  const after = new Set<string>();
-  for (const [domain, value] of finalState) {
-    if (value === LOADED) {
-      after.add(domain);
-    }
-  }
-  knowledge.loadedDomains = after;
-  persist(knowledge);
-
-  const loadedNow: string[] = [];
-  const unloadedNow: string[] = [];
-  for (const domain of domains) {
-    const wasLoaded = before.has(domain);
-    const isLoaded = after.has(domain);
-    if (isLoaded && !wasLoaded) {
-      loadedNow.push(domain);
-    } else if (!isLoaded && wasLoaded) {
-      unloadedNow.push(domain);
-    }
-  }
-
-  const summary = [
-    `Memory toggle saved. Loaded (${after.size}): ${after.size === 0 ? "(none)" : [...after].sort().join(", ")}`,
-    loadedNow.length > 0 ? `Newly loaded: ${loadedNow.join(", ")}` : undefined,
-    unloadedNow.length > 0 ? `Newly unloaded: ${unloadedNow.join(", ")}` : undefined,
-    loadedNow.length === 0 && unloadedNow.length === 0 ? "No changes." : undefined,
-  ].filter((line): line is string => line !== undefined);
-
-  ctx.ui.notify(summary.join("\n"), "info");
-}
-
-function persist(knowledge: KnowledgeRuntime): void {
-  saveKnowledgeState(
-    { loadedDomains: [...knowledge.loadedDomains], skillBodyWindow: knowledge.skillBodyWindow },
-    knowledge.cwd,
+  await openQuailbotSettingsMenu(
+    ctx,
+    domains.map((domain) => ({
+      id: domain,
+      label: domain,
+      description: knowledge.loadedDomains.has(domain)
+        ? "Currently rendered into the knowledge prefix."
+        : "Not currently rendered.",
+      currentValue: initialState.get(domain) ?? UNLOADED,
+      values: [LOADED, UNLOADED],
+    })),
+    (id, newValue) => {
+      if (newValue !== LOADED && newValue !== UNLOADED) {
+        return;
+      }
+      if (newValue === LOADED) {
+        knowledge.loadedDomains.add(id);
+      } else {
+        knowledge.loadedDomains.delete(id);
+      }
+      persist(knowledge);
+      ctx.ui.notify(`${newValue === LOADED ? "Loaded" : "Unloaded"} memory domain: ${id}`, "info");
+    },
   );
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function persist(knowledge: KnowledgeRuntime): void {
+  saveKnowledgeState(knowledgeStateFromRuntime(knowledge), knowledge.cwd);
 }

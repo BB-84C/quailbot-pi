@@ -1,6 +1,6 @@
 import type { QuailbotToolResult } from "./tool-result.js";
 
-export const DEFAULT_RECENT_FULL_CLI_RESULT_COUNT = 2;
+export const DEFAULT_RECENT_FULL_CLI_RESULT_COUNT = 10;
 export const DEFAULT_RECENT_FULL_SKILL_RESULT_COUNT = 3;
 export const DEFAULT_SUMMARY_MAX_CHARS = 2000;
 export const DEFAULT_FULL_MAX_CHARS = 12000;

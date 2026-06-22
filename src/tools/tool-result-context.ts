@@ -16,7 +16,7 @@ export type ToolResultContextPolicy = {
   fullMaxChars?: number;
 };
 
-const DEFAULT_RECENT_IMAGE_RESULT_COUNT = 1;
+const DEFAULT_RECENT_IMAGE_RESULT_COUNT = 5;
 
 export type ToolResultMessageLike = {
   content?: unknown;

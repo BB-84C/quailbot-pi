@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createKnowledgeRuntime, hydrateKnowledgeRuntime, renderKnowledgePrefixFromRuntime } from "../../src/knowledge/knowledge-runtime.js";
-import { saveKnowledgeState } from "../../src/knowledge/knowledge-state.js";
+import {
+  DEFAULT_RECENT_FULL_CLI_RESULT_WINDOW,
+  DEFAULT_RECENT_IMAGE_RESULT_WINDOW,
+  saveKnowledgeState,
+} from "../../src/knowledge/knowledge-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-kr-"));
@@ -24,6 +28,8 @@ describe("knowledge-runtime", () => {
     hydrateKnowledgeRuntime(knowledge, cwd);
     expect([...knowledge.loadedDomains]).toEqual(["tip"]);
     expect(knowledge.skillBodyWindow).toBe(7);
+    expect(knowledge.recentFullCliResultWindow).toBe(DEFAULT_RECENT_FULL_CLI_RESULT_WINDOW);
+    expect(knowledge.recentImageResultWindow).toBe(DEFAULT_RECENT_IMAGE_RESULT_WINDOW);
     expect(knowledge.cwd).toBe(cwd);
   });
 

@@ -99,6 +99,7 @@ describe("local Pi dev release adoption", () => {
       "quailbot-experiments",
       "quailbot-memory",
       "quailbot-reload",
+      "quailbot-settings",
       "quailbot-skills",
       "quailbot-workspace",
     ]);

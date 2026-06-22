@@ -6,6 +6,7 @@ import { ExperimentLogService, experimentLogRoot } from "./experiment-log/experi
 import type { ExperimentCloseReason } from "./experiment-log/experiment-log-types.js";
 import { registerKnowledgeCommands } from "./knowledge/register-knowledge-commands.js";
 import { registerMemoryCommands } from "./knowledge/register-memory-commands.js";
+import { registerSettingsCommands } from "./knowledge/register-settings-commands.js";
 import { createKnowledgeRuntime, hydrateKnowledgeRuntime, renderKnowledgePrefixFromRuntime } from "./knowledge/knowledge-runtime.js";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime.js";
 import { buildQuailbotSystemPrompt } from "./prompt/quailbot-system-prompt.js";
@@ -39,6 +40,7 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   registerWorkspaceCommands(pi, runtime);
   registerKnowledgeCommands(pi, runtime);
   registerMemoryCommands(pi, runtime);
+  registerSettingsCommands(pi, runtime);
   registerExperimentCommands(pi);
   registerProviderPayloadLog(pi);
 
@@ -67,7 +69,9 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
 
   pi.on("context", (event) => ({
     messages: projectQuailbotContextMessages(event.messages, {
+      recentFullCliResultCount: runtime.knowledge.recentFullCliResultWindow,
       recentFullSkillResultCount: runtime.knowledge.skillBodyWindow,
+      recentImageResultCount: runtime.knowledge.recentImageResultWindow,
     }),
   }));
 

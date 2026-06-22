@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
+import { openQuailbotSettingsMenu, selectSubmenu } from "../commands/quailbot-menu.js";
 import type { QuailbotRuntime } from "../extension.js";
 import { ensureWorkspaceUiServer } from "../workspace-ui/server.js";
 import {
@@ -31,7 +32,12 @@ async function handleWorkspaceCommand(
   ctx: ExtensionCommandContext,
   runtime: QuailbotRuntime,
 ): Promise<void> {
-  const [command = "show", ...rest] = splitCommandArgs(args);
+  const [command, ...rest] = splitCommandArgs(args);
+
+  if (!command) {
+    await openWorkspaceMenu(ctx, runtime);
+    return;
+  }
 
   switch (command) {
     case "show":
@@ -139,6 +145,111 @@ async function handleWorkspaceCommand(
         "warning",
       );
   }
+}
+
+async function openWorkspaceMenu(ctx: ExtensionCommandContext, runtime: QuailbotRuntime): Promise<void> {
+  await openQuailbotSettingsMenu(ctx, [
+    {
+      id: "show",
+      label: "Show active",
+      description: "Show active workspace summary.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "Show Active Workspace",
+        "Select show to print the active workspace summary.",
+        [{ value: "show", label: "show" }],
+        "show",
+        () => {
+          void handleWorkspaceCommand("show", ctx, runtime);
+        },
+      ),
+    },
+    {
+      id: "load",
+      label: "Load",
+      description: "Validate, select, and reload a workspace path.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "Load Workspace",
+        "Select load, then enter the workspace path.",
+        [{ value: "load", label: "load" }],
+        "load",
+        () => {
+          void promptWorkspacePath(ctx, "Workspace path to load").then((path) => {
+            if (path) void handleWorkspaceCommand(`load ${quoteArg(path)}`, ctx, runtime);
+          });
+        },
+      ),
+    },
+    {
+      id: "validate",
+      label: "Validate",
+      description: "Validate a workspace path without changing active settings.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "Validate Workspace",
+        "Select validate, then enter the workspace path.",
+        [{ value: "validate", label: "validate" }],
+        "validate",
+        () => {
+          void promptWorkspacePath(ctx, "Workspace path to validate").then((path) => {
+            if (path) void handleWorkspaceCommand(`validate ${quoteArg(path)}`, ctx, runtime);
+          });
+        },
+      ),
+    },
+    {
+      id: "write",
+      label: "Write",
+      description: "Write a candidate workspace JSON to a target path.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "Write Workspace",
+        "Select write, then enter candidate and target paths on separate lines. Add --activate on a third line to select it.",
+        [{ value: "write", label: "write" }],
+        "write",
+        () => {
+          void promptWorkspacePath(ctx, "Candidate path, target path, optional --activate").then((value) => {
+            const [candidatePath, targetPath, flag] = value?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) ?? [];
+            if (candidatePath && targetPath) {
+              const suffix = flag === "--activate" ? " --activate" : "";
+              void handleWorkspaceCommand(`write ${quoteArg(candidatePath)} ${quoteArg(targetPath)}${suffix}`, ctx, runtime);
+            }
+          });
+        },
+      ),
+    },
+    {
+      id: "open",
+      label: "Open editor",
+      description: "Open the browser workspace calibrator.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "Open Workspace Editor",
+        "Select open to launch the workspace calibrator.",
+        [{ value: "open", label: "open" }],
+        "open",
+        () => {
+          void handleWorkspaceCommand("open", ctx, runtime);
+        },
+      ),
+    },
+  ]);
+}
+
+async function promptWorkspacePath(ctx: ExtensionCommandContext, title: string): Promise<string | undefined> {
+  try {
+    const value = await ctx.ui.editor(title, "");
+    const trimmed = value?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : undefined;
+  } catch {
+    ctx.ui.notify("Text input unavailable. Use the explicit /quailbot-workspace subcommand with path arguments.", "warning");
+    return undefined;
+  }
+}
+
+function quoteArg(value: string): string {
+  return `"${value.replace(/"/g, "")}"`;
 }
 
 function launchWorkspaceCalibrator(url: string, ctx: ExtensionCommandContext): void {

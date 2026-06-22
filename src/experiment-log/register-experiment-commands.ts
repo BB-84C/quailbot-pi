@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
+import { openQuailbotSettingsMenu, selectSubmenu } from "../commands/quailbot-menu.js";
 import {
   findExperimentEventsPath,
   listExperiments,
@@ -35,7 +36,7 @@ async function handleExperimentCommand(args: string, ctx: ExtensionCommandContex
   switch (command) {
     case undefined:
     case "":
-      ctx.ui.notify(USAGE, "warning");
+      await openExperimentMenu(ctx);
       return;
 
     case "where": {
@@ -89,6 +90,69 @@ async function handleExperimentCommand(args: string, ctx: ExtensionCommandContex
 
     default:
       ctx.ui.notify(`unknown experiment command: ${command}\n${USAGE}`, "warning");
+  }
+}
+
+async function openExperimentMenu(ctx: ExtensionCommandContext): Promise<void> {
+  await openQuailbotSettingsMenu(ctx, [
+    {
+      id: "list",
+      label: "List",
+      description: "List available Quailbot experiment logs.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "List Experiments",
+        "Select list to print experiment summaries.",
+        [{ value: "list", label: "list" }],
+        "list",
+        () => {
+          void handleExperimentCommand("list", ctx);
+        },
+      ),
+    },
+    {
+      id: "show",
+      label: "Show",
+      description: "Show one experiment timeline by experiment id.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "Show Experiment",
+        "Select show, then enter the experiment id.",
+        [{ value: "show", label: "show" }],
+        "show",
+        () => {
+          void promptText(ctx, "Experiment id").then((experimentId) => {
+            if (experimentId) void handleExperimentCommand(`show "${experimentId.replace(/"/g, "")}"`, ctx);
+          });
+        },
+      ),
+    },
+    {
+      id: "where",
+      label: "Where",
+      description: "Print the experiment log root directory.",
+      currentValue: "select",
+      submenu: selectSubmenu(
+        "Experiment Log Root",
+        "Select where to print the experiment log root.",
+        [{ value: "where", label: "where" }],
+        "where",
+        () => {
+          void handleExperimentCommand("where", ctx);
+        },
+      ),
+    },
+  ]);
+}
+
+async function promptText(ctx: ExtensionCommandContext, title: string): Promise<string | undefined> {
+  try {
+    const value = await ctx.ui.editor(title, "");
+    const trimmed = value?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : undefined;
+  } catch {
+    ctx.ui.notify("Text input unavailable. Use the explicit /quailbot-experiments subcommand with arguments.", "warning");
+    return undefined;
   }
 }
 

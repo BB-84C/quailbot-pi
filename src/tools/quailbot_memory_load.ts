@@ -1,14 +1,11 @@
-import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime.js";
+import { knowledgeStateFromRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime.js";
 import { saveKnowledgeState } from "../knowledge/knowledge-state.js";
 import { listMemoryDomains } from "../knowledge/memory.js";
 import { isSafeKnowledgeName } from "../knowledge/safe-name.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
 function persist(knowledge: KnowledgeRuntime): void {
-  saveKnowledgeState(
-    { loadedDomains: [...knowledge.loadedDomains], skillBodyWindow: knowledge.skillBodyWindow },
-    knowledge.cwd,
-  );
+  saveKnowledgeState(knowledgeStateFromRuntime(knowledge), knowledge.cwd);
 }
 
 export function executeQuailbotMemoryLoad(knowledge: KnowledgeRuntime, domain: string): QuailbotToolResult {

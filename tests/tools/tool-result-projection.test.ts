@@ -176,8 +176,8 @@ describe("tool result projection", () => {
     expect(text).not.toContain("stdout_preview: <empty>");
   });
 
-  it("defaults recentFullCliResultCount to two", () => {
-    expect(DEFAULT_RECENT_FULL_CLI_RESULT_COUNT).toBe(2);
+  it("defaults recentFullCliResultCount to ten", () => {
+    expect(DEFAULT_RECENT_FULL_CLI_RESULT_COUNT).toBe(10);
   });
 
   it("classifies actual nqctl stdout quirks observed on simulator runs", () => {

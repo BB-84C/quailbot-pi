@@ -90,7 +90,7 @@ describe("ROI observation", () => {
     ]);
   });
 
-  it("writes ROI PNGs into the active experiment directory with human-readable names", async () => {
+  it("writes ROI PNGs directly into the experiment's blobs/images directory with human-readable names", async () => {
     const experimentDir = join(quailbotStateRoot(), "experiments", "2026", "06", "22", "exp_test01");
     const capturePath = join(quailbotStateRoot(), "workspace-capture.png");
     mkdirSync(dirname(capturePath), { recursive: true });
@@ -125,8 +125,14 @@ describe("ROI observation", () => {
 
     expect(captures).toHaveLength(1);
     const capture = captures[0]!;
-    expect(capture.imagePath).toBe(join(experimentDir, "roi-LiveScan-301b4447-abcdef0123456789.png"));
+    expect(capture.imagePath).toBe(
+      join(experimentDir, "blobs", "images", "roi-LiveScan-301b4447-abcdef0123456789.png"),
+    );
     expect(existsSync(capture.imagePath)).toBe(true);
+    // No duplicate PNG at the experiment root.
+    expect(existsSync(join(experimentDir, "roi-LiveScan-301b4447-abcdef0123456789.png"))).toBe(false);
+    // No sha256-named copy alongside it.
+    expect(existsSync(join(experimentDir, "blobs", "images", "abcdef0123456789.png"))).toBe(false);
     // The legacy <stateDir>/roi-observations/ pile must NOT be created.
     expect(existsSync(join(quailbotStateRoot(), "roi-observations"))).toBe(false);
   });

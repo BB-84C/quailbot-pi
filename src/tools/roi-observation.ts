@@ -239,7 +239,14 @@ export function createDefaultRoiCaptureBackend(options: DefaultRoiCaptureBackend
     const stateDir = quailbotStateRoot();
     const capture = await captureVirtualScreenAsync({ stateDir });
     const experimentDir = options.resolveExperimentDir?.();
-    const outputDir = experimentDir ?? join(stateDir, "observations-orphan");
+    // ROI PNGs land directly in the experiment's blobs/images directory with
+    // their human-readable name. The image-artifacts pass on the recorded
+    // tool result sees the file is already inside blobs/images and records
+    // the artifact metadata (size, sha256 for integrity) without copying,
+    // so there is exactly one file per ROI capture.
+    const outputDir = experimentDir
+      ? join(experimentDir, "blobs", "images")
+      : join(stateDir, "observations-orphan");
     mkdirSync(outputDir, { recursive: true });
 
     const pendingCaptures = rois.map((roi) => {

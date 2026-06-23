@@ -9,6 +9,7 @@ import { ExperimentLogService, experimentLogRoot } from "../../src/experiment-lo
 import { disabledMutationPolicy, enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
 import type { QuailbotToolResult } from "../../src/tools/tool-result.js";
 import type { LoadedWorkspace } from "../../src/workspace/workspace-service.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 const tempDirs: string[] = [];
 
@@ -22,7 +23,7 @@ describe("experimentLogRoot", () => {
   it("places experiment logs below the existing quailbot state root", () => {
     const cwd = join("D:", "vault", "project");
 
-    expect(experimentLogRoot(cwd)).toBe(join(cwd, ".quailbot-pi", "experiments"));
+    expect(experimentLogRoot(cwd)).toBe(join(quailbotStateRoot(), "experiments"));
   });
 });
 

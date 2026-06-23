@@ -21,6 +21,7 @@ import type {
   ExtensionHandler,
   SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const tempDirs: string[] = [];
@@ -137,8 +138,8 @@ describe("local Pi dev release adoption", () => {
 
   it("reports experiment-log open failures to console warnings when UI is unavailable", async () => {
     const tempCwd = makeTempDir();
-    mkdirSync(join(tempCwd, ".quailbot-pi"), { recursive: true });
-    writeFileSync(join(tempCwd, ".quailbot-pi", "experiments"), "not a directory", "utf8");
+    mkdirSync(quailbotStateRoot(), { recursive: true });
+    writeFileSync(join(quailbotStateRoot(), "experiments"), "not a directory", "utf8");
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     try {
@@ -205,10 +206,10 @@ describe("local Pi dev release adoption", () => {
 
   it("loads the generic starter workspace into the stable system prompt on Pi lifecycle events", async () => {
     const tempCwd = makeTempDir();
-    const quailbotStateRoot = join(tempCwd, ".quailbot-pi");
-    const workspacePath = join(quailbotStateRoot, "workspace.json");
+    const stateRootDir = quailbotStateRoot();
+    const workspacePath = join(stateRootDir, "workspace.json");
 
-    mkdirSync(quailbotStateRoot, { recursive: true });
+    mkdirSync(stateRootDir, { recursive: true });
     copyFileSync(
       join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"),
       workspacePath,
@@ -276,7 +277,7 @@ describe("local Pi dev release adoption", () => {
     expect(commandContext.reloads).toBe(1);
     expect(commandContext.notifications.join("\n")).toContain("workspace selected");
 
-    const savedSettings = readJson(join(tempCwd, ".quailbot-pi", "settings.json"));
+    const savedSettings = readJson(join(quailbotStateRoot(), "settings.json"));
     expect(savedSettings.workspace).toBe(candidatePath);
 
     const extensionContext = createExtensionContextStub(tempCwd);
@@ -306,9 +307,9 @@ describe("local Pi dev release adoption", () => {
     const tempCwd = makeTempDir();
     const selectedPath = join(tempCwd, "selected.workspace.json");
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), selectedPath);
-    mkdirSync(join(tempCwd, ".quailbot-pi"), { recursive: true });
+    mkdirSync(quailbotStateRoot(), { recursive: true });
     writeFileSync(
-      join(tempCwd, ".quailbot-pi", "settings.json"),
+      join(quailbotStateRoot(), "settings.json"),
       `${JSON.stringify({ workspace: selectedPath }, null, 2)}\n`,
       "utf8",
     );
@@ -401,7 +402,7 @@ describe("local Pi dev release adoption", () => {
 
   it("round-trips a web-edited workspace into the active system prompt WORKSPACE context", async () => {
     const tempCwd = makeTempDir();
-    const workspacePath = join(tempCwd, ".quailbot-pi", "workspace.json");
+    const workspacePath = join(quailbotStateRoot(), "workspace.json");
     mkdirSync(dirname(workspacePath), { recursive: true });
     const workspaceJson = readJson(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"));
     workspaceJson.groups = [{ name: "spectroscopy", active: true }];
@@ -450,7 +451,7 @@ describe("local Pi dev release adoption", () => {
     await workspaceCommand.handler(`load "${workspacePath}"`, commandContext);
 
     expect(commandContext.reloads).toBe(1);
-    expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(workspacePath);
+    expect(readJson(join(quailbotStateRoot(), "settings.json")).workspace).toBe(workspacePath);
 
     const extensionContext = createExtensionContextStub(tempCwd);
     handlers.get("session_start")?.({ type: "session_start", reason: "startup" } satisfies SessionStartEvent, extensionContext);
@@ -482,7 +483,7 @@ describe("local Pi dev release adoption", () => {
   it("surfaces write --activate reload failures without reporting activation success", async () => {
     const tempCwd = makeTempDir();
     const candidatePath = join(tempCwd, "candidate.workspace.json");
-    const targetPath = join(tempCwd, ".quailbot-pi", "workspace.json");
+    const targetPath = join(quailbotStateRoot(), "workspace.json");
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
 
     const { commands } = await loadBuiltExtensionWithPiStub();
@@ -506,7 +507,7 @@ describe("local Pi dev release adoption", () => {
   it("reports write command before and after hashes in readback", async () => {
     const tempCwd = makeTempDir();
     const candidatePath = join(tempCwd, "candidate.workspace.json");
-    const targetPath = join(tempCwd, ".quailbot-pi", "workspace.json");
+    const targetPath = join(quailbotStateRoot(), "workspace.json");
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), candidatePath);
     mkdirSync(dirname(targetPath), { recursive: true });
     copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), targetPath);
@@ -550,10 +551,10 @@ describe("local Pi dev release adoption", () => {
 
     const commandContext = createCommandContextStub(tempCwd);
     await workspaceCommand.handler(`load "${validPath}"`, commandContext);
-    expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(validPath);
+    expect(readJson(join(quailbotStateRoot(), "settings.json")).workspace).toBe(validPath);
 
     await workspaceCommand.handler(`load "${invalidPath}"`, commandContext);
-    expect(readJson(join(tempCwd, ".quailbot-pi", "settings.json")).workspace).toBe(validPath);
+    expect(readJson(join(quailbotStateRoot(), "settings.json")).workspace).toBe(validPath);
     expect(commandContext.reloads).toBe(1);
     expect(commandContext.notifications.join("\n")).toContain("workspace validation failed");
   });
@@ -636,8 +637,8 @@ function requireExperimentCommand(commands: RegisteredCommand[]): RegisteredComm
   return experimentCommand;
 }
 
-function installStarterWorkspace(cwd: string): string {
-  const workspacePath = join(cwd, ".quailbot-pi", "workspace.json");
+function installStarterWorkspace(_cwd: string): string {
+  const workspacePath = join(quailbotStateRoot(), "workspace.json");
   mkdirSync(dirname(workspacePath), { recursive: true });
   copyFileSync(join(root, "tests", "workspaces", "nanonis-minimal.workspace.json"), workspacePath);
   return workspacePath;
@@ -653,8 +654,8 @@ function onlyExperimentEventsJsonl(cwd: string): string {
   return eventsPath;
 }
 
-function findExperimentEventsJsonl(cwd: string): string[] {
-  return findEventsJsonl(join(cwd, ".quailbot-pi", "experiments")).sort(compareNames);
+function findExperimentEventsJsonl(_cwd: string): string[] {
+  return findEventsJsonl(join(quailbotStateRoot(), "experiments")).sort(compareNames);
 }
 
 function findEventsJsonl(path: string): string[] {

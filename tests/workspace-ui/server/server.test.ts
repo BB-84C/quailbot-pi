@@ -11,6 +11,7 @@ import { createKnowledgeRuntime } from "../../../src/knowledge/knowledge-runtime
 import { PlanContextStore } from "../../../src/prompt/plan-context.js";
 import { ensureWorkspaceUiServer, stopWorkspaceUiServer, type WorkspaceUiServerHandle } from "../../../src/workspace-ui/server.js";
 import { setProbeRunner, type ProbeRunner } from "../../../src/workspace-ui/server/cli-import.js";
+import { quailbotStateRoot } from "../../../src/workspace/workspace-state.js";
 
 const tempDirs: string[] = [];
 const runtimes: QuailbotRuntime[] = [];
@@ -110,21 +111,24 @@ describe("integrated workspace UI server", () => {
     expect(await response.text()).toBe("");
   });
 
-  it("serves versioned capture assets by captureId after current metadata changes", async () => {
-    const { cwd, server } = await startServerWithWorkspace();
-    const stateDir = join(cwd, ".quailbot-pi");
-    const oldId = "a1b2c3d4e5f60789";
-    const oldBytes = Buffer.from("old capture bytes", "utf8");
-    writeFileSync(join(stateDir, `workspace-capture.${oldId}.png`), oldBytes);
-    writeFileSync(join(stateDir, "workspace-capture.png"), Buffer.from("current capture bytes", "utf8"));
-    writeFileSync(join(stateDir, "workspace-capture.metadata.json"), `${JSON.stringify({ captureId: "0123456789abcdef" })}\n`, "utf8");
+  it("serves the current workspace-capture.png when the requested captureId matches metadata, and 404 when it does not", async () => {
+    const { server } = await startServerWithWorkspace();
+    const stateDir = quailbotStateRoot();
+    const currentId = "0123456789abcdef";
+    const staleId = "a1b2c3d4e5f60789";
+    const currentBytes = Buffer.from("current capture bytes", "utf8");
+    writeFileSync(join(stateDir, "workspace-capture.png"), currentBytes);
+    writeFileSync(join(stateDir, "workspace-capture.metadata.json"), `${JSON.stringify({ captureId: currentId })}\n`, "utf8");
 
-    const response = await fetch(`${server.url}/assets/workspace-capture?captureId=${oldId}&token=${server.token}`);
-    const actual = Buffer.from(await response.arrayBuffer());
+    const matched = await fetch(`${server.url}/assets/workspace-capture?captureId=${currentId}&token=${server.token}`);
+    const matchedBytes = Buffer.from(await matched.arrayBuffer());
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("image/png");
-    expect(actual.equals(oldBytes)).toBe(true);
+    expect(matched.status).toBe(200);
+    expect(matched.headers.get("content-type")).toContain("image/png");
+    expect(matchedBytes.equals(currentBytes)).toBe(true);
+
+    const stale = await fetch(`${server.url}/assets/workspace-capture?captureId=${staleId}&token=${server.token}`);
+    expect(stale.status).toBe(404);
   });
 
   it("rejects API routes without the workspace UI token header", async () => {
@@ -332,14 +336,14 @@ describe("integrated workspace UI server", () => {
   });
 
   it.skipIf(process.platform !== "win32")("captures the physical Windows virtual screen through /api/capture", async () => {
-    const { cwd, server } = await startServerWithWorkspace();
+    const { server } = await startServerWithWorkspace();
 
     const response = await postJson(server, "/api/capture", {});
     const body = (await response.json()) as { ok: true; frame: { imageWidth: number; imageHeight: number; originX: number; originY: number; captureId: string }; pngPath: string };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.pngPath).toBe(join(cwd, ".quailbot-pi", "workspace-capture.png"));
+    expect(body.pngPath).toBe(join(quailbotStateRoot(), "workspace-capture.png"));
     expect(body.frame.imageWidth).toBeGreaterThan(0);
     expect(body.frame.imageHeight).toBeGreaterThan(0);
     expect(body.frame.captureId).toMatch(/^[a-f0-9]{16}$/);
@@ -357,8 +361,8 @@ async function postJson(server: WorkspaceUiServerHandle, route: string, body: Re
 
 async function startServerWithWorkspace(cliName = "nqctl"): Promise<{ cwd: string; runtime: QuailbotRuntime; server: WorkspaceUiServerHandle; workspacePath: string }> {
   const cwd = makeTempDir();
-  const workspacePath = join(cwd, ".quailbot-pi", "workspace.json");
-  mkdirSync(join(cwd, ".quailbot-pi"), { recursive: true });
+  const workspacePath = join(quailbotStateRoot(), "workspace.json");
+  mkdirSync(quailbotStateRoot(), { recursive: true });
   writeFileSync(workspacePath, `${JSON.stringify(minimalWorkspace(cliName), null, 2)}\n`, "utf8");
   const runtime: QuailbotRuntime = { planStore: new PlanContextStore(), knowledge: createKnowledgeRuntime() };
   runtimes.push(runtime);

@@ -11,6 +11,7 @@ import {
   loadKnowledgeState,
   saveKnowledgeState,
 } from "../../src/knowledge/knowledge-state.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-knowledge-"));
@@ -26,12 +27,12 @@ describe("knowledge-state", () => {
     const cwd = tempCwd();
     saveKnowledgeState({ loadedDomains: ["b", "a", "a"], skillBodyWindow: 5 }, cwd);
     expect(loadKnowledgeState(cwd)).toEqual({ ...defaultState(), loadedDomains: ["a", "b"], skillBodyWindow: 5 });
-    expect(knowledgeStatePath(cwd)).toContain(".quailbot-pi");
+    expect(knowledgeStatePath(cwd)).toBe(join(quailbotStateRoot(), "knowledge-state.json"));
   });
 
   it("falls back to defaults on malformed json or bad window", () => {
     const cwd = tempCwd();
-    mkdirSync(join(cwd, ".quailbot-pi"), { recursive: true });
+    mkdirSync(quailbotStateRoot(), { recursive: true });
     writeFileSync(knowledgeStatePath(cwd), "{not json", "utf8");
     expect(loadKnowledgeState(cwd)).toEqual(defaultState());
 

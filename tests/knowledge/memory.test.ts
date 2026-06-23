@@ -10,6 +10,7 @@ import {
   saveMemoryTopic,
   searchMemory,
 } from "../../src/knowledge/memory.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-mem-"));
@@ -51,7 +52,7 @@ describe("memory store", () => {
     const matches = searchMemory(cwd, "ramp");
     expect(matches).toEqual([{ domain: "tip", topic: "shake", snippet: "Ramp gain to maximum.", hash }]);
     expect(parseMemorySections("## a\n\nbody a\n\n## b\n\nbody b").map((s) => s.topic)).toEqual(["a", "b"]);
-    expect(readFileSync(join(cwd, ".quailbot-pi", "memory", "tip.md"), "utf8")).toContain("## shake");
+    expect(readFileSync(join(quailbotStateRoot(), "memory", "tip.md"), "utf8")).toContain("## shake");
   });
 
   it("rejects unsafe domains before writing files", () => {
@@ -59,7 +60,7 @@ describe("memory store", () => {
     const result = saveMemoryTopic(cwd, "../../escape", "topic", "body");
     expect(result).toMatchObject({ status: "invalid_name", domain: "../../escape", topic: "topic" });
     expect(existsSync(join(cwd, "escape.md"))).toBe(false);
-    expect(existsSync(join(cwd, ".quailbot-pi", "escape.md"))).toBe(false);
+    expect(existsSync(join(quailbotStateRoot(), "escape.md"))).toBe(false);
     expect(listMemoryDomains(cwd)).toEqual([]);
     expect(readMemoryDomain(cwd, "../../escape")).toBeUndefined();
   });

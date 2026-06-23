@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { quailbotStateRoot } from "../workspace/workspace-state.js";
+
 const PROVIDER_PAYLOAD_LOG_ENV = "QUAILBOT_PROVIDER_PAYLOAD_LOG";
 const PROVIDER_PAYLOAD_LOG_LIMIT = 50;
 const PROVIDER_PAYLOAD_LOG_FILE = "provider-payloads.jsonl";
@@ -65,7 +67,7 @@ export function registerProviderPayloadLog(pi: ExtensionAPI): void {
 }
 
 export function appendProviderPayloadLogRecord(cwd: string, record: ProviderPayloadLogRecord): void {
-  const stateDir = join(cwd, ".quailbot-pi");
+  const stateDir = quailbotStateRoot(cwd);
   mkdirSync(stateDir, { recursive: true });
   const logPath = join(stateDir, PROVIDER_PAYLOAD_LOG_FILE);
   const records = readExistingRecords(logPath);

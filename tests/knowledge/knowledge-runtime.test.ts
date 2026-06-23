@@ -9,13 +9,14 @@ import {
   DEFAULT_RECENT_IMAGE_RESULT_WINDOW,
   saveKnowledgeState,
 } from "../../src/knowledge/knowledge-state.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-kr-"));
 }
 
-function writeSkill(cwd: string, name: string): void {
-  const dir = join(cwd, ".quailbot-pi", "skills", name);
+function writeSkill(_cwd: string, name: string): void {
+  const dir = join(quailbotStateRoot(), "skills", name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: ${name} desc\ndrivers: [nqctl]\n---\nbody of ${name}`, "utf8");
 }

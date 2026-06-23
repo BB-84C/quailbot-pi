@@ -8,14 +8,15 @@ import { contentHash } from "../../src/knowledge/consolidation.js";
 import { skillFilePath } from "../../src/knowledge/skill-writer.js";
 import { createSkillCache } from "../../src/knowledge/skills.js";
 import { executeQuailbotSkill } from "../../src/tools/quailbot_skill.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 import type { CliParameter, Workspace } from "../../src/workspace/types.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-skilltool-"));
 }
 
-function writeSkill(cwd: string, name: string, drivers: string, frontmatterName = name): string {
-  const dir = join(cwd, ".quailbot-pi", "skills", name);
+function writeSkill(_cwd: string, name: string, drivers: string, frontmatterName = name): string {
+  const dir = join(quailbotStateRoot(), "skills", name);
   mkdirSync(dir, { recursive: true });
   const file = join(dir, "SKILL.md");
   writeFileSync(file, `---\nname: ${frontmatterName}\ndescription: d\ndrivers: ${drivers}\n---\nBODY-${frontmatterName}`, "utf8");

@@ -7,6 +7,7 @@ import { createAgentsFileCache, readDeployedAgentsFile } from "../../src/knowled
 import { createKnowledgeRuntime, hydrateKnowledgeRuntime, renderKnowledgePrefixFromRuntime } from "../../src/knowledge/knowledge-runtime.js";
 import { listMemoryDomains } from "../../src/knowledge/memory.js";
 import { createSkillCache, discoverSkills } from "../../src/knowledge/skills.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-failsoft-"));
@@ -15,8 +16,8 @@ function tempCwd(): string {
 describe("fail-soft knowledge reads", () => {
   it("treats a file at .quailbot-pi/skills as no skills", () => {
     const cwd = tempCwd();
-    mkdirSync(join(cwd, ".quailbot-pi"), { recursive: true });
-    writeFileSync(join(cwd, ".quailbot-pi", "skills"), "not a directory", "utf8");
+    mkdirSync(quailbotStateRoot(), { recursive: true });
+    writeFileSync(join(quailbotStateRoot(), "skills"), "not a directory", "utf8");
 
     expect(discoverSkills(cwd, createSkillCache())).toEqual([]);
     const knowledge = createKnowledgeRuntime();
@@ -26,8 +27,8 @@ describe("fail-soft knowledge reads", () => {
 
   it("treats a file at .quailbot-pi/memory as no memory domains", () => {
     const cwd = tempCwd();
-    mkdirSync(join(cwd, ".quailbot-pi"), { recursive: true });
-    writeFileSync(join(cwd, ".quailbot-pi", "memory"), "not a directory", "utf8");
+    mkdirSync(quailbotStateRoot(), { recursive: true });
+    writeFileSync(join(quailbotStateRoot(), "memory"), "not a directory", "utf8");
 
     expect(listMemoryDomains(cwd)).toEqual([]);
   });
@@ -41,8 +42,8 @@ describe("fail-soft knowledge reads", () => {
 
   it("warns when knowledge prefix rendering fails", () => {
     const cwd = tempCwd();
-    mkdirSync(join(cwd, ".quailbot-pi", "skills", "needs-driver"), { recursive: true });
-    writeFileSync(join(cwd, ".quailbot-pi", "skills", "needs-driver", "SKILL.md"), "---\nname: needs-driver\ndescription: d\ndrivers: [nqctl]\n---\nbody", "utf8");
+    mkdirSync(join(quailbotStateRoot(), "skills", "needs-driver"), { recursive: true });
+    writeFileSync(join(quailbotStateRoot(), "skills", "needs-driver", "SKILL.md"), "---\nname: needs-driver\ndescription: d\ndrivers: [nqctl]\n---\nbody", "utf8");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const knowledge = createKnowledgeRuntime();
     hydrateKnowledgeRuntime(knowledge, cwd);

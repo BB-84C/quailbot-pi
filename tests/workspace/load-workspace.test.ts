@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
 import {
   loadLastWorkspace,
+  quailbotStateRoot,
   resolveWorkspaceSelection,
   saveLastWorkspace,
   starterWorkspacePath,
@@ -327,7 +328,7 @@ describe("workspace state", () => {
   it("uses the starter workspace path under the Quailbot state root", () => {
     const cwd = makeTempDir();
 
-    expect(starterWorkspacePath(cwd)).toBe(join(cwd, ".quailbot-pi", "workspace.json"));
+    expect(starterWorkspacePath(cwd)).toBe(join(quailbotStateRoot(), "workspace.json"));
   });
 
   it("resolves explicit and saved relative workspace paths against the provided cwd", () => {

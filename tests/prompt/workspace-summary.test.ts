@@ -8,6 +8,7 @@ import quailbotExtension from "../../src/extension.js";
 import { buildWorkspaceContextText, buildWorkspaceSummary } from "../../src/prompt/workspace-summary.js";
 import { MUTATION_POLICY_ENV_VAR, disabledMutationPolicy, enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
 import { loadWorkspace } from "../../src/workspace/load-workspace.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 const tempDirs: string[] = [];
 
@@ -91,7 +92,7 @@ describe("workspace prompt summary", () => {
 
   it("renders active workspace in the stable system prompt before agent start", async () => {
     const cwd = makeTempDir();
-    const workspaceDir = join(cwd, ".quailbot-pi");
+    const workspaceDir = quailbotStateRoot();
     mkdirSync(workspaceDir, { recursive: true });
     copyFileSync(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"), join(workspaceDir, "workspace.json"));
     const handlers = new Map<string, Handler>();
@@ -156,7 +157,7 @@ describe("workspace prompt summary", () => {
 
   it("clears persisted plan context when a new session starts", async () => {
     const cwd = makeTempDir();
-    const workspaceDir = join(cwd, ".quailbot-pi");
+    const workspaceDir = quailbotStateRoot();
     mkdirSync(workspaceDir, { recursive: true });
     copyFileSync(join(process.cwd(), "tests/workspaces/nanonis-minimal.workspace.json"), join(workspaceDir, "workspace.json"));
     const handlers = new Map<string, Handler>();

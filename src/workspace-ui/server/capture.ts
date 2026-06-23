@@ -1,7 +1,7 @@
 import { execFile, execFileSync, type ExecFileOptions } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { closeSync, copyFileSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { closeSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type { CaptureFrame } from "../shared/geometry.js";
 
@@ -144,12 +144,30 @@ function publishCapture(paths: CapturePaths, reported: CaptureScriptResult): Cap
   fsyncFile(paths.tmpMetadataPath);
   renameSync(paths.tmpMetadataPath, paths.finalMetadataPath);
   fsyncFile(paths.tmpPngPath);
-  const versionedPngPath = join(dirname(paths.finalPngPath), `workspace-capture.${captureId}.png`);
-  copyFileSync(paths.tmpPngPath, versionedPngPath);
-  fsyncFile(versionedPngPath);
   renameSync(paths.tmpPngPath, paths.finalPngPath);
 
+  // 0.1.0: single workspace-capture.png; legacy hashed snapshots are removed
+  // as a best-effort cleanup so old per-captureId files do not accumulate.
+  cleanupLegacyVersionedCaptures(paths.finalPngPath);
+
   return { frame, pngPath: paths.finalPngPath };
+}
+
+function cleanupLegacyVersionedCaptures(finalPngPath: string): void {
+  const dir = join(finalPngPath, "..");
+  try {
+    for (const entry of readdirSync(dir)) {
+      if (/^workspace-capture\.[a-f0-9]{16}\.png$/.test(entry)) {
+        try {
+          unlinkSync(join(dir, entry));
+        } catch {
+          // best-effort
+        }
+      }
+    }
+  } catch {
+    // best-effort
+  }
 }
 
 function fsyncFile(path: string): void {

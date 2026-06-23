@@ -9,6 +9,7 @@ import {
   type ExperimentLogEvent,
 } from "../../src/experiment-log/experiment-log-types.js";
 import { registerExperimentCommands } from "../../src/experiment-log/register-experiment-commands.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 type Notification = { message: string; type: "info" | "warning" | "error" };
 
@@ -67,7 +68,7 @@ describe("registerExperimentCommands", () => {
     expect(ctx.notifications).toHaveLength(1);
     const entry = ctx.notifications[0]!;
     expect(entry.type).toBe("info");
-    expect(entry.message).toContain(join(cwd, ".quailbot-pi", "experiments"));
+    expect(entry.message).toContain(join(quailbotStateRoot(), "experiments"));
   });
 
   it("list reports a closed experiment summary as JSON", async () => {
@@ -191,7 +192,7 @@ describe("registerExperimentCommands", () => {
     const { commands } = registerWithFakePi();
     const command = commands[0]!;
     const cwd = makeTempDir();
-    const eventsRoot = join(cwd, ".quailbot-pi", "experiments", "2026", "06", "16", "exp_partial");
+    const eventsRoot = join(quailbotStateRoot(), "experiments", "2026", "06", "16", "exp_partial");
     mkdirSync(eventsRoot, { recursive: true });
     writeFileSync(
       join(eventsRoot, "events.jsonl"),
@@ -222,7 +223,7 @@ describe("registerExperimentCommands", () => {
     const { commands } = registerWithFakePi();
     const command = commands[0]!;
     const cwd = makeTempDir();
-    const eventsRoot = join(cwd, ".quailbot-pi", "experiments", "2026", "06", "16", "exp_malformed");
+    const eventsRoot = join(quailbotStateRoot(), "experiments", "2026", "06", "16", "exp_malformed");
     mkdirSync(eventsRoot, { recursive: true });
     const malformedLine = "{bad json}";
     writeFileSync(
@@ -323,7 +324,7 @@ function makeCtx(cwd: string): FakeCommandContext {
 }
 
 function seedExperiment(cwd: string, relativePath: string, events: ExperimentLogEvent[]): string {
-  const eventsPath = join(cwd, ".quailbot-pi", "experiments", ...relativePath.split("/"), "events.jsonl");
+  const eventsPath = join(quailbotStateRoot(), "experiments", ...relativePath.split("/"), "events.jsonl");
   mkdirSync(dirname(eventsPath), { recursive: true });
   writeFileSync(eventsPath, `${events.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
   return eventsPath;

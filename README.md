@@ -1,0 +1,203 @@
+# Quailbot Pi
+
+A [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) agent
+extension for operating quantum measurement instruments through a
+measurement-readback action loop.
+
+Quailbot Pi turns an instrument workspace (Nanonis STM, or any CLI driver that
+conforms to the workspace contract) into a fixed agent tool surface:
+parameter reads and writes, action commands, ROI screenshot readback, anchor
+clicks, planned multi-step programs, and a durable per-experiment evidence
+log. Mutating actions are gated behind a workspace-aware policy and produce
+linked-observable readback as a separate observation from the primary tool
+result.
+
+## Quickstart
+
+### Prerequisites
+
+- Node.js >= 20
+- Pi installed globally: `npm install -g @earendil-works/pi-coding-agent`
+- A workspace JSON file describing your instrument's CLI parameters,
+  actions, ROIs, and anchors. (See "Workspaces" below.)
+- A working CLI driver on `PATH` whose name appears in your workspace's
+  `cli_params.cli_name` field. For Nanonis the canonical driver is `nqctl`.
+
+### Install
+
+```bash
+# Global (recommended for most users):
+pi install npm:quailbot-pi
+
+# Project-local (recommended for shared lab setups):
+cd your-project
+pi install -l npm:quailbot-pi
+```
+
+If npm is blocked on your network, install from git:
+
+```bash
+pi install git:github.com/<your-org-or-fork>/quailbot-pi
+```
+
+### First run
+
+```bash
+cd somewhere   # cwd does not affect where Quailbot state lives
+pi
+```
+
+Inside Pi, open the workspace calibrator and pick or create a workspace:
+
+```
+/quailbot-workspace open
+```
+
+The calibrator launches in a localhost browser tab. Load an existing
+workspace JSON from disk, or build one from scratch by drawing ROIs and
+anchors over a real screen capture of your instrument GUI.
+
+### Mutating tools (safety gate)
+
+By default Quailbot tools that change instrument state -- `cli_set`,
+`cli_ramp`, `cli_action`, `click_anchor`, `set_field`, and any mutating
+step inside `quailbot_plan_and_execute` -- are denied. To enable them,
+launch Pi with `QUAILBOT_ALLOW_MUTATING_TOOLS=1` set in the environment:
+
+```bash
+# PowerShell
+$env:QUAILBOT_ALLOW_MUTATING_TOOLS = "1"; pi
+
+# bash/zsh
+QUAILBOT_ALLOW_MUTATING_TOOLS=1 pi
+```
+
+The denial is enforced before any side effects -- a denied step never
+touches the instrument. The denial reason is recorded in the experiment
+log so an audit later can prove no mutation occurred.
+
+## Where Quailbot state lives
+
+By default, all Quailbot Pi state lives under your user home directory:
+
+```
+~/.quailbot-pi/
+  settings.json                 # selected workspace path
+  workspace.json                # starter workspace (auto-created on first run)
+  workspaces/                   # editor-saved workspace candidates
+  workspace-capture.png         # current screen capture (overwrites)
+  workspace-capture.metadata.json
+  memory/                       # named memory MDs (one per domain)
+  skills/                       # named skills (one folder per skill)
+  knowledge-state.json          # which memory domains are loaded
+  experiments/YYYY/MM/DD/exp_*/ # one folder per agent session
+    events.jsonl                # append-only event log
+    blobs/images/<sha256>.png   # content-addressable image evidence
+    roi-<name>-<hash>-<id>.png  # human-readable ROI captures
+  observations-orphan/          # ROI captures without an active session
+```
+
+The directory is self-contained -- safe to back up, safe to delete if you
+want a fresh start, safe to inspect with any file browser.
+
+### Overriding the state location
+
+Set the `QUAILBOT_PI_STATE_DIR` environment variable to relocate everything.
+This is useful for:
+
+- Sharding state per instrument rig: `QUAILBOT_PI_STATE_DIR=~/.quailbot-pi-rig-a pi`
+- Keeping a working set on an external/SSD path
+- Development checkouts that prefer repo-local state (see "For developers")
+
+The override is read on every state-path resolution, so each Pi session
+honors whatever the env had when Pi started.
+
+### Workspace files
+
+Workspace JSON files are user-owned and can live anywhere on disk -- your
+lab repo, a shared drive, the home dir, wherever. Quailbot stores the
+absolute path to the selected workspace in `settings.json`; it does not
+copy the file. To switch workspaces:
+
+```
+/quailbot-workspace load D:/lab/instruments/nanonis-rig-a.json
+```
+
+The calibrator's Save and Save-As targets are constrained by the same
+allowed-roots policy that gates the workspace UI's file-browser:
+`~/.quailbot-pi/` and the parent directory of the currently-active
+workspace are writable; nothing else is.
+
+## Commands
+
+- `/quailbot-workspace show` -- summarize the active workspace
+- `/quailbot-workspace load <path>` -- select an existing workspace JSON
+- `/quailbot-workspace validate <path>` -- dry-run validate without selecting
+- `/quailbot-workspace write <path>` -- write a workspace candidate
+- `/quailbot-workspace open` -- launch the browser calibrator
+- `/quailbot-experiments list` -- list local experiments
+- `/quailbot-experiments show <id>` -- show timeline for one experiment
+- `/quailbot-experiments where` -- print the experiments root path
+- `/quailbot-memory` -- inspect, search, load/unload memory domains
+- `/quailbot-skills` -- list, load, and write skills
+- `/quailbot-knowledge` -- show consolidated knowledge prefix
+
+Run any command with no args to see its sub-help.
+
+## Experiments
+
+Every Pi session opens an experiment under
+`~/.quailbot-pi/experiments/YYYY/MM/DD/exp_*/`. The session's tool calls,
+results, plan steps, ROI captures, denied mutations, and lifecycle events
+are appended to `events.jsonl`. ROI screenshots written by the `observe`
+tool (and inside `quailbot_plan_and_execute`) land directly in the
+experiment folder with human-readable names, alongside `blobs/images/`
+which holds the same images keyed by content hash for stable event-log
+references.
+
+Closing a session, switching workspaces (re-load with a different hash),
+or shutting Pi down all write an `experiment_close` event with the
+reason. Crash recovery surfaces unfinished logs as `interrupted_unknown`.
+
+## Upgrading
+
+```bash
+pi update npm:quailbot-pi
+```
+
+Settings, workspaces, memory, skills, and experiments persist across
+upgrades because they live under `~/.quailbot-pi/`, not inside the
+installed package.
+
+## For developers
+
+Local development uses Pi's local-path package source:
+
+```bash
+git clone <this repo>
+cd quailbot-pi
+npm install            # installs dev deps (pi/typebox are devDeps for dev)
+npm run pi             # runs pi against the local checkout, with state
+                       # rooted at <repo>/.quailbot-pi so dev state stays
+                       # isolated from your real ~/.quailbot-pi/
+npm test               # runs the full vitest suite
+npm run test:e2e       # runs the semantic E2E suite
+npm run dev:check      # runs the dev-release adoption E2E
+```
+
+The `pi` and `pi:mutating` scripts set `QUAILBOT_PI_STATE_DIR` to the
+repo's `.quailbot-pi/` directory so development never touches your real
+home-dir state. Each git worktree gets its own state automatically.
+
+`.pi/settings.json` points pi at the parent directory as a package source
+(`{ "packages": [".."] }`), and `package.json`'s `pi.extensions` points
+at `./dist/src/extension.js`. So you need `npm run build` before each
+session; the `pi`/`pi:mutating` scripts chain `dev:release` (which is
+`npm run build`) for you.
+
+## Reporting bugs
+
+File an issue with the experiment ID and `events.jsonl` excerpt if the
+problem is reproducible in a session. For workspace-loading issues,
+include the workspace JSON and the output of `/quailbot-workspace
+validate <path>`.

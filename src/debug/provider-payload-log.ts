@@ -3,6 +3,16 @@ import { join } from "node:path";
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import { quailbotStateRoot } from "../workspace/workspace-state.js";
+
+/**
+ * Provider payload logging is opt-in. Set `QUAILBOT_PROVIDER_PAYLOAD_LOG=1`
+ * to enable; any other value (or unset) leaves logging disabled. This
+ * avoids leaking provider request/response bodies (which may include
+ * conversation context, tool args, and the rendered system prompt) into
+ * an on-disk file by default. Errors from append are swallowed so a
+ * full or unwritable state directory cannot break a provider call.
+ */
 const PROVIDER_PAYLOAD_LOG_ENV = "QUAILBOT_PROVIDER_PAYLOAD_LOG";
 const PROVIDER_PAYLOAD_LOG_LIMIT = 50;
 const PROVIDER_PAYLOAD_LOG_FILE = "provider-payloads.jsonl";
@@ -27,7 +37,7 @@ export function registerProviderPayloadLog(pi: ExtensionAPI): void {
     }
 
     activeRequestId = nextRequestId();
-    appendProviderPayloadLogRecord(ctx.cwd, {
+    safeAppend(ctx.cwd, {
       timestamp_utc: new Date().toISOString(),
       kind: "provider_request",
       request_id: activeRequestId,
@@ -40,7 +50,7 @@ export function registerProviderPayloadLog(pi: ExtensionAPI): void {
       return;
     }
 
-    appendProviderPayloadLogRecord(ctx.cwd, {
+    safeAppend(ctx.cwd, {
       timestamp_utc: new Date().toISOString(),
       kind: "provider_response",
       ...(activeRequestId === undefined ? {} : { request_id: activeRequestId }),
@@ -54,7 +64,7 @@ export function registerProviderPayloadLog(pi: ExtensionAPI): void {
       return;
     }
 
-    appendProviderPayloadLogRecord(ctx.cwd, {
+    safeAppend(ctx.cwd, {
       timestamp_utc: new Date().toISOString(),
       kind: "assistant_message",
       ...(activeRequestId === undefined ? {} : { request_id: activeRequestId }),
@@ -65,13 +75,22 @@ export function registerProviderPayloadLog(pi: ExtensionAPI): void {
 }
 
 export function appendProviderPayloadLogRecord(cwd: string, record: ProviderPayloadLogRecord): void {
-  const stateDir = join(cwd, ".quailbot-pi");
+  const stateDir = quailbotStateRoot(cwd);
   mkdirSync(stateDir, { recursive: true });
   const logPath = join(stateDir, PROVIDER_PAYLOAD_LOG_FILE);
   const records = readExistingRecords(logPath);
   records.push(record);
   const retained = records.slice(-PROVIDER_PAYLOAD_LOG_LIMIT);
   writeFileSync(logPath, `${retained.map((item) => JSON.stringify(item)).join("\n")}\n`, "utf8");
+}
+
+function safeAppend(cwd: string, record: ProviderPayloadLogRecord): void {
+  try {
+    appendProviderPayloadLogRecord(cwd, record);
+  } catch {
+    // Provider payload logging is opt-in diagnostic telemetry; an unwritable
+    // state directory must never break a real provider call.
+  }
 }
 
 function readExistingRecords(logPath: string): ProviderPayloadLogRecord[] {
@@ -96,7 +115,7 @@ function readExistingRecords(logPath: string): ProviderPayloadLogRecord[] {
 }
 
 function providerPayloadLogEnabled(): boolean {
-  return process.env[PROVIDER_PAYLOAD_LOG_ENV] !== "0";
+  return process.env[PROVIDER_PAYLOAD_LOG_ENV] === "1";
 }
 
 function nextRequestId(): string {

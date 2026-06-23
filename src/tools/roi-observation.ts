@@ -1,10 +1,11 @@
 import { execFile, type ExecFileOptions } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
-import { captureVirtualScreenAsync } from "../workspace-ui/server/capture.js";
+import { captureScreenToFile } from "../workspace-ui/server/capture.js";
 import type { Workspace, WorkspaceRoi } from "../workspace/types.js";
+import { quailbotStateRoot } from "../workspace/workspace-state.js";
 import type { QuailbotToolContent } from "./tool-result.js";
 
 export const ROI_IMAGE_UNREADABLE_BY_MODEL_WARNING =
@@ -222,45 +223,86 @@ export async function observeRois(ctx: RoiObservationContext, rois: WorkspaceRoi
   };
 }
 
-export function createDefaultRoiCaptureBackend(cwd: string): RoiCaptureBackend {
+export type DefaultRoiCaptureBackendOptions = {
+  /**
+   * Resolves the current active experiment directory at capture time. When
+   * an experiment is open, ROI PNGs are written there with their human-
+   * readable name so the captured evidence travels with the experiment
+   * record. When undefined (no active experiment), ROI PNGs fall back to
+   * `<stateRoot>/observations-orphan/` so observations are never lost.
+   */
+  resolveExperimentDir?: () => string | undefined;
+};
+
+export function createDefaultRoiCaptureBackend(options: DefaultRoiCaptureBackendOptions = {}): RoiCaptureBackend {
   return async ({ rois }) => {
-    const stateDir = join(cwd, ".quailbot-pi");
-    const capture = await captureVirtualScreenAsync({ stateDir });
-    const outputDir = join(stateDir, "roi-observations");
+    const stateDir = quailbotStateRoot();
+    const experimentDir = options.resolveExperimentDir?.();
+    // ROI PNGs land directly in the experiment's blobs/images directory with
+    // their human-readable name. The image-artifacts pass on the recorded
+    // tool result sees the file is already inside blobs/images and records
+    // the artifact metadata (size, sha256 for integrity) without copying,
+    // so there is exactly one file per ROI capture.
+    const outputDir = experimentDir
+      ? join(experimentDir, "blobs", "images")
+      : join(stateDir, "observations-orphan");
     mkdirSync(outputDir, { recursive: true });
 
-    const pendingCaptures = rois.map((roi) => {
-      const rect = requireRoiRect(roi);
-      const crop = {
-        x: Math.round(rect.x - capture.frame.originX),
-        y: Math.round(rect.y - capture.frame.originY),
-        w: Math.round(rect.w),
-        h: Math.round(rect.h),
-      };
-      const imagePath = join(outputDir, `roi-${safeFilePart(roi.name ?? roi.ref)}-${shortHash(roi.ref)}-${capture.frame.captureId}.png`);
-      return { roi, rect, crop, imagePath };
-    });
+    // ROI captures use their OWN private screenshot file -- they never
+    // touch the workspace UI's workspace-capture.png. The transient
+    // source PNG is written into the same blobs/images directory with a
+    // hidden temp basename, cropped, then deleted in the finally block.
+    // No metadata sidecar is written; the captureId is computed in memory
+    // and embedded in each cropped ROI's filename for traceability.
+    const tempCaptureSuffix = randomBytes(8).toString("hex");
+    const tempCapturePath = join(outputDir, `_roi-source-${tempCaptureSuffix}.png`);
 
-    await cropPngBatch(
-      capture.pngPath,
-      pendingCaptures.map(({ imagePath, crop }) => ({ outputPath: imagePath, rect: crop })),
-    );
+    try {
+      const captureFrame = await captureScreenToFile(tempCapturePath);
+      const pendingCaptures = rois.map((roi) => {
+        const rect = requireRoiRect(roi);
+        const crop = {
+          x: Math.round(rect.x - captureFrame.originX),
+          y: Math.round(rect.y - captureFrame.originY),
+          w: Math.round(rect.w),
+          h: Math.round(rect.h),
+        };
+        const imagePath = join(
+          outputDir,
+          `roi-${safeFilePart(roi.name ?? roi.ref)}-${shortHash(roi.ref)}-${captureFrame.captureId}.png`,
+        );
+        return { roi, rect, crop, imagePath };
+      });
 
-    return pendingCaptures.map(({ roi, rect, crop, imagePath }) => {
-      const bytes = readFileSync(imagePath);
+      await cropPngBatch(
+        tempCapturePath,
+        pendingCaptures.map(({ imagePath, crop }) => ({ outputPath: imagePath, rect: crop })),
+      );
 
-      return {
-        ref: roi.ref,
-        ...(roi.name === undefined ? {} : { name: roi.name }),
-        rect,
-        imagePath,
-        mimeType: "image/png" as const,
-        width: crop.w,
-        height: crop.h,
-        captureId: capture.frame.captureId,
-        data: bytes.toString("base64"),
-      };
-    });
+      return pendingCaptures.map(({ roi, rect, crop, imagePath }) => {
+        const bytes = readFileSync(imagePath);
+
+        return {
+          ref: roi.ref,
+          ...(roi.name === undefined ? {} : { name: roi.name }),
+          rect,
+          imagePath,
+          mimeType: "image/png" as const,
+          width: crop.w,
+          height: crop.h,
+          captureId: captureFrame.captureId,
+          data: bytes.toString("base64"),
+        };
+      });
+    } finally {
+      try {
+        unlinkSync(tempCapturePath);
+      } catch {
+        // best-effort cleanup: the temp source file is regenerated on
+        // every ROI capture, so a leaked file is at worst one extra PNG
+        // until the next capture overwrites it.
+      }
+    }
   };
 }
 

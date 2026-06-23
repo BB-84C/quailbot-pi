@@ -42,8 +42,24 @@ describe("workspace UI PowerShell capture", () => {
 
     expect(result.frame).toEqual({ imageWidth: 100, imageHeight: 50, originX: -10, originY: 20, captureId: expectedId });
     expect(result.pngPath).toBe(join(stateDir, "workspace-capture.png"));
-    expect(existsSync(join(stateDir, `workspace-capture.${expectedId}.png`))).toBe(true);
-    expect(readFileSync(join(stateDir, `workspace-capture.${expectedId}.png`))).toEqual(png);
+    expect(readFileSync(join(stateDir, "workspace-capture.png"))).toEqual(png);
+    // 0.1.0: per-captureId versioned PNG snapshots are no longer written; only
+    // the current workspace-capture.png is kept and is overwritten by each new
+    // capture. Stale captureId requests are served the current PNG only when
+    // the metadata captureId matches; otherwise the server returns 404.
+    expect(existsSync(join(stateDir, `workspace-capture.${expectedId}.png`))).toBe(false);
+  });
+
+  it("removes any pre-existing legacy versioned PNG snapshots on publish", () => {
+    const png = fakePng(100, 50, 0x77);
+    const legacyId = "deadbeefdeadbeef";
+    writeFileSync(join(stateDir, `workspace-capture.${legacyId}.png`), Buffer.from("legacy bytes", "utf8"));
+    mockPowerShellCapture(png, { originX: 0, originY: 0, imageWidth: 100, imageHeight: 50, awarenessMode: "System" });
+
+    captureVirtualScreen({ stateDir });
+
+    expect(existsSync(join(stateDir, `workspace-capture.${legacyId}.png`))).toBe(false);
+    expect(existsSync(join(stateDir, "workspace-capture.png"))).toBe(true);
   });
 });
 

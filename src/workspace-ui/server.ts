@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { QuailbotRuntime } from "../extension.js";
+import { quailbotStateRoot } from "../workspace/workspace-state.js";
 import { loadActiveWorkspace } from "../workspace/workspace-service.js";
 import { declaredCliNamesForWorkspace } from "./shared/cli-import.js";
 import { loadWorkspaceData, loadWorkspaceRaw } from "./shared/parse.js";
@@ -189,7 +190,7 @@ function handleWorkspaceApi(response: ServerResponse, context: ServerContext): v
 
 function handleCaptureApi(response: ServerResponse, cwd: string): void {
   try {
-    const result = captureVirtualScreen({ stateDir: join(cwd, ".quailbot-pi") });
+    const result = captureVirtualScreen({ stateDir: quailbotStateRoot(cwd) });
     sendJson(response, 200, { ok: true, frame: result.frame, pngPath: result.pngPath });
   } catch {
     sendJson(response, 200, {
@@ -291,12 +292,7 @@ function handleCaptureAsset(url: URL, response: ServerResponse, cwd: string): vo
     sendText(response, 404, "workspace capture image not found\n", "text/plain; charset=utf-8");
     return;
   }
-  const stateDir = join(cwd, ".quailbot-pi");
-  const versionedPngPath = join(stateDir, `workspace-capture.${requestedId}.png`);
-  if (existsSync(versionedPngPath)) {
-    sendBinary(response, 200, readFileSync(versionedPngPath), "image/png");
-    return;
-  }
+  const stateDir = quailbotStateRoot(cwd);
   const metadataPath = join(stateDir, "workspace-capture.metadata.json");
   const pngPath = join(stateDir, "workspace-capture.png");
   if (!existsSync(metadataPath) || !existsSync(pngPath)) {

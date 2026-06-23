@@ -37,6 +37,23 @@ export function saveKnowledgeState(state: KnowledgeStateInput, cwd = process.cwd
   writeFileSync(knowledgeStatePath(cwd), `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
 }
 
+export function trySaveKnowledgeState(
+  state: KnowledgeStateInput,
+  cwd = process.cwd(),
+): { ok: true } | { ok: false; errorCode?: string; errorMessage: string } {
+  try {
+    saveKnowledgeState(state, cwd);
+    return { ok: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCode =
+      error instanceof Error && typeof (error as unknown as { code?: unknown }).code === "string"
+        ? ((error as unknown as { code: string }).code)
+        : undefined;
+    return errorCode === undefined ? { ok: false, errorMessage } : { ok: false, errorCode, errorMessage };
+  }
+}
+
 function defaultState(): KnowledgeState {
   return {
     loadedDomains: [],

@@ -9,6 +9,7 @@ export default defineConfig({
           environment: "node",
           include: ["tests/**/*.test.ts"],
           exclude: ["tests/workspace-ui/dom/**/*.test.ts"],
+          setupFiles: ["./tests/setup.ts"],
           testTimeout: 30_000,
         },
       },
@@ -17,6 +18,7 @@ export default defineConfig({
           name: "dom",
           environment: "jsdom",
           include: ["tests/workspace-ui/dom/**/*.test.ts"],
+          setupFiles: ["./tests/setup.ts"],
           environmentOptions: {
             jsdom: {
               runScripts: "dangerously",

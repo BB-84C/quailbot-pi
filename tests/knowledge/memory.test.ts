@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import {
   saveMemoryTopic,
   searchMemory,
 } from "../../src/knowledge/memory.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-mem-"));
@@ -51,7 +52,7 @@ describe("memory store", () => {
     const matches = searchMemory(cwd, "ramp");
     expect(matches).toEqual([{ domain: "tip", topic: "shake", snippet: "Ramp gain to maximum.", hash }]);
     expect(parseMemorySections("## a\n\nbody a\n\n## b\n\nbody b").map((s) => s.topic)).toEqual(["a", "b"]);
-    expect(readFileSync(join(cwd, ".quailbot-pi", "memory", "tip.md"), "utf8")).toContain("## shake");
+    expect(readFileSync(join(quailbotStateRoot(), "memory", "tip.md"), "utf8")).toContain("## shake");
   });
 
   it("rejects unsafe domains before writing files", () => {
@@ -59,8 +60,35 @@ describe("memory store", () => {
     const result = saveMemoryTopic(cwd, "../../escape", "topic", "body");
     expect(result).toMatchObject({ status: "invalid_name", domain: "../../escape", topic: "topic" });
     expect(existsSync(join(cwd, "escape.md"))).toBe(false);
-    expect(existsSync(join(cwd, ".quailbot-pi", "escape.md"))).toBe(false);
+    expect(existsSync(join(quailbotStateRoot(), "escape.md"))).toBe(false);
     expect(listMemoryDomains(cwd)).toEqual([]);
     expect(readMemoryDomain(cwd, "../../escape")).toBeUndefined();
+  });
+
+  it("returns a structured filesystem_error result instead of throwing when the state directory cannot be written", () => {
+    // Point QUAILBOT_PI_STATE_DIR at a file path so mkdirSync on memory/ fails
+    // with a system error (ENOTDIR or similar). The save call must return a
+    // typed filesystem_error result, not throw a raw Node exception.
+    const cwd = tempCwd();
+    const stateAsFile = mkdtempSync(join(tmpdir(), "qb-mem-fs-")) + ".lock";
+    writeFileSync(stateAsFile, "this is a file, not a directory", "utf8");
+    const priorEnv = process.env.QUAILBOT_PI_STATE_DIR;
+    process.env.QUAILBOT_PI_STATE_DIR = stateAsFile;
+    try {
+      const result = saveMemoryTopic(cwd, "tip", "shake", "body");
+      expect(result.status).toBe("filesystem_error");
+      expect(result.errorMessage).toBeDefined();
+      // Most platforms surface ENOTDIR or EEXIST here; both are acceptable
+      // as long as the code is a string and the call did not throw.
+      if (result.errorCode !== undefined) {
+        expect(typeof result.errorCode).toBe("string");
+      }
+    } finally {
+      if (priorEnv === undefined) {
+        delete process.env.QUAILBOT_PI_STATE_DIR;
+      } else {
+        process.env.QUAILBOT_PI_STATE_DIR = priorEnv;
+      }
+    }
   });
 });

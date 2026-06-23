@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { mkdirSync, realpathSync } from "node:fs";
-import { dirname, join, parse } from "node:path";
+import { dirname, parse } from "node:path";
 
+import { quailbotStateRoot } from "../../workspace/workspace-state.js";
 import { probeCliCapabilities } from "./cli-import.js";
 import { browseDirectory, loadWorkspaceFile, saveWorkspaceFile } from "./file-browser.js";
 import type { AllowedRoots } from "./path-policy.js";
@@ -15,7 +16,7 @@ export interface FileBrowserRouteContext {
 }
 
 export function buildAllowedRoots(currentWorkspacePath: string, cwd: string): AllowedRoots {
-  const statePath = join(cwd, ".quailbot-pi");
+  const statePath = quailbotStateRoot(cwd);
   mkdirSync(statePath, { recursive: true });
   const realCwd = realpathSync(cwd);
   return {

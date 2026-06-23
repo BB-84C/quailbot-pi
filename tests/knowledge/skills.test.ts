@@ -4,13 +4,14 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createSkillCache, discoverSkills, parseSkillFile } from "../../src/knowledge/skills.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-skills-"));
 }
 
-function writeSkill(cwd: string, name: string, body: string): void {
-  const dir = join(cwd, ".quailbot-pi", "skills", name);
+function writeSkill(_cwd: string, name: string, body: string): void {
+  const dir = join(quailbotStateRoot(), "skills", name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), body, "utf8");
 }

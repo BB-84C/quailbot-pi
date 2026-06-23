@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 export type WorkspaceSelection = {
@@ -6,15 +7,37 @@ export type WorkspaceSelection = {
   source: "explicit" | "settings" | "starter";
 };
 
-export function quailbotStateRoot(cwd = process.cwd()): string {
-  return join(cwd, ".quailbot-pi");
+/**
+ * Resolve the Quailbot Pi state root.
+ *
+ * Default: `~/.quailbot-pi/` -- per-user state lives here, including the
+ * workspaces directory, screen captures, experiments, memory, skills, the
+ * knowledge-state file, settings, and the debug provider payload log.
+ *
+ * Override: set the `QUAILBOT_PI_STATE_DIR` environment variable to relocate
+ * state. Intended for development checkouts that prefer repo-local state
+ * (the dev npm scripts set this to `<repo>/.quailbot-pi`) and for power users
+ * sharding state per rig. The override is checked at every call, so tests
+ * and per-process overrides work without module state pollution.
+ *
+ * The optional `cwd` argument is accepted for source-compatibility with the
+ * pre-0.1.0 cwd-coupled resolver. It is no longer load-bearing for state
+ * location; the location is independent of the user's working directory.
+ * The argument may be removed in a future major release.
+ */
+export function quailbotStateRoot(_cwd?: string): string {
+  const override = process.env.QUAILBOT_PI_STATE_DIR?.trim();
+  if (override !== undefined && override.length > 0) {
+    return override;
+  }
+  return join(homedir(), ".quailbot-pi");
 }
 
-export function settingsPath(cwd = process.cwd()): string {
+export function settingsPath(cwd?: string): string {
   return join(quailbotStateRoot(cwd), "settings.json");
 }
 
-export function starterWorkspacePath(cwd = process.cwd()): string {
+export function starterWorkspacePath(cwd?: string): string {
   return join(quailbotStateRoot(cwd), "workspace.json");
 }
 

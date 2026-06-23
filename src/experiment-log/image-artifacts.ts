@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import type { ExperimentLogIdentity } from "./experiment-log-service.js";
 
@@ -89,13 +89,27 @@ function persistImageRecord(
   try {
     const bytes = readFileSync(imagePath);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const extension = extensionForMimeType(mimeType);
-    const blobRelativePath = `blobs/images/${sha256}${extension}`;
-    const blobPath = join(identity.blobs_path, "images", `${sha256}${extension}`);
-    mkdirSync(dirname(blobPath), { recursive: true });
-    if (resolve(imagePath) !== resolve(blobPath) && !existsSync(blobPath)) {
-      copyFileSync(imagePath, blobPath);
+    const blobsImagesDir = join(identity.blobs_path, "images");
+    const sourceResolved = resolve(imagePath);
+    const blobsImagesResolved = resolve(blobsImagesDir);
+    // If the source file is already inside this experiment's blobs/images
+    // directory (the normal ROI-capture path), use it in place without
+    // making a sha256-named copy. The artifact's blob_relative_path uses
+    // the file's actual human-readable basename so events.jsonl points at
+    // the same on-disk file that the producer wrote.
+    const alreadyInBlobs = dirname(sourceResolved) === blobsImagesResolved;
+    let blobPath: string;
+    if (alreadyInBlobs) {
+      blobPath = sourceResolved;
+    } else {
+      const filename = basename(imagePath) || `image-${sha256}${extensionForMimeType(mimeType)}`;
+      blobPath = join(blobsImagesDir, filename);
+      mkdirSync(blobsImagesDir, { recursive: true });
+      if (!existsSync(blobPath)) {
+        copyFileSync(imagePath, blobPath);
+      }
     }
+    const blobRelativePath = `blobs/images/${basename(blobPath)}`;
 
     const artifact: ExperimentLogImageArtifact = {
       type: "image",

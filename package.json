@@ -1,6 +1,25 @@
 {
-  "name": "quailbot-pi",
-  "version": "0.0.0",
+  "name": "@bb84/quailbot-pi",
+  "version": "0.1.0",
+  "description": "Quailbot Pi -- a Pi agent extension that turns a quantum instrument workspace into a measurement-readback action loop, with experiment logging and a workspace calibrator.",
+  "keywords": [
+    "pi-package",
+    "instrument-automation",
+    "nanonis",
+    "stm",
+    "quailbot"
+  ],
+  "license": "ISC",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist/src",
+    "dist/workspace-ui",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "vitest --run",
     "typecheck": "tsc --noEmit",
@@ -9,31 +28,28 @@
     "build": "tsc -p tsconfig.json && npm run typecheck:browser && node scripts/build-workspace-ui-client.mjs",
     "test:e2e": "vitest --run tests/e2e/semantic-e2e.test.ts",
     "dev:release": "npm run build",
-    "pi": "npm run dev:release && npm exec -- pi --session-dir .pi-state/sessions",
-    "pi:mutating": "npm run dev:release && powershell -NoProfile -Command \"$env:QUAILBOT_ALLOW_MUTATING_TOOLS='1'; npm exec -- pi --session-dir .pi-state/sessions\"",
+    "pi": "npm run dev:release && powershell -NoProfile -Command \"$env:QUAILBOT_PI_STATE_DIR=\\\"$PWD\\.quailbot-pi\\\"; npm exec -- pi --session-dir .pi-state/sessions\"",
+    "pi:mutating": "npm run dev:release && powershell -NoProfile -Command \"$env:QUAILBOT_PI_STATE_DIR=\\\"$PWD\\.quailbot-pi\\\"; $env:QUAILBOT_ALLOW_MUTATING_TOOLS='1'; npm exec -- pi --session-dir .pi-state/sessions\"",
     "dev:check": "npm run dev:release && vitest --run tests/e2e/dev-release-adoption.test.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "Quailbot successor on Pi agent substrate",
-  "private": true,
-  "type": "module",
   "pi": {
     "extensions": [
       "./dist/src/extension.js"
     ]
   },
-  "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.74.2",
-    "@earendil-works/pi-tui": "0.74.2",
-    "typebox": "^1.1.39"
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.74.2",
+    "@earendil-works/pi-tui": "0.74.2",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^24.3.0",
     "esbuild": "^0.25.5",
     "jsdom": "^26.1.0",
+    "typebox": "^1.1.39",
     "typescript": "^5.7.3",
     "vitest": "^3.2.4"
   }

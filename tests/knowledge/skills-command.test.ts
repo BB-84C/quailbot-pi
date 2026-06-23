@@ -6,12 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 import { createKnowledgeRuntime, hydrateKnowledgeRuntime } from "../../src/knowledge/knowledge-runtime.js";
 import { loadKnowledgeState } from "../../src/knowledge/knowledge-state.js";
 import { handleSkillsCommand } from "../../src/knowledge/register-knowledge-commands.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "qb-cmd-"));
 }
-function writeSkill(cwd: string, name: string): void {
-  const dir = join(cwd, ".quailbot-pi", "skills", name);
+function writeSkill(_cwd: string, name: string): void {
+  const dir = join(quailbotStateRoot(), "skills", name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: d\ndrivers: [nqctl]\n---\nbody`, "utf8");
 }

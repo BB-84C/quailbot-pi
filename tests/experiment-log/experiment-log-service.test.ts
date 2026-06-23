@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -9,6 +9,7 @@ import { ExperimentLogService, experimentLogRoot } from "../../src/experiment-lo
 import { disabledMutationPolicy, enabledMutationPolicy } from "../../src/tools/mutation-policy.js";
 import type { QuailbotToolResult } from "../../src/tools/tool-result.js";
 import type { LoadedWorkspace } from "../../src/workspace/workspace-service.js";
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 
 const tempDirs: string[] = [];
 
@@ -22,7 +23,7 @@ describe("experimentLogRoot", () => {
   it("places experiment logs below the existing quailbot state root", () => {
     const cwd = join("D:", "vault", "project");
 
-    expect(experimentLogRoot(cwd)).toBe(join(cwd, ".quailbot-pi", "experiments"));
+    expect(experimentLogRoot(cwd)).toBe(join(quailbotStateRoot(), "experiments"));
   });
 });
 
@@ -207,7 +208,12 @@ describe("ExperimentLogService", () => {
     if (!result.ok) throw new Error("expected result write to pass");
     const artifact = result.event.image_artifacts?.[0];
     expect(artifact).toBeDefined();
-    expect(artifact?.blob_relative_path).toMatch(/^blobs\/images\/[a-f0-9]{64}\.png$/);
+    // Blob path preserves the source file's basename instead of using the
+    // sha256 hash as the filename, so events.jsonl references a single
+    // human-readable file. sha256 is still recorded on the artifact for
+    // integrity verification, just not used as the on-disk filename.
+    expect(artifact?.blob_relative_path).toBe(`blobs/images/${basename(sourcePath)}`);
+    expect(artifact?.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(artifact?.bytes).toBe(Buffer.byteLength("fake-png-data"));
     expect(artifact?.source_path).toBe(sourcePath);
     expect(artifact?.blob_path && existsSync(artifact.blob_path)).toBe(true);

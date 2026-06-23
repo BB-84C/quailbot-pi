@@ -12,7 +12,7 @@ import {
   writeWorkspaceCandidate,
   writeWorkspaceJson,
 } from "../../src/workspace/workspace-service.js";
-import { loadLastWorkspace, settingsPath } from "../../src/workspace/workspace-state.js";
+import { loadLastWorkspace, quailbotStateRoot, settingsPath } from "../../src/workspace/workspace-state.js";
 
 const tempDirs: string[] = [];
 
@@ -128,7 +128,7 @@ describe("workspace service", () => {
   it("atomically writes a validated candidate to a target without activating it by default", () => {
     const cwd = makeTempDir();
     const candidatePath = writeWorkspace(cwd, "candidate.workspace.json", minimalWorkspace("qctl"));
-    const targetPath = join(cwd, ".quailbot-pi", "workspace.json");
+    const targetPath = join(quailbotStateRoot(), "workspace.json");
 
     const result = writeWorkspaceCandidate({ candidatePath, targetPath, cwd });
 
@@ -144,7 +144,7 @@ describe("workspace service", () => {
 
   it("writes raw workspace JSON through atomic write/readback path", () => {
     const cwd = makeTempDir();
-    const targetPath = join(cwd, ".quailbot-pi", "workspace.json");
+    const targetPath = join(quailbotStateRoot(), "workspace.json");
 
     const result = writeWorkspaceJson({ workspaceJson: minimalWorkspace("rawctl"), targetPath, cwd });
 

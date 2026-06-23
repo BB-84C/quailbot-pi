@@ -477,3 +477,39 @@ Status: planning guide only. These phases are not implemented yet; each needs a 
 - A7 added the durable experiment evidence substrate before the remote host so remote jobs do not invent a second logging contract.
 - A8 is the next active construction phase; it must reuse A2 for workspace validation/activation and A7 for experiment evidence.
 - Every future implementation phase still needs semantic Pi-session acceptance; the ROADMAP is only a guide, not the detailed spec.
+
+## Implementation round: 0.1.0 home-state migration and ship prep
+
+Date: 2026-06-22
+
+### Delivered
+
+- Redirected Quailbot state to `~/.quailbot-pi/` by default. Production code paths that previously called `join(ctx.cwd, ".quailbot-pi", ...)` now resolve through `quailbotStateRoot()` which honors `process.env.QUAILBOT_PI_STATE_DIR` first, then falls back to home. The `cwd` arg is accepted for source compat but is no longer load-bearing for state location.
+- Added per-test isolation: `tests/setup.ts` injects a fresh `mkdtempSync` tmpdir into `QUAILBOT_PI_STATE_DIR` before each test and cleans up after, wired through `vitest.config.ts setupFiles`. No test can pollute the developer's real `~/.quailbot-pi/`.
+- Migrated 14+ test files off cwd-coupled state assertions to use the resolver. Two files (`path-policy.test.ts`, `file-browser.test.ts`) keep their internal fixture state-dirs because they test the security-policy logic, not the resolver.
+- Killed the workspace-capture versioning surface: `workspace-capture.<captureId>.png` snapshots are no longer written, server `/assets/workspace-capture` no longer serves them, capture publish includes a best-effort cleanup of legacy hashed snapshots, and the asset endpoint serves the current PNG only when the requested captureId matches `workspace-capture.metadata.json`. Stale requests return 404 so the client refreshes.
+- Routed ROI captures into the active experiment directory with the human-readable `roi-<safeName>-<refShortHash>-<captureId>.png` naming. The image-artifacts blob pass continues to copy each capture into `blobs/images/<sha256>.png` for content-addressable evidence. No-active-experiment captures fall back to `~/.quailbot-pi/observations-orphan/`. The old `~/.quailbot-pi/roi-observations/` directory is no longer created or written to.
+- Promoted the package for npm publish: `version: 0.1.0`, `private` removed, `pi-package` keyword added, `files: ["dist/src","dist/workspace-ui","README.md","LICENSE"]` (excludes compiled tests from the tarball -- 123 files / 259 kB instead of 229 files / 370 kB), `engines.node >= 20`, ISC `LICENSE` written, README rewritten as an end-user installation/usage doc with explicit state-location notes and an accurate command catalog. Pi core deps (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`) moved into `peerDependencies` per Pi's package contract; they remain in `devDependencies` for local dev/test/build.
+- Tightened provider payload diagnostic: `QUAILBOT_PROVIDER_PAYLOAD_LOG` is now opt-in (must be exactly `"1"` to enable) instead of opt-out, so a fresh user install does not silently log provider request/response bodies to `~/.quailbot-pi/provider-payloads.jsonl`. The hook path swallows append errors so an unwritable state directory cannot break a provider call.
+- Updated dev npm scripts so `npm run pi` and `npm run pi:mutating` set `QUAILBOT_PI_STATE_DIR=$PWD\.quailbot-pi`, keeping dev state repo-local and isolated from real home-dir state. The `--session-dir .pi-state/sessions` pi-session override is preserved for dev fast iteration.
+- Added product-boundary tests covering the new package shape: peerDependencies are exactly the three Pi peers, `dependencies` is absent, `pi-package` keyword is present, `private` is undefined, `files` is `["dist", "README.md", "LICENSE"]`, and the `pi` script wires `QUAILBOT_PI_STATE_DIR` plus `--session-dir`.
+
+### Now known
+
+- The B1 named-knowledge tool surface (`quailbot_memory_*`, `quailbot_skill_*`) already takes domain/topic/name arguments rather than paths; no agent-visible API change was needed beyond verifying it. The resolver migration makes the underlying storage location consistent without changing the tool surface.
+- Pi packages are npm packages with a `pi` manifest. Publishing to npm with the `pi-package` keyword makes the package discoverable on the gallery; there is no separate "Pi agent community" distribution channel to publish to.
+- The `cwd` parameter on `quailbotStateRoot(cwd?)`, `settingsPath(cwd?)`, `memoryRoot(cwd)`, etc. is preserved for source-compat with downstream call sites, but is unused for state-location purposes. A future major may remove it.
+- Capture races: ROI capture and the editor's capture API both call `captureVirtualScreenAsync` and atomically rename into `workspace-capture.png`. Concurrent calls reliably end with one valid PNG and metadata pair; the dropped-versioned-PNG behavior does not change that.
+
+### Later phases must do differently
+
+- The editor's Save-As default-target prompt and the optional "show absolute path of active workspace in title bar" UX nicety are deferred. They are cosmetic and do not affect the state shape.
+- Stage 4 from the ship plan (editor allowed-roots + Save-As home default) is implicit: `buildAllowedRoots` already uses `quailbotStateRoot(cwd)` after the resolver migration. The default Save-As target is wherever the user is currently editing -- improving the picker default to land in `~/.quailbot-pi/workspaces/` is follow-up polish.
+- A8 (remote host, client, MCP) was previously deferred behind A7. It is now unblocked by the 0.1.0 ship and should reuse the same resolver and experiment-log substrates.
+- If a future major removes the `cwd` parameter from `quailbotStateRoot`, every consumer must already use `quailbotStateRoot()` (no arg). New code should adopt that form.
+
+### Deferred items
+
+- `Set agent workspace` / activation-request residue was already removed during A3 closeout; nothing to defer.
+- Editor Save-As target picker polish.
+- Optional: a `pi update` migration helper if downstream users hit settings files written under old cwd paths. v0.1.0 has no released users, so no migration is needed for the initial publish.

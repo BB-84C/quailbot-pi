@@ -17,6 +17,9 @@ dist/
 coverage/
 *.log
 
+# npm pack artifacts
+*.tgz
+
 # Local environment and editor state
 .env
 .env.*

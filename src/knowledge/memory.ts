@@ -8,12 +8,14 @@ import { isSafeKnowledgeName } from "./safe-name.js";
 export type MemorySection = { topic: string; body: string; hash: string };
 
 export type SaveMemoryResult = {
-  status: "created" | "updated" | "stale_hash" | "missing_hash" | "invalid_name";
+  status: "created" | "updated" | "stale_hash" | "missing_hash" | "invalid_name" | "filesystem_error";
   domain: string;
   topic: string;
   sectionHash?: string;
   currentHash?: string;
   warning?: string;
+  errorCode?: string;
+  errorMessage?: string;
 };
 
 export function memoryRoot(cwd: string): string {
@@ -119,13 +121,32 @@ export function saveMemoryTopic(
     const sections = doc.sections.map((section) =>
       section.topic === topic ? { topic, body: trimmed, hash: contentHash(trimmed) } : section,
     );
-    writeSections(cwd, domain, sections);
+    const fsError = tryWriteSections(cwd, domain, sections);
+    if (fsError !== undefined) {
+      return { status: "filesystem_error", domain, topic, ...fsError };
+    }
     return { status: "updated", domain, topic, sectionHash: contentHash(trimmed), warning };
   }
 
   const sections = [...doc.sections, { topic, body: trimmed, hash: contentHash(trimmed) }];
-  writeSections(cwd, domain, sections);
+  const fsError = tryWriteSections(cwd, domain, sections);
+  if (fsError !== undefined) {
+    return { status: "filesystem_error", domain, topic, ...fsError };
+  }
   return { status: "created", domain, topic, sectionHash: contentHash(trimmed), warning };
+}
+
+function tryWriteSections(
+  cwd: string,
+  domain: string,
+  sections: MemorySection[],
+): { errorCode?: string; errorMessage: string } | undefined {
+  try {
+    writeSections(cwd, domain, sections);
+    return undefined;
+  } catch (error) {
+    return filesystemErrorDescriptor(error);
+  }
 }
 
 function writeSections(cwd: string, domain: string, sections: MemorySection[]): void {
@@ -133,4 +154,13 @@ function writeSections(cwd: string, domain: string, sections: MemorySection[]): 
   mkdirSync(dirname(path), { recursive: true });
   const content = `${sections.map((section) => `## ${section.topic}\n\n${section.body}`).join("\n\n")}\n`;
   writeFileSync(path, content, "utf8");
+}
+
+export function filesystemErrorDescriptor(error: unknown): { errorCode?: string; errorMessage: string } {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorCode =
+    error instanceof Error && typeof (error as unknown as { code?: unknown }).code === "string"
+      ? ((error as unknown as { code: string }).code)
+      : undefined;
+  return errorCode === undefined ? { errorMessage } : { errorCode, errorMessage };
 }

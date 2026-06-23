@@ -103,3 +103,7 @@
 - 开发脚本保持 `pi --session-dir .pi-state/sessions`；不要把这个 dev-only 会话目录和发行态 `~/.quailbot-pi/` 混为一谈。
 - Gate B 决策是单一 `~/.quailbot-pi/workspaces/` 作为中心 workspace 存放区；但 workspace editor 的任意 JSON 导入能力、以及 `/quailbot-workspace load` 直接加载任意 schema-valid 路径的能力仍然要保留，不能因为中心化存放就把这些入口做死。
 - ROI 截图不应继续堆在单独的 `.quailbot-pi/roi-observations/`；默认只跟随 `~/.quailbot-pi/experiments/<yy>/<mm>/<dd>/exp_*/` 保存，并沿用人类可读命名，同时仍保留 blob 存储副本。workspace 截图在 `.quailbot-pi` 下只保留一张当前图，新图直接覆盖旧图。
+## Release / Install Hygiene (2026-06-23)
+- After local code changes, rebuild the package and reinstall the fresh tarball before testing or release work; otherwise the installed `quailbot-pi` package can go stale.
+- ROI capture artifacts should live only at `experiments/YYYY/MM/DD/exp_*/blobs/images/roi-LiveScan-<refhash>-<id>.png`.
+- `events.jsonl` should reference ROI images as `\\blobs\\images\\roi-LiveScan-<refhash>-<id>.png`; do not keep the old `\\<sha256>.png` reference shape and do not duplicate ROI image copies.

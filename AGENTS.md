@@ -92,3 +92,7 @@
 - Only one workspace capture is kept on disk (`workspace-capture.png` + `workspace-capture.metadata.json`); each new capture atomically overwrites. The legacy `workspace-capture.<captureId>.png` versioned snapshots are no longer written, and any leftovers from older versions are cleaned up on each publish.
 - Agent-visible knowledge tools (`quailbot_memory_*`, `quailbot_skill_*`) take names/domains/topics, never paths. Do not introduce path-shaped parameters for these tools; the user-facing TUI/commands may show absolute paths but the agent's tool surface stays name-only.
 - `dependencies` is empty for distribution: Pi core (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`) sit in `peerDependencies: "*"` per Pi's package contract. They remain in `devDependencies` for local dev/test/build.
+- `quailbot-pi` 的发行态按 home-scoped state 设计：生产态根目录是 `~/.quailbot-pi/`，其中承载 `workspaces`、`captures`、`experiments`、`settings` 等用户态数据；当前 repo 内本地 state 只是一段开发期过渡形状。
+- 开发脚本保持 `pi --session-dir .pi-state/sessions`；不要把这个 dev-only 会话目录和发行态 `~/.quailbot-pi/` 混为一谈。
+- Gate B 决策是单一 `~/.quailbot-pi/workspaces/` 作为中心 workspace 存放区；但 workspace editor 的任意 JSON 导入能力、以及 `/quailbot-workspace load` 直接加载任意 schema-valid 路径的能力仍然要保留，不能因为中心化存放就把这些入口做死。
+- ROI 截图不应继续堆在单独的 `.quailbot-pi/roi-observations/`；默认只跟随 `~/.quailbot-pi/experiments/<yy>/<mm>/<dd>/exp_*/` 保存，并沿用人类可读命名，同时仍保留 blob 存储副本。workspace 截图在 `.quailbot-pi` 下只保留一张当前图，新图直接覆盖旧图。

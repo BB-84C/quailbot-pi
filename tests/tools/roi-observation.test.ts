@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -12,13 +12,15 @@ vi.mock("node:child_process", () => ({
   execFile: vi.fn(),
 }));
 vi.mock("../../src/workspace-ui/server/capture.js", () => ({
+  captureScreenToFile: vi.fn(),
   captureVirtualScreenAsync: vi.fn(),
 }));
 
 import { createDefaultRoiCaptureBackend, observeRois } from "../../src/tools/roi-observation.js";
-import { captureVirtualScreenAsync } from "../../src/workspace-ui/server/capture.js";
+import { captureScreenToFile, captureVirtualScreenAsync } from "../../src/workspace-ui/server/capture.js";
 
 const execFileMock = vi.mocked(execFile);
+const captureScreenToFileMock = vi.mocked(captureScreenToFile);
 const captureVirtualScreenAsyncMock = vi.mocked(captureVirtualScreenAsync);
 
 describe("ROI observation", () => {
@@ -27,6 +29,7 @@ describe("ROI observation", () => {
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "quailbot-roi-observation-"));
     execFileMock.mockReset();
+    captureScreenToFileMock.mockReset();
     captureVirtualScreenAsyncMock.mockReset();
   });
 
@@ -35,11 +38,9 @@ describe("ROI observation", () => {
   });
 
   it("passes multiple ROI crops to PowerShell without wrapping the JSON array as one object", async () => {
-    const capturePath = join(cwd, "capture.png");
-    writeFileSync(capturePath, Buffer.from("capture"));
-    captureVirtualScreenAsyncMock.mockResolvedValue({
-      pngPath: capturePath,
-      frame: { imageWidth: 6240, imageHeight: 1080, originX: -4800, originY: 0, captureId: "capture-id" },
+    captureScreenToFileMock.mockImplementation(async (targetPath: string) => {
+      writeFileSync(targetPath, Buffer.from("capture"));
+      return { imageWidth: 6240, imageHeight: 1080, originX: -4800, originY: 0, captureId: "capture-id" };
     });
     execFileMock.mockImplementation(((
       _file: string,
@@ -88,16 +89,19 @@ describe("ROI observation", () => {
       expect.objectContaining({ ref: "LiveSignalChart_Z", width: 896, height: 181, data: expect.any(String) }),
       expect.objectContaining({ ref: "LiveSignalChart_Current(A)", width: 892, height: 186, data: expect.any(String) }),
     ]);
+    // The ROI backend never calls the workspace UI publisher; it owns
+    // its own private screenshot file independently of workspace-capture.png.
+    expect(captureVirtualScreenAsyncMock).not.toHaveBeenCalled();
   });
 
-  it("writes ROI PNGs directly into the experiment's blobs/images directory with human-readable names", async () => {
+  it("writes ROI PNGs directly into the experiment's blobs/images directory, deletes the transient source PNG, and never touches workspace-capture.png", async () => {
     const experimentDir = join(quailbotStateRoot(), "experiments", "2026", "06", "22", "exp_test01");
-    const capturePath = join(quailbotStateRoot(), "workspace-capture.png");
-    mkdirSync(dirname(capturePath), { recursive: true });
-    writeFileSync(capturePath, Buffer.from("capture"));
-    captureVirtualScreenAsyncMock.mockResolvedValue({
-      pngPath: capturePath,
-      frame: { imageWidth: 1920, imageHeight: 1080, originX: 0, originY: 0, captureId: "abcdef0123456789" },
+    let observedTempPath: string | undefined;
+    captureScreenToFileMock.mockImplementation(async (targetPath: string) => {
+      observedTempPath = targetPath;
+      mkdirSync(dirname(targetPath), { recursive: true });
+      writeFileSync(targetPath, Buffer.from("source-screenshot"));
+      return { imageWidth: 1920, imageHeight: 1080, originX: 0, originY: 0, captureId: "abcdef0123456789" };
     });
     execFileMock.mockImplementation(((
       _file: string,
@@ -129,21 +133,30 @@ describe("ROI observation", () => {
       join(experimentDir, "blobs", "images", "roi-LiveScan-301b4447-abcdef0123456789.png"),
     );
     expect(existsSync(capture.imagePath)).toBe(true);
-    // No duplicate PNG at the experiment root.
+    // Transient source PNG was named under blobs/images with a hidden temp
+    // prefix and has been deleted by the finally block.
+    expect(observedTempPath).toBeDefined();
+    expect(observedTempPath!.startsWith(join(experimentDir, "blobs", "images", "_roi-source-"))).toBe(true);
+    expect(existsSync(observedTempPath!)).toBe(false);
+    // The ROI backend never touches workspace-capture.png and never invokes
+    // the workspace UI capture publisher.
+    expect(captureVirtualScreenAsyncMock).not.toHaveBeenCalled();
+    expect(existsSync(join(quailbotStateRoot(), "workspace-capture.png"))).toBe(false);
+    expect(existsSync(join(quailbotStateRoot(), "workspace-capture.metadata.json"))).toBe(false);
+    // Only the named ROI PNG remains inside blobs/images -- no temp file,
+    // no sha256-named duplicate, no PNG at the experiment root.
+    expect(readdirSync(join(experimentDir, "blobs", "images")).sort()).toEqual([
+      "roi-LiveScan-301b4447-abcdef0123456789.png",
+    ]);
     expect(existsSync(join(experimentDir, "roi-LiveScan-301b4447-abcdef0123456789.png"))).toBe(false);
-    // No sha256-named copy alongside it.
-    expect(existsSync(join(experimentDir, "blobs", "images", "abcdef0123456789.png"))).toBe(false);
-    // The legacy <stateDir>/roi-observations/ pile must NOT be created.
     expect(existsSync(join(quailbotStateRoot(), "roi-observations"))).toBe(false);
   });
 
   it("falls back to <stateRoot>/observations-orphan/ when no experiment is open", async () => {
-    const capturePath = join(quailbotStateRoot(), "workspace-capture.png");
-    mkdirSync(dirname(capturePath), { recursive: true });
-    writeFileSync(capturePath, Buffer.from("capture"));
-    captureVirtualScreenAsyncMock.mockResolvedValue({
-      pngPath: capturePath,
-      frame: { imageWidth: 1920, imageHeight: 1080, originX: 0, originY: 0, captureId: "fedcba9876543210" },
+    captureScreenToFileMock.mockImplementation(async (targetPath: string) => {
+      mkdirSync(dirname(targetPath), { recursive: true });
+      writeFileSync(targetPath, Buffer.from("source-screenshot"));
+      return { imageWidth: 1920, imageHeight: 1080, originX: 0, originY: 0, captureId: "fedcba9876543210" };
     });
     execFileMock.mockImplementation(((
       _file: string,
@@ -172,6 +185,7 @@ describe("ROI observation", () => {
     expect(captures).toHaveLength(1);
     expect(captures[0]!.imagePath.startsWith(join(quailbotStateRoot(), "observations-orphan"))).toBe(true);
     expect(existsSync(captures[0]!.imagePath)).toBe(true);
+    expect(captureVirtualScreenAsyncMock).not.toHaveBeenCalled();
   });
 
   it("compacts PowerShell CLIXML crop failures before returning model-visible ROI errors", async () => {

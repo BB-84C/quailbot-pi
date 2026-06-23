@@ -1,7 +1,7 @@
 import { execFile, execFileSync, type ExecFileOptions } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { closeSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { CaptureFrame } from "../shared/geometry.js";
 
@@ -96,6 +96,48 @@ export async function captureVirtualScreenAsync(opts: { stateDir: string }): Pro
 
   const reported = await runPowerShellCaptureAsync(paths.tmpPngPath);
   return publishCapture(paths, reported);
+}
+
+/**
+ * Capture the virtual screen directly into `targetPath` and return the
+ * resulting frame metadata in memory. Unlike `captureVirtualScreen[Async]`,
+ * this writer does NOT touch `workspace-capture.png` or
+ * `workspace-capture.metadata.json` -- it owns only the file the caller
+ * names. ROI capture uses this to take its own private screenshot inside
+ * the active experiment's `blobs/images/` directory so it never races
+ * the workspace UI's capture/refresh path.
+ *
+ * The caller is responsible for cleanup. No metadata sidecar is written.
+ */
+export async function captureScreenToFile(targetPath: string): Promise<CaptureFrame> {
+  mkdirSync(dirname(targetPath), { recursive: true });
+  const reported = await runPowerShellCaptureAsync(targetPath);
+  return finalizeCaptureFrame(targetPath, reported);
+}
+
+export function captureScreenToFileSync(targetPath: string): CaptureFrame {
+  mkdirSync(dirname(targetPath), { recursive: true });
+  const reported = runPowerShellCapture(targetPath);
+  return finalizeCaptureFrame(targetPath, reported);
+}
+
+function finalizeCaptureFrame(pngPath: string, reported: CaptureScriptResult): CaptureFrame {
+  const pngBytes = readFileSync(pngPath);
+  const pngDimensions = readPngDimensions(pngBytes);
+  if (pngDimensions.width !== reported.imageWidth || pngDimensions.height !== reported.imageHeight) {
+    throw new Error(
+      `screen capture self-check failed: PNG dimensions ${pngDimensions.width}x${pngDimensions.height} ` +
+        `did not match reported ${reported.imageWidth}x${reported.imageHeight}`,
+    );
+  }
+  const captureId = createHash("sha256").update(pngBytes).digest("hex").slice(0, 16);
+  return {
+    imageWidth: reported.imageWidth,
+    imageHeight: reported.imageHeight,
+    originX: reported.originX,
+    originY: reported.originY,
+    captureId,
+  };
 }
 
 type CapturePaths = {

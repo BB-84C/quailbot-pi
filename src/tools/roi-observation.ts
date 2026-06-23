@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { captureVirtualScreenAsync } from "../workspace-ui/server/capture.js";
 import type { Workspace, WorkspaceRoi } from "../workspace/types.js";
+import { quailbotStateRoot } from "../workspace/workspace-state.js";
 import type { QuailbotToolContent } from "./tool-result.js";
 
 export const ROI_IMAGE_UNREADABLE_BY_MODEL_WARNING =
@@ -222,11 +223,23 @@ export async function observeRois(ctx: RoiObservationContext, rois: WorkspaceRoi
   };
 }
 
-export function createDefaultRoiCaptureBackend(cwd: string): RoiCaptureBackend {
+export type DefaultRoiCaptureBackendOptions = {
+  /**
+   * Resolves the current active experiment directory at capture time. When
+   * an experiment is open, ROI PNGs are written there with their human-
+   * readable name so the captured evidence travels with the experiment
+   * record. When undefined (no active experiment), ROI PNGs fall back to
+   * `<stateRoot>/observations-orphan/` so observations are never lost.
+   */
+  resolveExperimentDir?: () => string | undefined;
+};
+
+export function createDefaultRoiCaptureBackend(options: DefaultRoiCaptureBackendOptions = {}): RoiCaptureBackend {
   return async ({ rois }) => {
-    const stateDir = join(cwd, ".quailbot-pi");
+    const stateDir = quailbotStateRoot();
     const capture = await captureVirtualScreenAsync({ stateDir });
-    const outputDir = join(stateDir, "roi-observations");
+    const experimentDir = options.resolveExperimentDir?.();
+    const outputDir = experimentDir ?? join(stateDir, "observations-orphan");
     mkdirSync(outputDir, { recursive: true });
 
     const pendingCaptures = rois.map((roi) => {

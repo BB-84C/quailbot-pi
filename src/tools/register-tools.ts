@@ -413,6 +413,7 @@ function runtimeToolContext(runtime: QuailbotRuntime, ctx?: ExtensionContext) {
   return createToolContext({
     workspace: requireWorkspace(runtime),
     cwd: ctx?.cwd,
+    ...(runtime.experimentLog === undefined ? {} : { experimentLog: runtime.experimentLog }),
     modelSupportsImages: modelSupportsImageInput(ctx?.model),
     notifyWarning: ctx?.hasUI === true ? (message) => ctx.ui.notify(message, "warning") : undefined,
   });

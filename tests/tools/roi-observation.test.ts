@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { quailbotStateRoot } from "../../src/workspace/workspace-state.js";
 import type { Workspace, WorkspaceRoi } from "../../src/workspace/types.js";
 
 vi.mock("node:child_process", () => ({
@@ -74,7 +75,7 @@ describe("ROI observation", () => {
       return {} as ReturnType<typeof execFile>;
     }) as never);
 
-    const backend = createDefaultRoiCaptureBackend(cwd);
+    const backend = createDefaultRoiCaptureBackend();
     const captures = await backend({
       workspace: workspaceWithRois([]),
       rois: [
@@ -87,6 +88,84 @@ describe("ROI observation", () => {
       expect.objectContaining({ ref: "LiveSignalChart_Z", width: 896, height: 181, data: expect.any(String) }),
       expect.objectContaining({ ref: "LiveSignalChart_Current(A)", width: 892, height: 186, data: expect.any(String) }),
     ]);
+  });
+
+  it("writes ROI PNGs into the active experiment directory with human-readable names", async () => {
+    const experimentDir = join(quailbotStateRoot(), "experiments", "2026", "06", "22", "exp_test01");
+    const capturePath = join(quailbotStateRoot(), "workspace-capture.png");
+    mkdirSync(dirname(capturePath), { recursive: true });
+    writeFileSync(capturePath, Buffer.from("capture"));
+    captureVirtualScreenAsyncMock.mockResolvedValue({
+      pngPath: capturePath,
+      frame: { imageWidth: 1920, imageHeight: 1080, originX: 0, originY: 0, captureId: "abcdef0123456789" },
+    });
+    execFileMock.mockImplementation(((
+      _file: string,
+      args: readonly string[],
+      options: { env?: NodeJS.ProcessEnv },
+      callback?: (error: Error | null, stdout: Buffer, stderr: Buffer) => void,
+    ) => {
+      const env = options.env;
+      const crops = JSON.parse(Buffer.from(env?.QUAILBOT_ROI_CROPS_B64 ?? "", "base64").toString("utf8")) as Array<{
+        outputPath: string;
+      }>;
+      for (const crop of crops) {
+        mkdirSync(dirname(crop.outputPath), { recursive: true });
+        writeFileSync(crop.outputPath, Buffer.from("roi-bytes"));
+      }
+      callback?.(null, Buffer.alloc(0), Buffer.alloc(0));
+      return {} as ReturnType<typeof execFile>;
+    }) as never);
+
+    const backend = createDefaultRoiCaptureBackend({ resolveExperimentDir: () => experimentDir });
+    const captures = await backend({
+      workspace: workspaceWithRois([]),
+      rois: [roi("LiveScan", 100, 50, 200, 150)],
+    });
+
+    expect(captures).toHaveLength(1);
+    const capture = captures[0]!;
+    expect(capture.imagePath).toBe(join(experimentDir, "roi-LiveScan-301b4447-abcdef0123456789.png"));
+    expect(existsSync(capture.imagePath)).toBe(true);
+    // The legacy <stateDir>/roi-observations/ pile must NOT be created.
+    expect(existsSync(join(quailbotStateRoot(), "roi-observations"))).toBe(false);
+  });
+
+  it("falls back to <stateRoot>/observations-orphan/ when no experiment is open", async () => {
+    const capturePath = join(quailbotStateRoot(), "workspace-capture.png");
+    mkdirSync(dirname(capturePath), { recursive: true });
+    writeFileSync(capturePath, Buffer.from("capture"));
+    captureVirtualScreenAsyncMock.mockResolvedValue({
+      pngPath: capturePath,
+      frame: { imageWidth: 1920, imageHeight: 1080, originX: 0, originY: 0, captureId: "fedcba9876543210" },
+    });
+    execFileMock.mockImplementation(((
+      _file: string,
+      args: readonly string[],
+      options: { env?: NodeJS.ProcessEnv },
+      callback?: (error: Error | null, stdout: Buffer, stderr: Buffer) => void,
+    ) => {
+      const env = options.env;
+      const crops = JSON.parse(Buffer.from(env?.QUAILBOT_ROI_CROPS_B64 ?? "", "base64").toString("utf8")) as Array<{
+        outputPath: string;
+      }>;
+      for (const crop of crops) {
+        mkdirSync(dirname(crop.outputPath), { recursive: true });
+        writeFileSync(crop.outputPath, Buffer.from("orphan-roi-bytes"));
+      }
+      callback?.(null, Buffer.alloc(0), Buffer.alloc(0));
+      return {} as ReturnType<typeof execFile>;
+    }) as never);
+
+    const backend = createDefaultRoiCaptureBackend({ resolveExperimentDir: () => undefined });
+    const captures = await backend({
+      workspace: workspaceWithRois([]),
+      rois: [roi("LiveScan", 100, 50, 200, 150)],
+    });
+
+    expect(captures).toHaveLength(1);
+    expect(captures[0]!.imagePath.startsWith(join(quailbotStateRoot(), "observations-orphan"))).toBe(true);
+    expect(existsSync(captures[0]!.imagePath)).toBe(true);
   });
 
   it("compacts PowerShell CLIXML crop failures before returning model-visible ROI errors", async () => {

@@ -1,5 +1,5 @@
 {
-  "name": "quailbot-pi",
+  "name": "@bb84/quailbot-pi",
   "version": "0.1.0",
   "description": "Quailbot Pi -- a Pi agent extension that turns a quantum instrument workspace into a measurement-readback action loop, with experiment logging and a workspace calibrator.",
   "keywords": [

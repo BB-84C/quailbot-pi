@@ -27,11 +27,11 @@ result.
 
 ```bash
 # Global (recommended for most users):
-pi install npm:quailbot-pi
+pi install npm:@bb84/quailbot-pi
 
 # Project-local (recommended for shared lab setups):
 cd your-project
-pi install -l npm:quailbot-pi
+pi install -l npm:@bb84/quailbot-pi
 ```
 
 If npm is blocked on your network, install from git:
@@ -186,7 +186,7 @@ reason. Crash recovery surfaces unfinished logs as `interrupted_unknown`.
 ## Upgrading
 
 ```bash
-pi update npm:quailbot-pi
+pi update npm:@bb84/quailbot-pi
 ```
 
 Settings, workspaces, memory, skills, and experiments persist across

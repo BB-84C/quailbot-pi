@@ -47,15 +47,24 @@ cd somewhere   # cwd does not affect where Quailbot state lives
 pi
 ```
 
-Inside Pi, open the workspace calibrator and pick or create a workspace:
+A first-run install has no workspace selected. Most Quailbot commands and
+tools need an active workspace, so the first thing to do is point at one:
+
+```
+/quailbot-workspace load D:/path/to/your-workspace.json
+```
+
+If you don't have a workspace JSON yet, write a minimal one by hand or
+import from the legacy Quailbot calibration tool, then use `load`. Once a
+workspace is active, open the browser calibrator to edit it visually:
 
 ```
 /quailbot-workspace open
 ```
 
-The calibrator launches in a localhost browser tab. Load an existing
-workspace JSON from disk, or build one from scratch by drawing ROIs and
-anchors over a real screen capture of your instrument GUI.
+The calibrator launches in a localhost browser tab where you can refine
+ROIs, anchors, CLI parameters, and CLI actions over a real screen
+capture of your instrument GUI, then save back to the workspace path.
 
 ### Mutating tools (safety gate)
 
@@ -82,9 +91,11 @@ By default, all Quailbot Pi state lives under your user home directory:
 
 ```
 ~/.quailbot-pi/
-  settings.json                 # selected workspace path
-  workspace.json                # starter workspace (auto-created on first run)
-  workspaces/                   # editor-saved workspace candidates
+  settings.json                 # selected workspace path (created on first load)
+  workspace.json                # starter workspace path (only present if you
+                                #   place or write a workspace here yourself;
+                                #   not auto-created)
+  workspaces/                   # default landing dir for editor saves
   workspace-capture.png         # current screen capture (overwrites)
   workspace-capture.metadata.json
   memory/                       # named memory MDs (one per domain)
@@ -95,6 +106,8 @@ By default, all Quailbot Pi state lives under your user home directory:
     blobs/images/<sha256>.png   # content-addressable image evidence
     roi-<name>-<hash>-<id>.png  # human-readable ROI captures
   observations-orphan/          # ROI captures without an active session
+  provider-payloads.jsonl       # optional provider request/response log
+                                #   (opt-in via QUAILBOT_PROVIDER_PAYLOAD_LOG=1)
 ```
 
 The directory is self-contained -- safe to back up, safe to delete if you
@@ -131,18 +144,29 @@ workspace are writable; nothing else is.
 ## Commands
 
 - `/quailbot-workspace show` -- summarize the active workspace
+- `/quailbot-workspace read` -- echo the active workspace JSON
 - `/quailbot-workspace load <path>` -- select an existing workspace JSON
 - `/quailbot-workspace validate <path>` -- dry-run validate without selecting
 - `/quailbot-workspace write <path>` -- write a workspace candidate
 - `/quailbot-workspace open` -- launch the browser calibrator
+- `/quailbot-experiments where` -- print the experiments root path
 - `/quailbot-experiments list` -- list local experiments
 - `/quailbot-experiments show <id>` -- show timeline for one experiment
-- `/quailbot-experiments where` -- print the experiments root path
-- `/quailbot-memory` -- inspect, search, load/unload memory domains
-- `/quailbot-skills` -- list, load, and write skills
-- `/quailbot-knowledge` -- show consolidated knowledge prefix
+- `/quailbot-memory list` -- list known memory domains
+- `/quailbot-memory load <domain>` -- load a memory domain into context
+- `/quailbot-memory unload <domain>` -- unload a memory domain from context
+- `/quailbot-skills list` -- list known skills
+- `/quailbot-skills window <n>` -- set the skill-body context window size
+- `/quailbot-settings show|cli-window|image-window|skill-window` -- runtime windows
+- `/quailbot-reload reload` -- reload Quailbot extensions/skills/workspace
 
-Run any command with no args to see its sub-help.
+Run any command with no args to open its interactive menu where supported.
+
+The agent has additional name-only tools for memory and skill content that
+are not exposed as slash commands: `quailbot_memory_save`,
+`quailbot_memory_search`, `quailbot_skill_write`, `quailbot_skill_edit`.
+These are agent-facing only (the model invokes them); the slash commands
+above are the user-facing surface.
 
 ## Experiments
 

@@ -86,8 +86,13 @@ describe("Quailbot system prompt", () => {
   it("does not include legacy or internal identity wording", () => {
     const prompt = buildQuailbotSystemPrompt({ cwd: "D:\\vault-lab" });
 
+    // Forbid Pi-identity-leak forms specifically (not the literal substring
+    // "Pi"). The state-awareness section legitimately references Pi as the
+    // parent agent infrastructure that Quailbot runs on top of and points
+    // at ~/.pi/ to distinguish Quailbot state from Pi state.
     for (const forbidden of [
-      "Pi",
+      "You are Pi",
+      "Pi coding assistant",
       "coding assistant",
       "MCP tool",
       "ReAct",
@@ -121,7 +126,7 @@ describe("Quailbot system prompt", () => {
     expect(prompt).not.toContain("internal engineering decision");
     expect(prompt).not.toContain("internal-pi-skill");
     expect(prompt).not.toContain("coding assistant helper");
-    expect(prompt).not.toContain("Pi");
+    expect(prompt).not.toContain("Pi coding assistant");
     expect(prompt).not.toContain("wait_until");
   });
 
@@ -145,7 +150,7 @@ describe("Quailbot system prompt", () => {
     expect(prompt).not.toContain("Read file contents");
     expect(prompt).not.toContain("Use dedicated tools for file exploration");
     for (const forbidden of [
-      "Pi",
+      "Pi coding assistant",
       "coding assistant",
       "MCP tool",
       "ReAct",
@@ -171,5 +176,46 @@ describe("Quailbot system prompt", () => {
     expect(prompt).toContain("- bash: run local development or diagnostic commands only");
     expect(prompt).not.toContain("Available tools:");
     expect(prompt).toContain("Current date: ");
+  });
+
+  it("includes a state-directory section so Quailbot knows where its own state lives and how to distinguish it from Pi state", () => {
+    const priorEnv = process.env.QUAILBOT_PI_STATE_DIR;
+    delete process.env.QUAILBOT_PI_STATE_DIR;
+    try {
+      const prompt = buildQuailbotSystemPrompt({ cwd: "D:\\vault-lab" });
+
+      expect(prompt).toContain("Quailbot state directory:");
+      expect(prompt).toContain("default ~/.quailbot-pi/");
+      expect(prompt).toContain("separate from Pi's own ~/.pi/");
+      expect(prompt).toContain("QUAILBOT_PI_STATE_DIR");
+      expect(prompt).toContain("memory/");
+      expect(prompt).toContain("skills/");
+      expect(prompt).toContain("experiments/");
+      expect(prompt).toContain("agent-facing memory and skill tools take NAMES, not paths");
+    } finally {
+      if (priorEnv === undefined) {
+        delete process.env.QUAILBOT_PI_STATE_DIR;
+      } else {
+        process.env.QUAILBOT_PI_STATE_DIR = priorEnv;
+      }
+    }
+  });
+
+  it("annotates the state-directory section when QUAILBOT_PI_STATE_DIR is overridden", () => {
+    const priorEnv = process.env.QUAILBOT_PI_STATE_DIR;
+    process.env.QUAILBOT_PI_STATE_DIR = "D:\\dev\\quailbot-pi\\.quailbot-pi";
+    try {
+      const prompt = buildQuailbotSystemPrompt({ cwd: "D:\\vault-lab" });
+
+      expect(prompt).toContain("Quailbot state directory: D:/dev/quailbot-pi/.quailbot-pi");
+      expect(prompt).toContain("(overridden by QUAILBOT_PI_STATE_DIR)");
+      expect(prompt).not.toContain("(default ~/.quailbot-pi/)");
+    } finally {
+      if (priorEnv === undefined) {
+        delete process.env.QUAILBOT_PI_STATE_DIR;
+      } else {
+        process.env.QUAILBOT_PI_STATE_DIR = priorEnv;
+      }
+    }
   });
 });

@@ -1,5 +1,7 @@
 import type { BuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
 
+import { quailbotStateRoot } from "../workspace/workspace-state.js";
+
 const QUAILBOT_IDENTITY = `You are Quailbot: a quantum uncertain action-outcome instrument loop agent.
 
 In quantum instrument work, an action is not the same thing as its outcome. A pulse, ramp, click, or command is an intervention; what actually happened must be determined through measurement, readback, and follow-up observation.
@@ -75,6 +77,18 @@ function buildRuntimeMetadataSection(options: Partial<BuildSystemPromptOptions>)
   const day = String(now.getDate()).padStart(2, "0");
   const date = `${year}-${month}-${day}`;
   const cwd = options.cwd ? options.cwd.replace(/\\/g, "/") : process.cwd().replace(/\\/g, "/");
+  const stateRoot = quailbotStateRoot().replace(/\\/g, "/");
+  const stateRootOverridden = (process.env.QUAILBOT_PI_STATE_DIR ?? "").trim().length > 0;
 
-  return `Current date: ${date}\nCurrent working directory: ${cwd}`;
+  const stateSection = `Quailbot state directory: ${stateRoot}${stateRootOverridden ? " (overridden by QUAILBOT_PI_STATE_DIR)" : " (default ~/.quailbot-pi/)"}
+
+This is the persistent home of YOUR state: selected workspace pointer in settings.json, editor-saved workspaces/, current workspace-capture.png, named memory MDs under memory/, named skills under skills/, knowledge-state.json, and append-only experiment logs under experiments/YYYY/MM/DD/exp_*/ with ROI captures and image blobs.
+
+It is separate from Pi's own ~/.pi/ tree, which holds Pi-level session, agent, and package infrastructure that you do not own.
+
+The QUAILBOT_PI_STATE_DIR environment variable, if set when Pi starts, relocates the entire Quailbot state directory to the given path. Development checkouts typically point it at the repo's .quailbot-pi/ to keep dev state isolated from a user's real home-dir state. End-user installs leave it unset.
+
+Knowledge and experiment paths shown to you in commands and tool results are absolute. The agent-facing memory and skill tools take NAMES, not paths; you do not edit Quailbot state through file or shell tools.`;
+
+  return `Current date: ${date}\nCurrent working directory: ${cwd}\n\n${stateSection}`;
 }

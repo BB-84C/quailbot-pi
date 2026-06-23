@@ -87,7 +87,9 @@ log so an audit later can prove no mutation occurred.
 
 ## Where Quailbot state lives
 
-By default, all Quailbot Pi state lives under your user home directory:
+By default, all Quailbot Pi state lives under your user home directory.
+This is separate from Pi's own `~/.pi/` (which holds Pi-level session
+and agent infrastructure); the two trees do not overlap.
 
 ```
 ~/.quailbot-pi/
@@ -96,19 +98,27 @@ By default, all Quailbot Pi state lives under your user home directory:
                                 #   place or write a workspace here yourself;
                                 #   not auto-created)
   workspaces/                   # default landing dir for editor saves
-  workspace-capture.png         # current screen capture (overwrites)
+  workspace-capture.png         # current workspace UI screen capture
+                                #   (overwrites; no per-captureId snapshots)
   workspace-capture.metadata.json
   memory/                       # named memory MDs (one per domain)
   skills/                       # named skills (one folder per skill)
   knowledge-state.json          # which memory domains are loaded
   experiments/YYYY/MM/DD/exp_*/ # one folder per agent session
     events.jsonl                # append-only event log
-    blobs/images/<sha256>.png   # content-addressable image evidence
-    roi-<name>-<hash>-<id>.png  # human-readable ROI captures
+    blobs/
+      images/                   # ROI captures live here, one PNG per capture,
+        roi-<name>-<refhash>-<captureId>.png
+                                #   named with the producing ROI's human name;
+                                #   events.jsonl references this same path
   observations-orphan/          # ROI captures without an active session
   provider-payloads.jsonl       # optional provider request/response log
                                 #   (opt-in via QUAILBOT_PROVIDER_PAYLOAD_LOG=1)
 ```
+
+The sha256 of every ROI PNG is recorded on the corresponding `events.jsonl`
+artifact entry for integrity verification, but the on-disk filename uses
+the human-readable form; there are no sha256-named duplicate copies.
 
 The directory is self-contained -- safe to back up, safe to delete if you
 want a fresh start, safe to inspect with any file browser.
@@ -174,10 +184,12 @@ Every Pi session opens an experiment under
 `~/.quailbot-pi/experiments/YYYY/MM/DD/exp_*/`. The session's tool calls,
 results, plan steps, ROI captures, denied mutations, and lifecycle events
 are appended to `events.jsonl`. ROI screenshots written by the `observe`
-tool (and inside `quailbot_plan_and_execute`) land directly in the
-experiment folder with human-readable names, alongside `blobs/images/`
-which holds the same images keyed by content hash for stable event-log
-references.
+tool (and inside `quailbot_plan_and_execute`) land directly inside
+`blobs/images/` in the experiment folder, named
+`roi-<name>-<refhash>-<captureId>.png`; `events.jsonl` references that
+exact path. The sha256 of each PNG is recorded on the event's artifact
+metadata for integrity verification, but the on-disk file uses the
+human-readable name -- there is exactly one file per ROI capture.
 
 Closing a session, switching workspaces (re-load with a different hash),
 or shutting Pi down all write an `experiment_close` event with the

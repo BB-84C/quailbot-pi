@@ -107,3 +107,8 @@
 - After local code changes, rebuild the package and reinstall the fresh tarball before testing or release work; otherwise the installed `quailbot-pi` package can go stale.
 - ROI capture artifacts should live only at `experiments/YYYY/MM/DD/exp_*/blobs/images/roi-LiveScan-<refhash>-<id>.png`.
 - `events.jsonl` should reference ROI images as `\\blobs\\images\\roi-LiveScan-<refhash>-<id>.png`; do not keep the old `\\<sha256>.png` reference shape and do not duplicate ROI image copies.
+
+## Release / Documentation Hygiene (2026-06-23)
+- A release is not meaningful if it ships only a tag; publish a `.tgz` / `.gz` install artifact or clearly point the release to the matching npm package version.
+- When storage or image-path contracts change, audit README and system-prompt text for stale descriptions before release.
+- If docs or the system prompt mention "Where Quailbot state lives", explain the actual state root clearly, distinguish it from legacy `~/.pi`, and note that `QUAILBOT_PI_STATE_DIR` overrides the state root.

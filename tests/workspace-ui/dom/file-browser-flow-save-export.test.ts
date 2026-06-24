@@ -173,19 +173,19 @@ describe("file browser save/export flow", () => {
     expect(modalRoot.querySelector<HTMLInputElement>('input[data-file-browser-filename="true"]')?.value).toBe("workspace.json");
   });
 
-  it("starts export browsing from the project directory when current workspace is in the hidden state directory", async () => {
+  it("starts export browsing inside the .quailbot-pi state directory when current workspace lives there", async () => {
     const state = fixtureState();
-    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspace.json";
-    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot-pi", entries: [] })));
+    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspaces\\workspace.json";
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot-pi\\.quailbot-pi\\workspaces", entries: [] })));
     vi.stubGlobal("fetch", fetch);
     const { menuRoot, modalRoot, store } = mount(state);
 
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-export"]')?.click();
     await flush();
 
-    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "D:\\quailbot-pi" });
-    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot-pi");
-    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot-pi");
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "D:\\quailbot-pi\\.quailbot-pi\\workspaces" });
+    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot-pi\\.quailbot-pi\\workspaces");
+    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot-pi\\.quailbot-pi\\workspaces");
   });
 
   it("keeps Export save disabled after a no-active-workspace browse failure", async () => {

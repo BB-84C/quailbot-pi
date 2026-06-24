@@ -32,7 +32,7 @@ export function browseDirectory(targetPath: string, roots: AllowedRoots): Browse
     }
     const entries: BrowseEntry[] = [];
     for (const dirent of readdirSync(resolved.resolved, { withFileTypes: true })) {
-      if (dirent.name === ".quailbot-pi" || dirent.name === "node_modules") continue;
+      if (dirent.name === "node_modules") continue;
       const entryPath = join(resolved.resolved, dirent.name);
       if (dirent.isDirectory()) {
         entries.push({ name: dirent.name, kind: "dir", path: entryPath });

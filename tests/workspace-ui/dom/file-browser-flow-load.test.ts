@@ -145,15 +145,15 @@ describe("file browser load flow", () => {
     expect(modalRoot.querySelector(".file-browser-error")?.textContent).toBe("path is outside the allowed roots");
   });
 
-  it("starts from the project directory when the active workspace is in the hidden state directory", async () => {
+  it("starts inside the .quailbot-pi state directory when the active workspace lives there", async () => {
     const state = initialState();
-    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspace.json";
+    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspaces\\workspace.json";
     const fetch = vi.fn().mockResolvedValueOnce(
       new Response(
         JSON.stringify({
           ok: true,
-          resolved: "D:\\quailbot-pi",
-          entries: [{ name: "workspaces", kind: "dir", path: "D:\\quailbot-pi\\workspaces" }],
+          resolved: "D:\\quailbot-pi\\.quailbot-pi\\workspaces",
+          entries: [{ name: "workspace.json", kind: "file", path: "D:\\quailbot-pi\\.quailbot-pi\\workspaces\\workspace.json" }],
         }),
       ),
     );
@@ -163,15 +163,15 @@ describe("file browser load flow", () => {
     menuRoot.querySelector<HTMLButtonElement>('button[data-action="file-browser-load"]')?.click();
     await flush();
 
-    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "D:\\quailbot-pi" });
-    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot-pi");
-    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot-pi");
-    expect(store.getState().fileBrowser.entries.map((entry) => entry.name)).toEqual(["workspaces"]);
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ path: "D:\\quailbot-pi\\.quailbot-pi\\workspaces" });
+    expect(store.getState().fileBrowser.currentPath).toBe("D:\\quailbot-pi\\.quailbot-pi\\workspaces");
+    expect(modalRoot.querySelector(".file-browser-path")?.textContent).toBe("D:\\quailbot-pi\\.quailbot-pi\\workspaces");
+    expect(store.getState().fileBrowser.entries.map((entry) => entry.name)).toEqual(["workspace.json"]);
   });
 
   it("navigates from a drive child directory to the drive root with Parent", async () => {
     const state = initialState();
-    state.workspace.currentPath = "D:\\quailbot-pi\\.quailbot-pi\\workspace.json";
+    state.workspace.currentPath = "D:\\quailbot-pi\\workspace.json";
     const fetch = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\quailbot-pi", entries: [] })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, resolved: "D:\\", entries: [{ name: "quailbot", kind: "dir", path: "D:\\quailbot" }] })));

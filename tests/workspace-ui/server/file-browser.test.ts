@@ -22,7 +22,7 @@ function validWorkspaceJson(): Record<string, unknown> {
 }
 
 describe("server file browser", () => {
-  it("browses directories and json files only, with dirs first and hidden state filtered", () => {
+  it("browses directories and json files only, with dirs first; node_modules filtered, .quailbot-pi visible", () => {
     const { roots, workspaceDir } = fixtureRoots();
     mkdirSync(join(workspaceDir, "b-dir"));
     mkdirSync(join(workspaceDir, "A-dir"));
@@ -39,6 +39,7 @@ describe("server file browser", () => {
     if (!result.ok) return;
     expect(result.entries.map((entry) => [entry.kind, entry.name])).toEqual([
       ["dir", ".hidden-dir"],
+      ["dir", ".quailbot-pi"],
       ["dir", "A-dir"],
       ["dir", "b-dir"],
       ["file", "A.json"],

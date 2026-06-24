@@ -29,15 +29,8 @@ function dirnameLike(filePath: string): string {
   return slash > 0 ? trimmed.slice(0, slash) : trimmed;
 }
 
-function basenameLike(filePath: string): string {
-  const trimmed = filePath.replace(/[\\/]+$/, "");
-  const slash = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
-  return slash >= 0 ? trimmed.slice(slash + 1) : trimmed;
-}
-
 function fileBrowserStartDir(currentWorkspacePath: string): string {
-  const dir = dirnameLike(currentWorkspacePath);
-  return basenameLike(dir).toLowerCase() === ".quailbot-pi" ? dirnameLike(dir) : dir;
+  return dirnameLike(currentWorkspacePath);
 }
 
 function joinLike(dir: string, name: string): string {

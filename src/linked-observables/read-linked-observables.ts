@@ -1,5 +1,12 @@
+import { readFileSync } from "node:fs";
+
 import type { ToolContext } from "../tools/tool-context.js";
-import { observeRois, type RoiObservationReadback, type RoiObservationResult } from "../tools/roi-observation.js";
+import {
+  observeRois,
+  ROI_IMAGE_UNREADABLE_BY_MODEL_WARNING,
+  type RoiObservationReadback,
+  type RoiObservationResult,
+} from "../tools/roi-observation.js";
 import type { QuailbotToolContent } from "../tools/tool-result.js";
 import type { WorkspaceRoi } from "../workspace/types.js";
 import type { ResolvedLinkedObservables } from "./resolve-linked-observables.js";
@@ -13,6 +20,7 @@ export type LinkedCliObservationResult = {
   argv: string[];
   error_type?: string;
   error_message?: string;
+  warning?: string;
 };
 
 export type LinkedRoiObservationResult = RoiObservationResult;
@@ -45,6 +53,7 @@ export async function readLinkedObservablesWithContent(
   const cliResultsPromise = readCliObservables(ctx, resolved.cli);
 
   const [cliResults, { observation: roiObservation, content }] = await Promise.all([cliResultsPromise, roiReadbackPromise]);
+  appendCliImageContent(ctx, cliResults, content);
 
   return {
     observation: {
@@ -56,6 +65,32 @@ export async function readLinkedObservablesWithContent(
     },
     content,
   };
+}
+
+function appendCliImageContent(
+  ctx: ToolContext,
+  cliResults: Record<string, LinkedCliObservationResult>,
+  content: QuailbotToolContent[],
+): void {
+  for (const result of Object.values(cliResults)) {
+    const image = imageReference(result.payload);
+    if (image === undefined) {
+      continue;
+    }
+
+    if (ctx.modelSupportsImages === false) {
+      result.warning = ROI_IMAGE_UNREADABLE_BY_MODEL_WARNING;
+      ctx.notifyWarning?.(result.warning);
+      continue;
+    }
+
+    try {
+      content.push({ type: "image", data: readFileSync(image.path).toString("base64"), mimeType: image.mimeType });
+    } catch (error) {
+      result.warning = `linked observable image readback failed for ${image.path}: ${errorMessage(error)}`;
+      ctx.notifyWarning?.(result.warning);
+    }
+  }
 }
 
 async function readCliObservables(ctx: ToolContext, refs: string[]): Promise<Record<string, LinkedCliObservationResult>> {
@@ -99,6 +134,32 @@ function splitCliRef(ref: string): [string, string] {
   }
 
   return [ref.slice(0, separator), ref.slice(separator + 1)];
+}
+
+function imageReference(payload: unknown): { path: string; mimeType: string } | undefined {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+
+  const path = stringValue(payload.image_path);
+  const mimeType = stringValue(payload.mime_type);
+  if (path === undefined || mimeType === undefined || !mimeType.startsWith("image/")) {
+    return undefined;
+  }
+
+  return { path, mimeType };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function resolvedRois(ctx: ToolContext, refs: string[]): WorkspaceRoi[] {

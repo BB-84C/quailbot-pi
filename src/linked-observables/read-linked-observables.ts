@@ -21,6 +21,7 @@ export type LinkedCliObservationResult = {
   error_type?: string;
   error_message?: string;
   warning?: string;
+  attached_image?: boolean;
 };
 
 export type LinkedRoiObservationResult = RoiObservationResult;
@@ -86,6 +87,7 @@ function appendCliImageContent(
 
     try {
       content.push({ type: "image", data: readFileSync(image.path).toString("base64"), mimeType: image.mimeType });
+      result.attached_image = true;
     } catch (error) {
       result.warning = `linked observable image readback failed for ${image.path}: ${errorMessage(error)}`;
       ctx.notifyWarning?.(result.warning);

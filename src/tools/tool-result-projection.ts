@@ -4,6 +4,7 @@ export const DEFAULT_RECENT_FULL_CLI_RESULT_COUNT = 10;
 export const DEFAULT_RECENT_FULL_SKILL_RESULT_COUNT = 3;
 export const DEFAULT_SUMMARY_MAX_CHARS = 2000;
 export const DEFAULT_FULL_MAX_CHARS = 12000;
+const IMAGE_LINKED_PAYLOAD_MAX_CHARS = 500;
 
 export type ProjectionMode = "summary" | "recent-full";
 export type ProjectionStatus = "ok" | "fail";
@@ -357,8 +358,45 @@ function linkedCliReadbackLines(observation: Record<string, unknown>, separator:
 
     const diagnosticParts = structuredDiagnosticParts(result);
     const suffix = diagnosticParts.length > 0 ? `, ${diagnosticParts.join(" ")}` : "";
-    return `${ref} [${parseStatus}${suffix}]`;
+    const imagePayload = imageLinkedPayloadSummary(result);
+    return `${ref} [${parseStatus}${suffix}]${imagePayload === undefined ? "" : ` ${imagePayload}`}`;
   });
+}
+
+function imageLinkedPayloadSummary(result: Record<string, unknown>): string | undefined {
+  if (booleanValue(result.attached_image) !== true || result.payload === undefined) {
+    return undefined;
+  }
+
+  const serialized = JSON.stringify(withoutImageTransport(result.payload));
+  if (serialized === undefined) {
+    return undefined;
+  }
+
+  return serialized.length <= IMAGE_LINKED_PAYLOAD_MAX_CHARS
+    ? serialized
+    : `${serialized.slice(0, IMAGE_LINKED_PAYLOAD_MAX_CHARS - 1)}…`;
+}
+
+function withoutImageTransport(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(withoutImageTransport);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !isImageTransportKey(key))
+      .map(([key, entry]) => [key, withoutImageTransport(entry)]),
+  );
+}
+
+function isImageTransportKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return normalized === "image_path" || normalized === "mime_type" || normalized.includes("base64");
 }
 
 function linkedRoiReadbackLines(observation: Record<string, unknown>): string[] {

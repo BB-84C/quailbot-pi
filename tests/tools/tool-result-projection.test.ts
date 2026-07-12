@@ -79,6 +79,47 @@ describe("tool result projection", () => {
     expect(text).not.toContain("LINKED_STDOUT_SHOULD_NOT_APPEAR");
   });
 
+  it("includes an image-linked observable payload inline without image transport fields", () => {
+    const text = buildQuailbotToolContent(cliActionWithImageLinkedReadback({
+      patch_ref: "patch-17",
+      captured_at: "2026-07-12T10:15:00Z",
+      fresh: true,
+      image_path: "C:\\private\\patch-17.png",
+      mime_type: "image/png",
+      image_base64: "BASE64_IMAGE_TRANSPORT_SHOULD_NOT_APPEAR",
+    }));
+
+    expect(text).toContain('qdctl:patch_image [parsed_payload, exit=0] {"patch_ref":"patch-17","captured_at":"2026-07-12T10:15:00Z","fresh":true}');
+    expect(text).not.toContain("image_path");
+    expect(text).not.toContain("mime_type");
+    expect(text).not.toContain("BASE64_IMAGE_TRANSPORT_SHOULD_NOT_APPEAR");
+  });
+
+  it("leaves non-image linked-observable rendering unchanged", () => {
+    const text = buildQuailbotToolContent(cliActionWithImageLinkedReadback({
+      patch_ref: "patch-17",
+      fresh: true,
+    }, false));
+
+    expect(text).toContain("qdctl:patch_image [parsed_payload, exit=0]");
+    expect(text).not.toContain("patch_ref");
+    expect(text).not.toContain("fresh");
+  });
+
+  it("truncates oversized image-linked observable payloads", () => {
+    const text = buildQuailbotToolContent(cliActionWithImageLinkedReadback({
+      patch_ref: "patch-17",
+      annotation: "X".repeat(600),
+      image_path: "C:\\private\\patch-17.png",
+      mime_type: "image/png",
+    }));
+    const readback = text.split("\n").find((line) => line.startsWith("qdctl:patch_image"));
+
+    expect(readback).toBeDefined();
+    expect(readback).toContain("…");
+    expect(readback).toHaveLength("qdctl:patch_image [parsed_payload, exit=0] ".length + 500);
+  });
+
   it("summarizes ramp reports without dumping plan arrays", () => {
     const text = buildQuailbotToolContent(cliRampVerboseResult());
 
@@ -585,6 +626,41 @@ function cliSetWithLinkedFailureReadback(): QuailbotToolResult {
           },
         },
       },
+    },
+  };
+}
+
+function cliActionWithImageLinkedReadback(payload: Record<string, unknown>, attachedImage = true): QuailbotToolResult {
+  return {
+    ok: true,
+    action: "cli_action",
+    action_input: { cli_name: "qdctl", action_name: "measure_patch" },
+    primary_result: {
+      action_name: "measure_patch",
+      ok: true,
+      exit_code: 0,
+      stdout: "",
+      stderr: "",
+      payload: {},
+      argv: ["qdctl", "act", "measure_patch"],
+    },
+    linked_observation: {
+      channels: {
+        cli: {
+          results: {
+            "qdctl:patch_image": {
+              ok: true,
+              exit_code: 0,
+              stdout: "",
+              stderr: "",
+              payload,
+              argv: ["qdctl", "get", "patch_image"],
+              ...(attachedImage ? { attached_image: true } : {}),
+            },
+          },
+        },
+      },
+      unresolved: [],
     },
   };
 }

@@ -74,6 +74,7 @@ export type FormAction =
   | { type: "FORM_EDIT_CLI_SET_DESC"; payload: { text: string; commit?: boolean } }
   | { type: "FORM_EDIT_CLI_SAFETY_FIELD"; payload: { field: CliSafetyField; text: string; commit?: boolean } }
   | { type: "FORM_EDIT_CLI_RAMP_ENABLED"; payload: { value: boolean } }
+  | { type: "FORM_EDIT_CLI_ACTION"; payload: { action: "get" | "set" | "ramp"; value: boolean } }
   | { type: "LINKED_SEARCH_CHANGED"; payload: { text: string } }
   | { type: "LINKED_PICKER_CHANGED"; payload: { value: string } }
   | { type: "LINKED_SELECT"; payload: { value: string; modifiers: { ctrl: boolean } } }
@@ -252,6 +253,10 @@ export function formEditCliSafetyField(field: CliSafetyField, text: string, comm
 
 export function formEditCliRampEnabled(value: boolean): Action {
   return { type: "FORM_EDIT_CLI_RAMP_ENABLED", payload: { value } };
+}
+
+export function formEditCliAction(action: "get" | "set" | "ramp", value: boolean): Action {
+  return { type: "FORM_EDIT_CLI_ACTION", payload: { action, value } };
 }
 
 export function linkedSearchChanged(text: string): Action {

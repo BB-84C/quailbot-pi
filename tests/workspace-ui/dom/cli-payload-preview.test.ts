@@ -39,4 +39,16 @@ describe("CLI payload preview", () => {
     expect(preview(root)).toContain('"safety_mode": "alwaysAllowed"');
     expect(preview(root)).not.toContain("alwaysallowed");
   });
+
+  it("updates immediately after an allow action checkbox changes", () => {
+    const { root, store } = mountForm(stateWithCli(writableParam()));
+    const allowSet = root.querySelector<HTMLInputElement>('input[data-cli-action="set"]');
+    if (!allowSet) throw new Error("missing allow set checkbox");
+
+    allowSet.checked = false;
+    change(allowSet);
+
+    expect(store.getState().workspace.cliParams[0]?.allow_set).toBe(false);
+    expect(preview(root)).toContain('"set": false');
+  });
 });

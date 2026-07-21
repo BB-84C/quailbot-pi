@@ -238,6 +238,12 @@ describe("workspace shared parse logic", () => {
     expectParsed(raw, "parse_links_tags_actions_description.json");
     const { params } = parseCliParamsBlock(raw);
     expect(params.find((item) => item.name === "preferred-links")?.linked_observables).toEqual(["obs-a"]);
+    expect(params.find((item) => item.name === "preferred-links")).toMatchObject({
+      allow_get: true,
+      allow_set: true,
+      allow_ramp: true,
+      actions_overridden: true,
+    });
     expect(params.find((item) => item.name === "fallback-scalar-link")?.linked_observables).toEqual(["roi-one"]);
     expect(params.find((item) => item.name === "blank-description-action")?.description).toBe("fallback description");
     expect(params.find((item) => item.name === "explicit-description-action")?.description).toBe("explicit wins");

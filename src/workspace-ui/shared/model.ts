@@ -43,6 +43,12 @@ export interface CliParamDraft {
   allow_get: boolean;
   allow_set: boolean;
   allow_ramp: boolean;
+  /**
+   * Explicit workspace actions and editor checkbox changes are intentional user
+   * choices. Metadata only supplies defaults while this flag is unset.
+   * This editor-only marker is never serialized.
+   */
+  actions_overridden?: boolean;
   readable: boolean;
   writable: boolean;
   has_ramp: boolean;
@@ -193,6 +199,11 @@ export function syncActionsFromMetadata(d: CliParamDraft): void {
   }
   if (d.set_cmd === null) {
     d.writable = false;
+  }
+  // Metadata establishes defaults; an explicit actions block or checkbox edit
+  // remains authoritative across unrelated editor re-syncs.
+  if (d.actions_overridden) {
+    return;
   }
   d.allow_get = Boolean(d.readable);
   d.allow_set = Boolean(d.writable && d.set_cmd !== null);

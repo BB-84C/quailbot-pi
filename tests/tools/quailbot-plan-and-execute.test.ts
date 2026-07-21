@@ -127,6 +127,29 @@ describe("quailbot_plan_and_execute", () => {
     expect(runCli).not.toHaveBeenCalled();
   });
 
+  it("rejects safety-gated cli_set plan steps during preflight before any driver execution", async () => {
+    const runCli = vi.fn<RunCli>();
+    const workspace = fixtureWorkspace();
+    const parameter = workspace.cli.parameters.get("nqctl:zctrl_setpnt");
+    if (!parameter) {
+      throw new Error("test fixture missing zctrl_setpnt");
+    }
+    parameter.schema.safety = { min_value: "-5", max_value: "5" };
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
+
+    const result = await executeQuailbotPlanAndExecute(ctx, {
+      steps: [{ kind: "cli_set", cli_name: "nqctl", parameter: "zctrl_setpnt", value: 6 }],
+    });
+
+    expect(result.primary_result).toMatchObject({
+      ok: false,
+      stopped_reason: "validation_failed",
+      validation_error: expect.stringContaining("cli_set rejected: value 6 exceeds max_value 5 for nqctl:zctrl_setpnt"),
+      steps: [],
+    });
+    expect(runCli).not.toHaveBeenCalled();
+  });
+
   it("rejects disabled mutating plans before validating earlier read-only CLI steps", async () => {
     const executeCliGet = vi.fn().mockResolvedValue({
       ok: true,

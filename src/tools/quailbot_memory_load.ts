@@ -1,6 +1,6 @@
 import { knowledgeStateFromRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime.js";
 import { trySaveKnowledgeState } from "../knowledge/knowledge-state.js";
-import { listMemoryDomains } from "../knowledge/memory.js";
+import { listMemoryDomains, readMemoryDomain } from "../knowledge/memory.js";
 import { isSafeKnowledgeName } from "../knowledge/safe-name.js";
 import type { QuailbotToolResult } from "./tool-result.js";
 
@@ -34,6 +34,7 @@ export function executeQuailbotMemoryLoad(knowledge: KnowledgeRuntime, domain: s
       },
     };
   }
+  const memory = readMemoryDomain(knowledge.cwd, domain);
   const known = listMemoryDomains(knowledge.cwd).includes(domain);
   return {
     ok: true,
@@ -43,6 +44,7 @@ export function executeQuailbotMemoryLoad(knowledge: KnowledgeRuntime, domain: s
       domain,
       loaded: [...knowledge.loadedDomains].sort(),
       known,
+      topics: memory?.sections.map(({ topic, hash }) => ({ topic, hash })) ?? [],
       warning: known ? undefined : "No memory file for this domain yet; it will render once content is saved.",
     },
   };

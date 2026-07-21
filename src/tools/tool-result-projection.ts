@@ -72,6 +72,17 @@ export function isSkillAction(action: string): boolean {
   return action === "quailbot_skill";
 }
 
+function isKnowledgeAction(action: string): boolean {
+  return (
+    action === "quailbot_skill" ||
+    action === "quailbot_skill_edit" ||
+    action === "quailbot_skill_write" ||
+    action === "quailbot_memory_load" ||
+    action === "quailbot_memory_search" ||
+    action === "quailbot_memory_save"
+  );
+}
+
 function buildHeadline(
   action: string,
   target: string | undefined,
@@ -100,8 +111,8 @@ function projectionBodyLines(
     return [...errorLines, ...planwriteSummaryLines(primary)];
   }
 
-  if (isSkillAction(result.action)) {
-    return skillSummaryLines(result, primary, mode);
+  if (isKnowledgeAction(result.action)) {
+    return knowledgeSummaryLines(result, primary, mode);
   }
 
   if (result.action === "observe") {
@@ -171,8 +182,12 @@ function skillSummaryLines(result: QuailbotToolResult, primary: Record<string, u
   if (mode !== "recent-full") {
     const lines: string[] = [];
     const warning = stringValue(primary.warning);
+    const hash = stringValue(primary.contentHash) ?? stringValue(primary.hash);
     if (warning !== undefined) {
       lines.push(warning);
+    }
+    if (hash !== undefined) {
+      lines.push(`content_hash: ${hash}`);
     }
     lines.push(`skill body omitted; re-invoke quailbot_skill("${name}") to reload it.`);
     return lines;
@@ -181,13 +196,98 @@ function skillSummaryLines(result: QuailbotToolResult, primary: Record<string, u
   const lines: string[] = [];
   const warning = stringValue(primary.warning);
   const body = stringValue(primary.body) ?? "";
+  const hash = stringValue(primary.contentHash) ?? stringValue(primary.hash);
 
   if (warning !== undefined) {
     lines.push(warning);
   }
 
+  if (hash !== undefined) {
+    lines.push(`content_hash: ${hash}`);
+  }
   lines.push(`<skill_content name="${name}">`, body, "</skill_content>");
   return lines;
+}
+
+function knowledgeSummaryLines(
+  result: QuailbotToolResult,
+  primary: Record<string, unknown>,
+  mode: ProjectionMode,
+): string[] {
+  if (result.action === "quailbot_skill") {
+    return skillSummaryLines(result, primary, mode);
+  }
+
+  if (result.action === "quailbot_skill_edit" || result.action === "quailbot_skill_write") {
+    return skillMutationSummaryLines(result, primary);
+  }
+
+  if (result.action === "quailbot_memory_load") {
+    return memoryLoadSummaryLines(primary);
+  }
+
+  if (result.action === "quailbot_memory_search") {
+    return memorySearchSummaryLines(primary);
+  }
+
+  return memorySaveSummaryLines(primary);
+}
+
+function skillMutationSummaryLines(result: QuailbotToolResult, primary: Record<string, unknown>): string[] {
+  const input = record(result.action_input);
+  const lines = fieldLines(primary, ["name", "path", "created", "updated", "error", "currentHash", "errorCode", "errorMessage"]);
+  const name = stringValue(primary.name) ?? stringValue(input.name);
+  if (name !== undefined && !lines.some((line) => line.startsWith("name:"))) {
+    lines.unshift(`name: ${name}`);
+  }
+  return lines;
+}
+
+function memoryLoadSummaryLines(primary: Record<string, unknown>): string[] {
+  const lines = fieldLines(primary, ["domain", "loaded", "known", "warning", "error", "error_code", "error_message"]);
+  for (const value of arrayRecords(primary.topics)) {
+    const topic = stringValue(value.topic) ?? "<unknown>";
+    const hash = stringValue(value.hash);
+    lines.push(`topic: ${topic}${hash === undefined ? "" : ` hash: ${hash}`}`);
+  }
+  return lines;
+}
+
+function memorySearchSummaryLines(primary: Record<string, unknown>): string[] {
+  const lines = fieldLines(primary, ["query", "count"]);
+  for (const value of arrayRecords(primary.matches)) {
+    const domain = stringValue(value.domain) ?? "<unknown>";
+    const topic = stringValue(value.topic) ?? "<unknown>";
+    const hash = stringValue(value.hash);
+    const snippet = stringValue(value.snippet);
+    lines.push(`domain: ${domain} topic: ${topic}${hash === undefined ? "" : ` hash: ${hash}`}`);
+    if (snippet !== undefined) {
+      lines.push(`snippet: ${snippet}`);
+    }
+  }
+  return lines;
+}
+
+function memorySaveSummaryLines(primary: Record<string, unknown>): string[] {
+  return fieldLines(primary, [
+    "status",
+    "domain",
+    "topic",
+    "sectionHash",
+    "currentHash",
+    "warning",
+    "errorCode",
+    "errorMessage",
+  ]);
+}
+
+function fieldLines(primary: Record<string, unknown>, fields: string[]): string[] {
+  return fields
+    .map((field) => {
+      const value = primary[field];
+      return value === undefined ? undefined : `${field}: ${formatValue(value)}`;
+    })
+    .filter((line): line is string => line !== undefined);
 }
 
 function skillName(result: QuailbotToolResult, primary: Record<string, unknown>): string {
@@ -198,10 +298,14 @@ function skillName(result: QuailbotToolResult, primary: Record<string, unknown>)
 function structuredErrorLines(primary: Record<string, unknown>): string[] {
   const lines: string[] = [];
   const errorType = stringValue(primary.error_type);
+  const error = stringValue(primary.error);
   const message = stringValue(primary.message) ?? stringValue(primary.error_message);
 
   if (errorType !== undefined) {
     lines.push(`error_type: ${errorType}`);
+  }
+  if (error !== undefined) {
+    lines.push(`error: ${error}`);
   }
   if (message !== undefined) {
     lines.push(`message: ${message}`);
@@ -749,4 +853,8 @@ function booleanValue(value: unknown): boolean | undefined {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+}
+
+function arrayRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(record) : [];
 }

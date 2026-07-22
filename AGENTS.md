@@ -112,3 +112,9 @@
 - A release is not meaningful if it ships only a tag; publish a `.tgz` / `.gz` install artifact or clearly point the release to the matching npm package version.
 - When storage or image-path contracts change, audit README and system-prompt text for stale descriptions before release.
 - If docs or the system prompt mention "Where Quailbot state lives", explain the actual state root clearly, distinguish it from legacy `~/.pi`, and note that `QUAILBOT_PI_STATE_DIR` overrides the state root.
+
+## Project Facts & Design Invariants (2026-07-21)
+- Interactive testing substrate: a live Nanonis simulator runs on this machine. Start a test quailbot-pi over RPC using the project's previously recorded method to drive real interactive tests against it.
+- The workspace-editor web UI is verified with Playwright only (not Chrome DevTools / browser-MCP tools).
+- Experiment lifecycle is lazy and session-scoped: do NOT create an experiment at Pi startup / session_start. Open it on the first real (non-slash-command) user prompt. A resumed session reuses the same experiment (session index keyed by Pi session id). Experiment paths are flat `experiments/YYYY-MM-DD/exp_*`, never nested `YYYY/MM/DD`.
+- Workspace safety is enforced, not decorative: parameter min/max/slew act as hard gates on mutating tools (cli_set / cli_ramp / plan_and_execute) before the instrument is touched, and the editor's allow get/set/ramp checkboxes are real, user-editable capability toggles.

@@ -512,4 +512,22 @@ Date: 2026-06-22
 
 - `Set agent workspace` / activation-request residue was already removed during A3 closeout; nothing to defer.
 - Editor Save-As target picker polish.
+
+## Implementation round: experiment lifecycle lazy creation and session reuse
+
+Date: 2026-07-21
+
+### Delivered
+
+- Flattened new experiment paths to `.quailbot-pi/experiments/YYYY-MM-DD/exp_*/events.jsonl`, made creation lazy until the first real `before_agent_start` prompt, and added a fail-soft `session-index.json` that reopens the same experiment for a Pi session id on resume or reload.
+- Resumed streams append an `experiment_open` event with `resumed: true` after recovering the last valid sequence; a corrupt tail warns and starts a new experiment instead. The reader continues recursive discovery, so existing legacy nested logs remain visible to `/quailbot-experiments`.
+
+### Now known
+
+- Pi reload recreates the extension runtime, so in-memory reload continuation cannot preserve experiment identity. The persistent session index is the correct continuity boundary.
+- Workspace hashes should not partition one Pi-session experiment: each event already carries a workspace snapshot, preserving workspace changes without fragmenting evidence.
+
+### Later phases must do differently
+
+- Rebuild `dist/` before validating the built-extension adoption test; it intentionally loads `dist/src/extension.js`, which remains stale during source-only implementation work.
 - Optional: a `pi update` migration helper if downstream users hit settings files written under old cwd paths. v0.1.0 has no released users, so no migration is needed for the initial publish.

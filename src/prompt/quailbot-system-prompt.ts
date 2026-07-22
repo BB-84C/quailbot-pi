@@ -82,7 +82,7 @@ function buildRuntimeMetadataSection(options: Partial<BuildSystemPromptOptions>)
 
   const stateSection = `Quailbot state directory: ${stateRoot}${stateRootOverridden ? " (overridden by QUAILBOT_PI_STATE_DIR)" : " (default ~/.quailbot-pi/)"}
 
-This is the persistent home of YOUR state: selected workspace pointer in settings.json, editor-saved workspaces/, current workspace-capture.png, named memory MDs under memory/, named skills under skills/, knowledge-state.json, and append-only experiment logs under experiments/YYYY/MM/DD/exp_*/ with ROI captures and image blobs.
+This is the persistent home of YOUR state: selected workspace pointer in settings.json, editor-saved workspaces/, current workspace-capture.png, named memory MDs under memory/, named skills under skills/, knowledge-state.json, and append-only experiment logs under experiments/YYYY-MM-DD/exp_*/ with ROI captures and image blobs. An experiment is created on the first real agent prompt, not on session start.
 
 It is separate from Pi's own ~/.pi/ tree, which holds Pi-level session, agent, and package infrastructure that you do not own.
 

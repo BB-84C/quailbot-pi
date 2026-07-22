@@ -18,7 +18,7 @@ afterEach(() => {
 describe("readExperiment", () => {
   it("summarizes a closed experiment from complete jsonl events", () => {
     const root = makeTempDir();
-    const eventsPath = writeExperiment(root, "2026/06/16/exp_closed/events.jsonl", [
+    const eventsPath = writeExperiment(root, "2026-06-16/exp_closed/events.jsonl", [
       event({
         event_id: "evt-open",
         experiment_id: "exp_closed",
@@ -67,7 +67,7 @@ describe("readExperiment", () => {
 
   it("reports interrupted_unknown for experiments with events but no close without synthesizing a close event", () => {
     const root = makeTempDir();
-    const eventsPath = writeExperiment(root, "2026/06/16/exp_interrupted/events.jsonl", [
+    const eventsPath = writeExperiment(root, "2026-06-16/exp_interrupted/events.jsonl", [
       event({
         event_id: "evt-open",
         experiment_id: "exp_interrupted",
@@ -95,7 +95,7 @@ describe("readExperiment", () => {
 
   it("ignores and exposes a partial trailing line", () => {
     const root = makeTempDir();
-    const eventsPath = join(root, "2026", "06", "16", "exp_partial", "events.jsonl");
+    const eventsPath = join(root, "2026-06-16", "exp_partial", "events.jsonl");
     mkdirSync(dirname(eventsPath), { recursive: true });
     writeFileSync(
       eventsPath,
@@ -135,7 +135,7 @@ describe("readExperiment", () => {
 
   it("skips and exposes malformed complete jsonl lines while keeping valid events", () => {
     const root = makeTempDir();
-    const eventsPath = join(root, "2026", "06", "16", "exp_corrupt", "events.jsonl");
+    const eventsPath = join(root, "2026-06-16", "exp_corrupt", "events.jsonl");
     mkdirSync(dirname(eventsPath), { recursive: true });
     writeFileSync(
       eventsPath,
@@ -177,7 +177,7 @@ describe("readExperiment", () => {
 describe("listExperiments and findExperimentEventsPath", () => {
   it("recursively discovers experiment logs, finds by id, and sorts newest started experiments first", () => {
     const root = makeTempDir();
-    const olderPath = writeExperiment(root, "2026/06/15/exp_older/events.jsonl", [
+    const olderPath = writeExperiment(root, "2026-06-15/exp_older/events.jsonl", [
       event({
         event_id: "evt-open-older",
         experiment_id: "exp_older",
@@ -186,7 +186,7 @@ describe("listExperiments and findExperimentEventsPath", () => {
         event_kind: "experiment_open",
       }),
     ]);
-    const newerPath = writeExperiment(root, "2026/06/16/exp_newer/events.jsonl", [
+    const newerPath = writeExperiment(root, "2026-06-16/exp_newer/events.jsonl", [
       event({
         event_id: "evt-open-newer",
         experiment_id: "exp_newer",
@@ -206,7 +206,7 @@ describe("listExperiments and findExperimentEventsPath", () => {
 
   it("does not throw when one discovered experiment has a malformed complete line", () => {
     const root = makeTempDir();
-    const validPath = writeExperiment(root, "2026/06/16/exp_valid/events.jsonl", [
+    const validPath = writeExperiment(root, "2026-06-16/exp_valid/events.jsonl", [
       event({
         event_id: "evt-valid-open",
         experiment_id: "exp_valid",
@@ -215,7 +215,7 @@ describe("listExperiments and findExperimentEventsPath", () => {
         event_kind: "experiment_open",
       }),
     ]);
-    const corruptPath = join(root, "2026", "06", "16", "exp_corrupt_discovered", "events.jsonl");
+    const corruptPath = join(root, "2026-06-16", "exp_corrupt_discovered", "events.jsonl");
     mkdirSync(dirname(corruptPath), { recursive: true });
     writeFileSync(
       corruptPath,

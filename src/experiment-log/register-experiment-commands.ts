@@ -184,6 +184,7 @@ function toTimelineStep(event: ExperimentLogEvent): Record<string, unknown> {
         ...base,
         session_start_reason: event.session_start_reason,
         previous_session_file: event.previous_session_file,
+        resumed: event.resumed,
       };
 
     case "tool_invocation_started":

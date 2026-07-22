@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { MutationPolicy } from "../tools/mutation-policy.js";
@@ -46,6 +46,10 @@ export type ExperimentLogOpenOptions = {
   previousSessionFile?: string;
   workspace?: LoadedWorkspace;
   mutationPolicy?: MutationPolicy;
+  resumeFrom?: {
+    experimentId: string;
+    eventsPath: string;
+  };
 };
 
 export type ToolInvocationStartedInput = {
@@ -107,58 +111,35 @@ export class ExperimentLogService {
   open(options: ExperimentLogOpenOptions): ExperimentLogWriteResult<ExperimentOpenEvent> {
     const startedAt = this.now();
     const timestamp = startedAt.toISOString();
-    const experimentId = this.nextExperimentId(startedAt);
-    const eventsPath = join(
-      this.root,
-      year(startedAt),
-      month(startedAt),
-      day(startedAt),
-      experimentId,
-      "events.jsonl",
-    );
+    const resume = options.resumeFrom === undefined ? undefined : this.tryRecoverResume(options.resumeFrom);
+    const experimentId = resume?.experimentId ?? this.nextExperimentId(startedAt);
+    const eventsPath = resume?.eventsPath ?? join(this.root, utcDate(startedAt), experimentId, "events.jsonl");
     const blobsPath = join(dirname(eventsPath), "blobs");
 
     const identity = { experiment_id: experimentId, events_path: eventsPath, blobs_path: blobsPath, started_at: timestamp };
-    const event: ExperimentOpenEvent = {
-      schema_version: EXPERIMENT_LOG_SCHEMA_VERSION,
-      event_id: this.nextEventId(timestamp),
-      experiment_id: identity.experiment_id,
-      sequence: 1,
-      timestamp_utc: timestamp,
-      event_kind: "experiment_open",
-      ...withDefined("workspace", workspaceSnapshot(options.workspace)),
-      ...withDefined("mutation_policy", mutationPolicySnapshot(options.mutationPolicy)),
-      session_start_reason: options.sessionStartReason,
-      ...(options.previousSessionFile === undefined ? {} : { previous_session_file: options.previousSessionFile }),
-    };
 
     try {
       mkdirSync(blobsPath, { recursive: true });
     } catch (error) {
-      return this.writeFailure(eventsPath, event, error);
-    }
-
-    try {
-      this.appendLine(eventsPath, `${JSON.stringify(event)}\n`);
-    } catch (error) {
+      const event = this.openEvent(identity, options, timestamp, resume !== undefined);
       return this.writeFailure(eventsPath, event, error);
     }
 
     this.identity = identity;
     this.workspace = options.workspace;
     this.mutationPolicy = options.mutationPolicy;
-    this.sequence = 1;
-    this.eventCount = 1;
+    this.sequence = resume?.sequence ?? 0;
+    this.eventCount = resume?.eventCount ?? 0;
+    const event = this.openEvent(identity, options, timestamp, resume !== undefined);
+    this.sequence = event.sequence;
+    const result = this.appendEvent(event);
+    if (!result.ok) this.resetOpenState();
 
-    return { ok: true, path: eventsPath, event_id: event.event_id, sequence: event.sequence, event };
+    return result;
   }
 
   currentIdentity(): ExperimentLogIdentity | undefined {
     return this.identity === undefined ? undefined : { ...this.identity };
-  }
-
-  currentWorkspaceHash(): string | undefined {
-    return this.workspace?.hash;
   }
 
   updateContext(options: { workspace?: LoadedWorkspace; mutationPolicy?: MutationPolicy }): void {
@@ -347,6 +328,54 @@ export class ExperimentLogService {
     const candidate = this.idFactory?.();
     return candidate === undefined ? `evt_${compactUtcTimestamp(new Date(timestampUtc))}_${randomToken()}` : candidate;
   }
+
+  private openEvent(
+    identity: ExperimentLogIdentity,
+    options: ExperimentLogOpenOptions,
+    timestamp: string,
+    resumed: boolean,
+  ): ExperimentOpenEvent {
+    const sequence = this.identity === undefined ? 1 : this.sequence + 1;
+    return {
+      schema_version: EXPERIMENT_LOG_SCHEMA_VERSION,
+      event_id: this.nextEventId(timestamp),
+      experiment_id: identity.experiment_id,
+      sequence,
+      timestamp_utc: timestamp,
+      event_kind: "experiment_open",
+      ...withDefined("workspace", workspaceSnapshot(options.workspace)),
+      ...withDefined("mutation_policy", mutationPolicySnapshot(options.mutationPolicy)),
+      session_start_reason: options.sessionStartReason,
+      ...(options.previousSessionFile === undefined ? {} : { previous_session_file: options.previousSessionFile }),
+      ...(resumed ? { resumed: true as const } : {}),
+    };
+  }
+
+  private tryRecoverResume(resumeFrom: NonNullable<ExperimentLogOpenOptions["resumeFrom"]>): { experimentId: string; eventsPath: string; sequence: number; eventCount: number } | undefined {
+    try {
+      if (!existsSync(resumeFrom.eventsPath)) throw new Error("events file no longer exists");
+      const lastEvent = readLastEvent(resumeFrom.eventsPath);
+      if (lastEvent.experiment_id !== resumeFrom.experimentId) throw new Error("events file experiment id does not match its index entry");
+      if (!Number.isSafeInteger(lastEvent.sequence) || lastEvent.sequence < 1) throw new Error("last event has an invalid sequence");
+      return {
+        experimentId: resumeFrom.experimentId,
+        eventsPath: resumeFrom.eventsPath,
+        sequence: lastEvent.sequence,
+        eventCount: countCompleteLines(resumeFrom.eventsPath),
+      };
+    } catch (error) {
+      this.emitWarning(`experiment log resume failed; creating a new experiment: ${errorMessage(error)}`);
+      return undefined;
+    }
+  }
+
+  private resetOpenState(): void {
+    this.identity = undefined;
+    this.workspace = undefined;
+    this.mutationPolicy = undefined;
+    this.sequence = 0;
+    this.eventCount = 0;
+  }
 }
 
 function serializeError(error: unknown): { name: string; message: string; stack?: string } {
@@ -403,6 +432,33 @@ function windowsSafe(value: string): string {
 
 function withDefined<TKey extends string, TValue>(key: TKey, value: TValue | undefined): Record<TKey, TValue> | {} {
   return value === undefined ? {} : { [key]: value } as Record<TKey, TValue>;
+}
+
+function utcDate(date: Date): string {
+  return `${year(date)}-${month(date)}-${day(date)}`;
+}
+
+function readLastEvent(path: string): { experiment_id: string; sequence: number } {
+  const size = statSync(path).size;
+  if (size === 0) throw new Error("events file is empty");
+  const bytes = Math.min(size, 64 * 1024);
+  const fd = openSync(path, "r");
+  try {
+    const buffer = Buffer.alloc(bytes);
+    readSync(fd, buffer, 0, bytes, size - bytes);
+    const tail = buffer.toString("utf8").replace(/\r?\n+$/, "");
+    const lineStart = tail.lastIndexOf("\n");
+    if (lineStart < 0 && size > bytes) throw new Error("last JSONL line exceeds the recovery buffer");
+    const line = tail.slice(lineStart + 1);
+    if (line.length === 0) throw new Error("events file has no complete event");
+    return JSON.parse(line) as { experiment_id: string; sequence: number };
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function countCompleteLines(path: string): number {
+  return readFileSync(path, "utf8").split("\n").filter((line) => line.length > 0).length;
 }
 
 function withNonEmptyArray<TKey extends string, TValue>(key: TKey, value: TValue[]): Record<TKey, TValue[]> | {} {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { formEditCliRampEnabled } from "../../../src/workspace-ui/client/actions.js";
 import { mountForm, typeInto } from "./form-test-helpers.js";
 import { actionParam, checkbox, cliTextarea, rampParam, safetyInput, stateWithCli, writableParam } from "./cli-meta-helpers.js";
 
@@ -67,5 +68,20 @@ describe("CLI metadata editing", () => {
     const cli = store.getState().workspace.cliParams[0]!;
     expect(cli.safety?.ramp_enabled).toBe(false);
     expect(cli.allow_ramp).toBe(false);
+  });
+
+  it("allows CLI action checkboxes to override metadata-derived defaults", () => {
+    const { root, store } = mountForm(stateWithCli(rampParam()));
+    const allowRamp = root.querySelector<HTMLInputElement>('input[data-cli-action="ramp"]');
+    if (!allowRamp) throw new Error("missing allow ramp checkbox");
+    expect(allowRamp.disabled).toBe(false);
+
+    allowRamp.checked = false;
+    change(allowRamp);
+
+    const cli = store.getState().workspace.cliParams[0]!;
+    expect(cli).toMatchObject({ allow_ramp: false, actions_overridden: true });
+    store.dispatch(formEditCliRampEnabled(true));
+    expect(store.getState().workspace.cliParams[0]?.allow_ramp).toBe(false);
   });
 });

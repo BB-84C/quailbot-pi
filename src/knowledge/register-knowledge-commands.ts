@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import { openQuailbotSettingsMenu, selectSubmenu } from "../commands/quailbot-menu.js";
+import { closeQuailbotMenuThenRun, openQuailbotSettingsMenu, selectSubmenu } from "../commands/quailbot-menu.js";
 import type { QuailbotRuntime } from "../extension.js";
 import { knowledgeStateFromRuntime } from "./knowledge-runtime.js";
 import { splitCommandArgs } from "../workspace/register-workspace-commands.js";
@@ -38,8 +38,13 @@ export function registerKnowledgeCommands(pi: ExtensionAPI, runtime: QuailbotRun
               [{ value: "reload", label: "reload" }],
               "reload",
               () => {
-                void ctx.reload().catch((error: unknown) => {
-                  ctx.ui.notify(`Quailbot reload failed: ${errorMessage(error)}`, "warning");
+                // Reload must run only after the menu closes; see closeQuailbotMenuThenRun.
+                closeQuailbotMenuThenRun(async () => {
+                  try {
+                    await ctx.reload();
+                  } catch (error) {
+                    ctx.ui.notify(`Quailbot reload failed: ${errorMessage(error)}`, "warning");
+                  }
                 });
               },
             ),

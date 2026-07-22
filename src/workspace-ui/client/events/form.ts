@@ -1,6 +1,7 @@
 import {
   formCommitField,
   formEditCliGetDesc,
+  formEditCliAction,
   formEditCliRampEnabled,
   formEditCliSafetyField,
   formEditCliSafetyMode,
@@ -34,6 +35,10 @@ function isCliSafetyField(value: string | undefined): value is CliSafetyField {
 
 function isSafetyMode(value: string): value is "alwaysAllowed" | "guarded" | "blocked" {
   return value === "alwaysAllowed" || value === "guarded" || value === "blocked";
+}
+
+function isCliAction(value: string | undefined): value is "get" | "set" | "ramp" {
+  return value === "get" || value === "set" || value === "ramp";
 }
 
 function restoreCursor(control: HTMLInputElement | HTMLTextAreaElement, state: AppState, field: FormFieldKey): void {
@@ -132,6 +137,11 @@ export function attachFormEvents(rootEl: HTMLElement, dispatch: (action: Action)
     }
     if (cliCheckbox?.dataset.cliMeta === "rampEnabled") {
       dispatch(formEditCliRampEnabled(cliCheckbox.checked));
+      return;
+    }
+    const cliAction = closestWithin<HTMLInputElement>(event.target, "input[data-cli-action]", rootEl);
+    if (cliAction && isCliAction(cliAction.dataset.cliAction)) {
+      dispatch(formEditCliAction(cliAction.dataset.cliAction, cliAction.checked));
       return;
     }
     const safetyMode = closestWithin<HTMLSelectElement>(event.target, 'select[data-cli-meta="safetyMode"]', rootEl);

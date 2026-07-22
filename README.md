@@ -104,7 +104,7 @@ and agent infrastructure); the two trees do not overlap.
   memory/                       # named memory MDs (one per domain)
   skills/                       # named skills (one folder per skill)
   knowledge-state.json          # which memory domains are loaded
-  experiments/YYYY/MM/DD/exp_*/ # one folder per agent session
+  experiments/YYYY-MM-DD/exp_*/ # created on the first real agent prompt
     events.jsonl                # append-only event log
     blobs/
       images/                   # ROI captures live here, one PNG per capture,
@@ -180,10 +180,11 @@ above are the user-facing surface.
 
 ## Experiments
 
-Every Pi session opens an experiment under
-`~/.quailbot-pi/experiments/YYYY/MM/DD/exp_*/`. The session's tool calls,
-results, plan steps, ROI captures, denied mutations, and lifecycle events
-are appended to `events.jsonl`. ROI screenshots written by the `observe`
+The first real agent prompt in a Pi session opens an experiment under
+`~/.quailbot-pi/experiments/YYYY-MM-DD/exp_*/`. Resuming or reloading that
+Pi session appends to the same `events.jsonl`; session starts with no prompt
+create no experiment. Tool calls, results, plan steps, ROI captures, denied
+mutations, and lifecycle events are appended to `events.jsonl`. ROI screenshots written by the `observe`
 tool (and inside `quailbot_plan_and_execute`) land directly inside
 `blobs/images/` in the experiment folder, named
 `roi-<name>-<refhash>-<captureId>.png`; `events.jsonl` references that
@@ -191,9 +192,10 @@ exact path. The sha256 of each PNG is recorded on the event's artifact
 metadata for integrity verification, but the on-disk file uses the
 human-readable name -- there is exactly one file per ROI capture.
 
-Closing a session, switching workspaces (re-load with a different hash),
-or shutting Pi down all write an `experiment_close` event with the
-reason. Crash recovery surfaces unfinished logs as `interrupted_unknown`.
+Closing a session or shutting Pi down writes an `experiment_close` event with
+the reason. Workspace snapshots are attached to individual events, including
+workspace changes within one Pi session. Crash recovery surfaces unfinished
+logs as `interrupted_unknown`.
 
 ## Upgrading
 

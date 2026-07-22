@@ -402,6 +402,14 @@ export function formReducer(state: AppState, action: FormAction): AppState {
         },
         { safetyRampEnabled: action.payload.value },
       );
+    case "FORM_EDIT_CLI_ACTION":
+      return applyCliMetaChange(state, (cli) => {
+        if (isRecord(cli.action_cmd)) return;
+        cli.actions_overridden = true;
+        if (action.payload.action === "get") cli.allow_get = action.payload.value;
+        if (action.payload.action === "set") cli.allow_set = action.payload.value;
+        if (action.payload.action === "ramp") cli.allow_ramp = action.payload.value;
+      });
     case "LINKED_SEARCH_CHANGED":
       return syncLinkedPickerToOptions({ ...state, form: { ...state.form, linkedObs: { ...state.form.linkedObs, searchText: action.payload.text } } });
     case "LINKED_PICKER_CHANGED":

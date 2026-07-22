@@ -3,6 +3,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { registerProviderPayloadLog } from "./debug/provider-payload-log.js";
 import { registerExperimentCommands } from "./experiment-log/register-experiment-commands.js";
 import { ExperimentLogService, experimentLogRoot } from "./experiment-log/experiment-log-service.js";
+import { loadSessionExperimentIndex, saveSessionExperimentIndex } from "./experiment-log/session-experiment-index.js";
 import type { ExperimentCloseReason } from "./experiment-log/experiment-log-types.js";
 import { registerKnowledgeCommands } from "./knowledge/register-knowledge-commands.js";
 import { registerMemoryCommands } from "./knowledge/register-memory-commands.js";
@@ -26,6 +27,7 @@ export type QuailbotRuntime = {
   activeWorkspace?: LoadedWorkspace;
   workspaceUiServer?: WorkspaceUiServer;
   experimentLog?: ExperimentLogService;
+  pendingExperimentStart?: { reason: string };
   planStore: PlanContextStore;
   knowledge: KnowledgeRuntime;
 };
@@ -59,7 +61,16 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
     }
 
     hydrateKnowledgeRuntime(runtime.knowledge, ctx.cwd);
-    synchronizeExperimentLog(runtime, ctx, sessionStartReason(event), activeWorkspace, mutationPolicyFromEnvironment());
+    const reason = sessionStartReason(event);
+    if (reason === "reload" && runtime.experimentLog !== undefined) {
+      runtime.experimentLog.updateContext({ workspace: activeWorkspace, mutationPolicy: mutationPolicyFromEnvironment() });
+      return;
+    }
+
+    if (runtime.experimentLog !== undefined) {
+      closeExperimentLog(runtime, ctx, "session_restarted");
+    }
+    runtime.pendingExperimentStart = { reason };
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
@@ -75,7 +86,12 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
     }),
   }));
 
-  pi.on("before_agent_start", (event) => {
+  pi.on("before_agent_start", (event, ctx) => {
+    if (runtime.experimentLog === undefined) {
+      openExperimentLog(runtime, ctx, runtime.pendingExperimentStart?.reason ?? "unknown");
+      runtime.pendingExperimentStart = undefined;
+    }
+
     const mutationPolicy = mutationPolicyFromEnvironment();
     const workspaceContext = runtime.workspace ? buildWorkspaceContextText(runtime.workspace, mutationPolicy) : undefined;
     const planContext = runtime.planStore.render();
@@ -100,50 +116,28 @@ export default function quailbotExtension(pi: ExtensionAPI): void {
   });
 }
 
-function synchronizeExperimentLog(
-  runtime: QuailbotRuntime,
-  ctx: ExtensionContext,
-  reason: string,
-  activeWorkspace: LoadedWorkspace | undefined,
-  mutationPolicy: ReturnType<typeof mutationPolicyFromEnvironment>,
-): void {
-  try {
-    if (reason === "reload" && runtime.experimentLog !== undefined) {
-      if (runtime.experimentLog.currentWorkspaceHash() === activeWorkspace?.hash) {
-        runtime.experimentLog.updateContext({ workspace: activeWorkspace, mutationPolicy });
-        return;
-      }
-
-      const previousSessionFile = closeExperimentLog(runtime, ctx, "workspace_changed");
-      openExperimentLog(runtime, ctx, reason, activeWorkspace, mutationPolicy, previousSessionFile);
-      return;
-    }
-
-    const previousSessionFile = closeExperimentLog(runtime, ctx, "session_restarted");
-    openExperimentLog(runtime, ctx, reason, activeWorkspace, mutationPolicy, previousSessionFile);
-  } catch (error) {
-    notifyExperimentLogWarning(ctx, `experiment log lifecycle failed: ${errorMessage(error)}`);
-    runtime.experimentLog = undefined;
-  }
-}
-
 function openExperimentLog(
   runtime: QuailbotRuntime,
   ctx: ExtensionContext,
   sessionStartReason: string,
-  activeWorkspace: LoadedWorkspace | undefined,
-  mutationPolicy: ReturnType<typeof mutationPolicyFromEnvironment>,
-  previousSessionFile: string | undefined,
 ): void {
   const service = new ExperimentLogService({
     root: experimentLogRoot(ctx.cwd),
     warn: (message) => notifyExperimentLogWarning(ctx, message),
   });
+  const root = experimentLogRoot(ctx.cwd);
+  const sessionId = currentSessionId(ctx);
+  const index = loadSessionExperimentIndex(root, { warn: (message) => notifyExperimentLogWarning(ctx, message) });
+  const indexedExperiment = sessionId === undefined ? undefined : index[sessionId];
+  // A Pi session owns one experiment. Workspace changes are captured on each
+  // event, so the former workspace-hash rollover would only fragment evidence.
   const result = service.open({
     sessionStartReason,
-    previousSessionFile,
-    workspace: activeWorkspace,
-    mutationPolicy,
+    workspace: runtime.activeWorkspace,
+    mutationPolicy: mutationPolicyFromEnvironment(),
+    ...(indexedExperiment === undefined
+      ? {}
+      : { resumeFrom: { experimentId: indexedExperiment.experiment_id, eventsPath: indexedExperiment.events_path } }),
   });
 
   if (!result.ok) {
@@ -153,6 +147,15 @@ function openExperimentLog(
   }
 
   runtime.experimentLog = service;
+  const identity = service.currentIdentity();
+  if (sessionId !== undefined && identity !== undefined) {
+    index[sessionId] = {
+      experiment_id: identity.experiment_id,
+      events_path: identity.events_path,
+      updated_at: new Date().toISOString(),
+    };
+    saveSessionExperimentIndex(root, index, { warn: (message) => notifyExperimentLogWarning(ctx, message) });
+  }
 }
 
 function closeExperimentLog(
@@ -178,6 +181,19 @@ function closeExperimentLog(
 
 function sessionStartReason(event: { reason?: unknown }): string {
   return typeof event.reason === "string" && event.reason.length > 0 ? event.reason : "unknown";
+}
+
+function currentSessionId(ctx: ExtensionContext): string | undefined {
+  try {
+    const sessionManager = (ctx as ExtensionContext & { sessionManager?: { getSessionId?: () => unknown } }).sessionManager;
+    const sessionId = sessionManager?.getSessionId?.();
+    if (typeof sessionId === "string" && sessionId.length > 0) return sessionId;
+  } catch {
+    // Session indexing is fail-soft; an experiment can still be logged without reuse.
+  }
+
+  notifyExperimentLogWarning(ctx, "experiment session id unavailable; starting an unindexed experiment");
+  return undefined;
 }
 
 function notifyExperimentLogWarning(ctx: ExtensionContext, message: string): void {

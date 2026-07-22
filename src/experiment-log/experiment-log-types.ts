@@ -52,6 +52,7 @@ export type ExperimentLogEventBase<TKind extends ExperimentLogEventKind = Experi
 export type ExperimentOpenEvent = ExperimentLogEventBase<"experiment_open"> & {
   session_start_reason: string;
   previous_session_file?: string;
+  resumed?: true;
 };
 
 export type ToolInvocationStartedEvent = ExperimentLogEventBase<"tool_invocation_started"> & {

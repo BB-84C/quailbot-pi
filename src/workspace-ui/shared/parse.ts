@@ -228,6 +228,7 @@ export function draftFromParameterItem(args: {
   }
 
   const actions = deriveActionsFromItem(value);
+  const actionsOverridden = isRecord(value.actions);
   const safetyRaw = value.safety;
   const safety = isRecord(safetyRaw) ? cloneRecord(safetyRaw) : null;
   const getCmd = isRecord(value.get_cmd) ? cloneRecord(value.get_cmd) : null;
@@ -248,6 +249,7 @@ export function draftFromParameterItem(args: {
     allow_get: actions.readable,
     allow_set: actions.allowSet,
     allow_ramp: actions.allowRamp,
+    actions_overridden: actionsOverridden,
     readable: parseBool(value.readable, actions.readable),
     writable,
     has_ramp: parseBool(value.has_ramp, actions.allowRamp),

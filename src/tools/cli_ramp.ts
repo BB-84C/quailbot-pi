@@ -2,6 +2,7 @@ import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import { attachModelContent, type QuailbotToolResult } from "./tool-result.js";
 import { mutationPolicyDisabledResult } from "./mutation-policy.js";
+import { validateCliRampSafety } from "./cli-safety-gate.js";
 import { readLinkedObservablesWithContent } from "../linked-observables/read-linked-observables.js";
 import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
 
@@ -27,6 +28,8 @@ export async function executeCliRamp(ctx: ToolContext, input: CliRampInput): Pro
   if (!parameter.actions.ramp) {
     throw new Error(`CLI parameter does not allow ramp: ${parameter.ref}`);
   }
+
+  validateCliRampSafety(parameter, input);
 
   const cliArgs = [
     "ramp",

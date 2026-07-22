@@ -2,6 +2,7 @@ import type { ToolContext } from "./tool-context.js";
 import { cliRef } from "./tool-context.js";
 import { attachModelContent, type QuailbotToolResult } from "./tool-result.js";
 import { mutationPolicyDisabledResult } from "./mutation-policy.js";
+import { validateCliSetSafety } from "./cli-safety-gate.js";
 import type { CliParameter } from "../workspace/types.js";
 import { readLinkedObservablesWithContent } from "../linked-observables/read-linked-observables.js";
 import { resolveLinkedObservables } from "../linked-observables/resolve-linked-observables.js";
@@ -38,6 +39,7 @@ export async function executeCliSet(ctx: ToolContext, input: CliSetInput): Promi
   const cliArgs = hasArgs
     ? ["set", target.name, ...formatArgs(validateDeclaredArgs(parameter, input.args ?? {}))]
     : ["set", target.name, ...valueModeArgs(parameter, input.value)];
+  validateCliSetSafety(parameter, resolvedSetValue(parameter, input, hasArgs));
   const run = await ctx.runCli(target.cliName, cliArgs, { timeoutMs: input.timeout_ms });
   const { observation: linkedObservation, content } = await readLinkedObservablesWithContent(
     ctx,
@@ -115,6 +117,17 @@ function valueModeArgs(parameter: CliParameter, value: unknown): string[] {
   }
 
   return ["--arg", `${fields[0].name}=${String(value)}`];
+}
+
+function resolvedSetValue(parameter: CliParameter, input: CliSetInput, hasArgs: boolean): unknown {
+  if (!hasArgs) {
+    return input.value;
+  }
+
+  const fields = setArgFields(parameter);
+  return fields.length === 1 && Object.hasOwn(input.args ?? {}, fields[0].name)
+    ? input.args?.[fields[0].name]
+    : undefined;
 }
 
 function validateDeclaredArgs(parameter: CliParameter, args: Record<string, unknown>): Record<string, unknown> {

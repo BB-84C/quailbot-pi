@@ -272,4 +272,24 @@ describe("workspace shared model serialization", () => {
     syncActionsFromMetadata(draft);
     expect(draft).toMatchObject({ readable: false, writable: false, has_ramp: false, allow_get: false, allow_set: false, allow_ramp: false, safety: null });
   });
+
+  it("preserves user-overridden actions through metadata sync and serialization", () => {
+    const draft = cli({
+      name: "manual-actions",
+      readable: true,
+      writable: true,
+      has_ramp: true,
+      safety: { ramp_enabled: true },
+      set_cmd: { argv: ["fixturectl", "set", "manual-actions"] },
+      allow_get: false,
+      allow_set: false,
+      allow_ramp: false,
+      actions_overridden: true,
+    });
+
+    syncActionsFromMetadata(draft);
+
+    expect(draft).toMatchObject({ allow_get: false, allow_set: false, allow_ramp: false });
+    expect(cliParamToJson(draft)).toMatchObject({ actions: { get: false, set: false, ramp: false } });
+  });
 });

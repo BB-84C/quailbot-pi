@@ -288,6 +288,56 @@ describe("CLI-backed tools", () => {
     expect(runCli).not.toHaveBeenCalled();
   });
 
+  it("executeCliSet enforces numeric safety ranges for value and single-field args modes before driver execution", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValue({
+      ok: true,
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      payload: undefined,
+      argv: ["nqctl", "set", "limited_bias"],
+    });
+    const workspace = fixtureWorkspace();
+    workspace.cli.parameters.set(
+      "nqctl:limited_bias",
+      writableParameter("nqctl", "limited_bias", {
+        set_cmd: { arg_fields: [{ name: "setpoint", required: true }] },
+        safety: { min_value: "-5", max_value: "5" },
+      }),
+    );
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
+
+    await executeCliSet(ctx, { cli_name: "nqctl", parameter: "limited_bias", value: 4 });
+    await executeCliSet(ctx, { cli_name: "nqctl", parameter: "limited_bias", args: { setpoint: 3 } });
+    const callsAfterCompliantSets = runCli.mock.calls.length;
+    await expect(executeCliSet(ctx, { cli_name: "nqctl", parameter: "limited_bias", value: 6 })).rejects.toThrow(
+      /cli_set rejected: value 6 exceeds max_value 5 for nqctl:limited_bias \(safety gate\)/,
+    );
+    await expect(
+      executeCliSet(ctx, { cli_name: "nqctl", parameter: "limited_bias", args: { setpoint: -6 } }),
+    ).rejects.toThrow(/cli_set rejected: value -6 is below min_value -5 for nqctl:limited_bias \(safety gate\)/);
+
+    expect(runCli).toHaveBeenCalledTimes(callsAfterCompliantSets);
+  });
+
+  it("executeCliSet leaves parameters without a safety block unchanged", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValue({
+      ok: true,
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      payload: undefined,
+      argv: ["nqctl", "set", "unlimited_bias", "999999"],
+    });
+    const workspace = fixtureWorkspace();
+    workspace.cli.parameters.set("nqctl:unlimited_bias", writableParameter("nqctl", "unlimited_bias", {}));
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
+
+    await executeCliSet(ctx, { cli_name: "nqctl", parameter: "unlimited_bias", value: 999999 });
+
+    expect(runCli).toHaveBeenCalledWith("nqctl", ["set", "unlimited_bias", "999999"], { timeoutMs: undefined });
+  });
+
   it("executeCliRamp dispatches ramp arguments as strings for a ramp-enabled workspace parameter", async () => {
     const runCli = vi
       .fn<RunCli>()
@@ -346,6 +396,46 @@ describe("CLI-backed tools", () => {
       executeCliRamp(ctx, { cli_name: "nqctl", parameter: "zctrl_setpnt", start: 0, end: 1, step: 0.1, interval_s: 1 }),
     ).rejects.toThrow(/CLI parameter does not allow ramp: nqctl:zctrl_setpnt/);
     expect(runCli).not.toHaveBeenCalled();
+  });
+
+  it("executeCliRamp enforces range, step, interval, and slew safety limits before driver execution", async () => {
+    const runCli = vi.fn<RunCli>().mockResolvedValue({
+      ok: true,
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      payload: undefined,
+      argv: ["nqctl", "ramp", "limited_bias", "-1", "1", "0.25", "--interval-s", "0.5"],
+    });
+    const workspace = fixtureWorkspace();
+    workspace.cli.parameters.set(
+      "nqctl:limited_bias",
+      writableParameter("nqctl", "limited_bias", {
+        safety: { min_value: "-5", max_value: "5", max_step: "0.5", max_slew_per_s: "1" },
+      }),
+    );
+    const ctx = createToolContext({ workspace, runCli, mutationPolicy: enabledMutationPolicy() });
+    const compliant = { cli_name: "nqctl", parameter: "limited_bias", start: -1, end: 1, step: 0.25, interval_s: 0.5 };
+
+    await executeCliRamp(ctx, compliant);
+    const callsAfterCompliantRamp = runCli.mock.calls.length;
+    await expect(executeCliRamp(ctx, { ...compliant, start: -6 })).rejects.toThrow(
+      /cli_ramp rejected: start -6 is below min_value -5 for nqctl:limited_bias \(safety gate\)/,
+    );
+    await expect(executeCliRamp(ctx, { ...compliant, end: 6 })).rejects.toThrow(
+      /cli_ramp rejected: end 6 exceeds max_value 5 for nqctl:limited_bias \(safety gate\)/,
+    );
+    await expect(executeCliRamp(ctx, { ...compliant, step: 0.6 })).rejects.toThrow(
+      /cli_ramp rejected: \|step\| 0.6 exceeds max_step 0.5 for nqctl:limited_bias \(safety gate\)/,
+    );
+    await expect(executeCliRamp(ctx, { ...compliant, interval_s: 0 })).rejects.toThrow(
+      /cli_ramp rejected: interval_s 0 must be > 0 for nqctl:limited_bias \(safety gate\)/,
+    );
+    await expect(executeCliRamp(ctx, { ...compliant, step: 0.5, interval_s: 0.1 })).rejects.toThrow(
+      /cli_ramp rejected: slew rate 5 exceeds max_slew_per_s 1 for nqctl:limited_bias \(safety gate\)/,
+    );
+
+    expect(runCli).toHaveBeenCalledTimes(callsAfterCompliantRamp);
   });
 
   it("executeCliAction dispatches action arguments and blocks explicitly blocked actions", async () => {

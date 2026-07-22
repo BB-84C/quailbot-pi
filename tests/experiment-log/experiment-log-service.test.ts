@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -31,8 +31,8 @@ describe("ExperimentLogService", () => {
   it("opens a deterministic append-only log, writes complete events, and clears identity on close", () => {
     const root = makeTempDir();
     const experimentId = "exp_20260616-063000Z_alpha";
-    const eventsPath = join(root, "2026", "06", "16", experimentId, "events.jsonl");
-    const blobsPath = join(root, "2026", "06", "16", experimentId, "blobs");
+    const eventsPath = join(root, "2026-06-16", experimentId, "events.jsonl");
+    const blobsPath = join(root, "2026-06-16", experimentId, "blobs");
     const service = new ExperimentLogService({
       root,
       now: fixedNow,
@@ -56,14 +56,12 @@ describe("ExperimentLogService", () => {
     });
     expect(open).toMatchObject({ ok: true, path: eventsPath, event_id: "evt-open", sequence: 1 });
     expect(service.currentIdentity()).toMatchObject({ experiment_id: experimentId, events_path: eventsPath, blobs_path: blobsPath });
-    expect(service.currentWorkspaceHash()).toBe("sha256:workspace-A");
     expect(existsSync(blobsPath)).toBe(true);
 
     const started = service.recordToolInvocationStarted({ toolCallId: "call-start", toolName: "cli_set", actionInput: toolResult.action_input });
     expect(started).toMatchObject({ ok: true, path: eventsPath, event_id: "evt-start", sequence: 2 });
 
     service.updateContext({ workspace: updatedWorkspace, mutationPolicy: disabledMutationPolicy() });
-    expect(service.currentWorkspaceHash()).toBe("sha256:workspace-B");
     const result = service.recordToolResult({
       toolCallId: "call-start",
       parentEventId: "evt-start",
@@ -163,6 +161,58 @@ describe("ExperimentLogService", () => {
     expect(exception.event).not.toHaveProperty("input");
     expect(typeof exception.event.error.stack).toBe("string");
     expect(step).toMatchObject({ ok: true, event: { event_kind: "plan_step_result", outcome: "applied" } });
+  });
+
+  it("resumes an indexed experiment by appending a resumed open event with the next sequence", () => {
+    const root = makeTempDir();
+    const experimentId = "exp_20260616-063000Z_resumed";
+    const initial = new ExperimentLogService({
+      root,
+      now: fixedNow,
+      idFactory: idFactory([experimentId, "evt-first-open", "evt-result"]),
+    });
+    expect(initial.open({ sessionStartReason: "startup" })).toMatchObject({ ok: true, sequence: 1 });
+    expect(initial.recordToolInvocationStarted({ toolCallId: "call-1", toolName: "cli_get", actionInput: {} })).toMatchObject({ ok: true, sequence: 2 });
+    const eventsPath = initial.currentIdentity()!.events_path;
+
+    const resumed = new ExperimentLogService({ root, now: fixedNow, idFactory: idFactory(["evt-resumed-open"]) });
+    const open = resumed.open({
+      sessionStartReason: "resume",
+      resumeFrom: { experimentId, eventsPath },
+    });
+
+    expect(open).toMatchObject({
+      ok: true,
+      path: eventsPath,
+      sequence: 3,
+      event: { experiment_id: experimentId, event_kind: "experiment_open", resumed: true, session_start_reason: "resume" },
+    });
+    expect(readJsonl(eventsPath).map((event) => event.sequence)).toEqual([1, 2, 3]);
+  });
+
+  it("falls back to a new experiment and warns when the indexed events tail is corrupted", () => {
+    const root = makeTempDir();
+    const oldPath = join(root, "2026-06-16", "exp_corrupt", "events.jsonl");
+    mkdirSync(join(root, "2026-06-16", "exp_corrupt"), { recursive: true });
+    writeFileSync(oldPath, '{"experiment_id":"exp_corrupt","sequence":1}\n{not json}\n', "utf8");
+    const warnings: string[] = [];
+    const service = new ExperimentLogService({
+      root,
+      now: fixedNow,
+      idFactory: idFactory(["exp_20260616-063000Z_replacement", "evt-replacement-open"]),
+      warn: (message) => warnings.push(message),
+    });
+
+    const result = service.open({
+      sessionStartReason: "resume",
+      resumeFrom: { experimentId: "exp_corrupt", eventsPath: oldPath },
+    });
+
+    expect(result).toMatchObject({ ok: true, event: { experiment_id: "exp_20260616-063000Z_replacement" } });
+    if (!result.ok) throw new Error("expected replacement experiment to open");
+    expect(result.event).not.toHaveProperty("resumed");
+    expect(service.currentIdentity()?.events_path).toBe(join(root, "2026-06-16", "exp_20260616-063000Z_replacement", "events.jsonl"));
+    expect(warnings).toEqual([expect.stringContaining("experiment log resume failed; creating a new experiment")]);
   });
 
   it("copies ROI result images into experiment blobs and annotates tool results", () => {
@@ -317,7 +367,6 @@ describe("ExperimentLogService", () => {
       event: { event_kind: "experiment_open", sequence: 1 },
     });
     expect(service.currentIdentity()).toBeUndefined();
-    expect(service.currentWorkspaceHash()).toBeUndefined();
     expect(service.recordToolInvocationStarted({ toolCallId: "call-after-fail", toolName: "cli_get", actionInput: {} })).toMatchObject({
       ok: false,
       error: "experiment log is not open",

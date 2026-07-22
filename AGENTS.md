@@ -88,7 +88,7 @@
 - Do not reintroduce direct `join(cwd, ".quailbot-pi", ...)` callsites in production code. Use `quailbotStateRoot()` (or the per-subsystem helpers `memoryRoot`, `skillsRoot`, `experimentLogRoot`, etc.) so the override path stays uniform.
 - Tests must rely on `tests/setup.ts` to inject a per-test `QUAILBOT_PI_STATE_DIR` tmpdir. New tests that assert on state contents should read through `quailbotStateRoot()` (or the production helper), not through the test's own cwd. Two exceptions: `tests/workspace-ui/server/path-policy.test.ts` and `tests/workspace-ui/server/file-browser.test.ts` construct their own fixture state-dirs for security-policy testing -- those stay self-contained.
 - Workspace JSON files themselves are user-owned and can live anywhere on disk. `settings.json` stores the absolute path; Quailbot does not copy or relocate user-selected workspace files. The default landing place for editor-created saves is `~/.quailbot-pi/workspaces/`.
-- ROI screenshots from `observe` and `quailbot_plan_and_execute` write into `~/.quailbot-pi/experiments/YYYY/MM/DD/exp_*/blobs/images/` with the human-readable `roi-<name>-<refHash>-<captureId>.png` scheme. There is exactly ONE on-disk PNG per ROI capture. The experiment-log image-artifacts pass detects that the source is already inside `blobs/images/` and records the artifact metadata (size, sha256 for integrity) without copying or renaming. When no experiment is open, captures fall back to `~/.quailbot-pi/observations-orphan/`.
+- ROI screenshots from `observe` and `quailbot_plan_and_execute` write into `~/.quailbot-pi/experiments/YYYY-MM-DD/exp_*/blobs/images/` with the human-readable `roi-<name>-<refHash>-<captureId>.png` scheme. Experiments are created only after the first real agent prompt. There is exactly ONE on-disk PNG per ROI capture. The experiment-log image-artifacts pass detects that the source is already inside `blobs/images/` and records the artifact metadata (size, sha256 for integrity) without copying or renaming. When no experiment is open, captures fall back to `~/.quailbot-pi/observations-orphan/`.
 - Only one workspace capture is kept on disk (`workspace-capture.png` + `workspace-capture.metadata.json`); each new capture atomically overwrites. The legacy `workspace-capture.<captureId>.png` versioned snapshots are no longer written, and any leftovers from older versions are cleaned up on each publish.
 - Agent-visible knowledge tools (`quailbot_memory_*`, `quailbot_skill_*`) take names/domains/topics, never paths. Do not introduce path-shaped parameters for these tools; the user-facing TUI/commands may show absolute paths but the agent's tool surface stays name-only.
 - `dependencies` is empty for distribution: Pi core (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`) sit in `peerDependencies: "*"` per Pi's package contract. They remain in `devDependencies` for local dev/test/build.
@@ -102,13 +102,19 @@
 - `quailbot-pi` 的发行态按 home-scoped state 设计：生产态根目录是 `~/.quailbot-pi/`，其中承载 `workspaces`、`captures`、`experiments`、`settings` 等用户态数据；当前 repo 内本地 state 只是一段开发期过渡形状。
 - 开发脚本保持 `pi --session-dir .pi-state/sessions`；不要把这个 dev-only 会话目录和发行态 `~/.quailbot-pi/` 混为一谈。
 - Gate B 决策是单一 `~/.quailbot-pi/workspaces/` 作为中心 workspace 存放区；但 workspace editor 的任意 JSON 导入能力、以及 `/quailbot-workspace load` 直接加载任意 schema-valid 路径的能力仍然要保留，不能因为中心化存放就把这些入口做死。
-- ROI 截图不应继续堆在单独的 `.quailbot-pi/roi-observations/`；默认只跟随 `~/.quailbot-pi/experiments/<yy>/<mm>/<dd>/exp_*/` 保存，并沿用人类可读命名，同时仍保留 blob 存储副本。workspace 截图在 `.quailbot-pi` 下只保留一张当前图，新图直接覆盖旧图。
+- ROI 截图不应继续堆在单独的 `.quailbot-pi/roi-observations/`；默认只跟随 `~/.quailbot-pi/experiments/YYYY-MM-DD/exp_*/` 保存，并沿用人类可读命名，同时仍保留 blob 存储副本。workspace 截图在 `.quailbot-pi` 下只保留一张当前图，新图直接覆盖旧图。
 ## Release / Install Hygiene (2026-06-23)
 - After local code changes, rebuild the package and reinstall the fresh tarball before testing or release work; otherwise the installed `quailbot-pi` package can go stale.
-- ROI capture artifacts should live only at `experiments/YYYY/MM/DD/exp_*/blobs/images/roi-LiveScan-<refhash>-<id>.png`.
+- ROI capture artifacts should live only at `experiments/YYYY-MM-DD/exp_*/blobs/images/roi-LiveScan-<refhash>-<id>.png`.
 - `events.jsonl` should reference ROI images as `\\blobs\\images\\roi-LiveScan-<refhash>-<id>.png`; do not keep the old `\\<sha256>.png` reference shape and do not duplicate ROI image copies.
 
 ## Release / Documentation Hygiene (2026-06-23)
 - A release is not meaningful if it ships only a tag; publish a `.tgz` / `.gz` install artifact or clearly point the release to the matching npm package version.
 - When storage or image-path contracts change, audit README and system-prompt text for stale descriptions before release.
 - If docs or the system prompt mention "Where Quailbot state lives", explain the actual state root clearly, distinguish it from legacy `~/.pi`, and note that `QUAILBOT_PI_STATE_DIR` overrides the state root.
+
+## Project Facts & Design Invariants (2026-07-21)
+- Interactive testing substrate: a live Nanonis simulator runs on this machine. Start a test quailbot-pi over RPC using the project's previously recorded method to drive real interactive tests against it.
+- The workspace-editor web UI is verified with Playwright only (not Chrome DevTools / browser-MCP tools).
+- Experiment lifecycle is lazy and session-scoped: do NOT create an experiment at Pi startup / session_start. Open it on the first real (non-slash-command) user prompt. A resumed session reuses the same experiment (session index keyed by Pi session id). Experiment paths are flat `experiments/YYYY-MM-DD/exp_*`, never nested `YYYY/MM/DD`.
+- Workspace safety is enforced, not decorative: parameter min/max/slew act as hard gates on mutating tools (cli_set / cli_ramp / plan_and_execute) before the instrument is touched, and the editor's allow get/set/ramp checkboxes are real, user-editable capability toggles.

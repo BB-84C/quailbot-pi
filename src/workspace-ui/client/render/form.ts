@@ -271,13 +271,9 @@ function buildCliMetadataBlock(state: AppState, cli: CliParamDraft): HTMLElement
   return block;
 }
 
-function buildCliActionsDisplay(cli: CliParamDraft, disabled: boolean): HTMLElement {
+function buildCliActionsDisplay(cli: CliParamDraft): HTMLElement {
   const fieldset = document.createElement("fieldset");
   fieldset.className = "cli-actions-display";
-  fieldset.disabled = true;
-  if (disabled) {
-    fieldset.setAttribute("aria-disabled", "true");
-  }
   const legend = document.createElement("legend");
   legend.textContent = "CLI Actions";
   fieldset.append(legend);
@@ -290,12 +286,18 @@ function buildCliActionsDisplay(cli: CliParamDraft, disabled: boolean): HTMLElem
     row.className = "cli-actions-display__item";
     const input = document.createElement("input");
     input.type = "checkbox";
+    input.dataset.cliAction = label;
     input.checked = Boolean(value);
-    input.disabled = true;
     const text = document.createElement("span");
     text.textContent = label;
     row.append(input, text);
     fieldset.append(row);
+  }
+  if (cli.set_cmd === null && (cli.allow_set || cli.allow_ramp)) {
+    const warning = document.createElement("p");
+    warning.className = "cli-actions-display__warning";
+    warning.textContent = "Set or ramp is enabled without a set_cmd; runtime CLI calls will fail until one is configured.";
+    fieldset.append(warning);
   }
   return fieldset;
 }
@@ -386,7 +388,7 @@ function populateLinkedFrame(frame: HTMLElement, state: AppState, mode: Exclude<
     frame.append(hint);
     const cli = state.tree.selected.length === 1 && state.tree.selected[0]?.kind === "cli" ? state.workspace.cliParams.find((item) => item.name === state.tree.selected[0]?.name) : null;
     if (cli) {
-      frame.append(buildCliActionsDisplay(cli, !enabled));
+      frame.append(buildCliActionsDisplay(cli));
     }
   }
 

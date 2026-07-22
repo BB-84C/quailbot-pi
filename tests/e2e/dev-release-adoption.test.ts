@@ -106,7 +106,7 @@ describe("local Pi dev release adoption", () => {
     ]);
   });
 
-  it("opens and closes an experiment log across session lifecycle events", async () => {
+  it("creates an experiment only for a real agent prompt and closes it on shutdown", async () => {
     const tempCwd = makeTempDir();
     installStarterWorkspace(tempCwd);
 
@@ -115,6 +115,11 @@ describe("local Pi dev release adoption", () => {
 
     await handlers.get("session_start")?.(
       { type: "session_start", reason: "resume" } satisfies SessionStartEvent,
+      extensionContext,
+    );
+    expect(findExperimentEventsJsonl(tempCwd)).toEqual([]);
+    await handlers.get("before_agent_start")?.(
+      { type: "before_agent_start", prompt: "measure the sample", systemPrompt: "", systemPromptOptions: { cwd: tempCwd } } satisfies BeforeAgentStartEvent,
       extensionContext,
     );
     await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, extensionContext);
@@ -150,6 +155,10 @@ describe("local Pi dev release adoption", () => {
         { type: "session_start", reason: "startup" } satisfies SessionStartEvent,
         extensionContext,
       );
+      await handlers.get("before_agent_start")?.(
+        { type: "before_agent_start", prompt: "measure the sample", systemPrompt: "", systemPromptOptions: { cwd: tempCwd } } satisfies BeforeAgentStartEvent,
+        extensionContext,
+      );
 
       expect(consoleWarn).toHaveBeenCalledWith(
         expect.stringContaining("Quailbot experiment log warning: experiment log open failed"),
@@ -159,9 +168,9 @@ describe("local Pi dev release adoption", () => {
     }
   });
 
-  it("continues the experiment log on same-workspace reload and rolls logs when the workspace hash changes", async () => {
+  it("reuses the indexed experiment for the same Pi session after resume", async () => {
     const tempCwd = makeTempDir();
-    const workspacePath = installStarterWorkspace(tempCwd);
+    installStarterWorkspace(tempCwd);
 
     const { handlers } = await loadBuiltExtensionWithPiStub();
     const extensionContext = createExtensionContextStub(tempCwd);
@@ -170,36 +179,24 @@ describe("local Pi dev release adoption", () => {
       { type: "session_start", reason: "startup" } satisfies SessionStartEvent,
       extensionContext,
     );
+    expect(findExperimentEventsJsonl(tempCwd)).toEqual([]);
+    await handlers.get("before_agent_start")?.(
+      { type: "before_agent_start", prompt: "first measurement", systemPrompt: "", systemPromptOptions: { cwd: tempCwd } } satisfies BeforeAgentStartEvent,
+      extensionContext,
+    );
     const initialEventsPath = onlyExperimentEventsJsonl(tempCwd);
 
     await handlers.get("session_start")?.(
-      { type: "session_start", reason: "reload" } satisfies SessionStartEvent,
+      { type: "session_start", reason: "resume" } satisfies SessionStartEvent,
       extensionContext,
     );
-
+    await handlers.get("before_agent_start")?.(
+      { type: "before_agent_start", prompt: "resumed measurement", systemPrompt: "", systemPromptOptions: { cwd: tempCwd } } satisfies BeforeAgentStartEvent,
+      extensionContext,
+    );
     expect(findExperimentEventsJsonl(tempCwd)).toEqual([initialEventsPath]);
-    expect(readFileSync(initialEventsPath, "utf8")).not.toContain('"event_kind":"experiment_close"');
-
-    const changedWorkspaceJson = readFileSync(workspacePath, "utf8").replace(
-      "Measured tunneling current.",
-      "Measured tunneling current after reload.",
-    );
-    writeFileSync(workspacePath, changedWorkspaceJson, "utf8");
-
-    await handlers.get("session_start")?.(
-      { type: "session_start", reason: "reload" } satisfies SessionStartEvent,
-      extensionContext,
-    );
-
-    const eventsPaths = findExperimentEventsJsonl(tempCwd);
-    expect(eventsPaths).toHaveLength(2);
-    expect(readFileSync(initialEventsPath, "utf8")).toContain('"reason":"workspace_changed"');
-    const reloadedEventsPath = eventsPaths.find((path) => path !== initialEventsPath);
-    expect(reloadedEventsPath).toBeDefined();
-    if (reloadedEventsPath === undefined) {
-      throw new Error("changed workspace reload did not open a second experiment log");
-    }
-    expect(readFileSync(reloadedEventsPath, "utf8")).toContain('"session_start_reason":"reload"');
+    expect(readFileSync(initialEventsPath, "utf8")).toContain('"session_start_reason":"resume"');
+    expect(readFileSync(initialEventsPath, "utf8")).toContain('"resumed":true');
 
     await handlers.get("session_shutdown")?.({ type: "session_shutdown" }, extensionContext);
   });
@@ -811,7 +808,7 @@ function createExtensionContextStub(cwd: string): ExtensionContext {
     cwd,
     hasUI: false,
     ui,
-    sessionManager: {} as ExtensionContext["sessionManager"],
+    sessionManager: { getSessionId: () => "test-pi-session" } as ExtensionContext["sessionManager"],
     modelRegistry: {} as ExtensionContext["modelRegistry"],
     model: undefined,
     isIdle: () => true,

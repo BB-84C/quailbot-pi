@@ -33,6 +33,15 @@ export function executeQuailbotSkill(
     ok: true,
     action: "quailbot_skill",
     action_input: params,
-    primary_result: { name: skill.name, required: gate.required, missing: gate.missing, warning, body: skill.body, hash },
+    primary_result: {
+      name: skill.name,
+      required: gate.required,
+      missing: gate.missing,
+      warning,
+      body: skill.body,
+      contentHash: hash,
+      // Keep the original field for callers that already consume it.
+      hash,
+    },
   };
 }

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import { openQuailbotSettingsMenu, selectSubmenu } from "../commands/quailbot-menu.js";
+import { closeQuailbotMenuThenRun, openQuailbotSettingsMenu, selectSubmenu } from "../commands/quailbot-menu.js";
 import type { QuailbotRuntime } from "../extension.js";
 import { ensureWorkspaceUiServer } from "../workspace-ui/server.js";
 import {
@@ -175,8 +175,10 @@ async function openWorkspaceMenu(ctx: ExtensionCommandContext, runtime: Quailbot
         [{ value: "load", label: "load" }],
         "load",
         () => {
-          void promptWorkspacePath(ctx, "Workspace path to load").then((path) => {
-            if (path) void handleWorkspaceCommand(`load ${quoteArg(path)}`, ctx, runtime);
+          // Load triggers ctx.reload(); it must run only after the menu closes.
+          closeQuailbotMenuThenRun(async () => {
+            const path = await promptWorkspacePath(ctx, "Workspace path to load");
+            if (path) await handleWorkspaceCommand(`load ${quoteArg(path)}`, ctx, runtime);
           });
         },
       ),
@@ -209,11 +211,13 @@ async function openWorkspaceMenu(ctx: ExtensionCommandContext, runtime: Quailbot
         [{ value: "write", label: "write" }],
         "write",
         () => {
-          void promptWorkspacePath(ctx, "Candidate path, target path, optional --activate").then((value) => {
+          // Write with --activate triggers ctx.reload(); it must run only after the menu closes.
+          closeQuailbotMenuThenRun(async () => {
+            const value = await promptWorkspacePath(ctx, "Candidate path, target path, optional --activate");
             const [candidatePath, targetPath, flag] = value?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) ?? [];
             if (candidatePath && targetPath) {
               const suffix = flag === "--activate" ? " --activate" : "";
-              void handleWorkspaceCommand(`write ${quoteArg(candidatePath)} ${quoteArg(targetPath)}${suffix}`, ctx, runtime);
+              await handleWorkspaceCommand(`write ${quoteArg(candidatePath)} ${quoteArg(targetPath)}${suffix}`, ctx, runtime);
             }
           });
         },

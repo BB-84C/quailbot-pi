@@ -9,23 +9,63 @@ const SUBMENU_SELECT_LIST_LAYOUT = {
 
 export type QuailbotMenuItem = SettingItem;
 
+type PostMenuAction = () => void | Promise<void>;
+
+/**
+ * Close-hook for the currently open Quailbot settings menu. Quailbot menus are modal and
+ * never nested, so a single module-level slot is sufficient.
+ */
+let activeMenuClose: ((action: PostMenuAction) => void) | undefined;
+
+/**
+ * Close the currently open Quailbot settings menu (if any), then run `action` after the
+ * menu's `ctx.ui.custom` promise has resolved.
+ *
+ * Reload safety: Pi's interactive input loop re-arms user input only after the whole
+ * slash-command handler returns, and `ctx.reload()` tears down pending extension UI
+ * components WITHOUT resolving their promises. Triggering a reload while a Quailbot menu
+ * is still open therefore orphans the menu promise, the command handler never returns,
+ * and every subsequent non-builtin submission is silently dropped. Any menu action that
+ * may directly or indirectly call `ctx.reload()` MUST be routed through this function.
+ */
+export function closeQuailbotMenuThenRun(action: PostMenuAction): void {
+  const close = activeMenuClose;
+  if (close !== undefined) {
+    close(action);
+    return;
+  }
+  void action();
+}
+
 export async function openQuailbotSettingsMenu(
   ctx: ExtensionCommandContext,
   items: QuailbotMenuItem[],
   onChange: (id: string, newValue: string) => void = () => undefined,
 ): Promise<void> {
+  let postMenuAction: PostMenuAction | undefined;
   try {
     await ctx.ui.custom<void>(
-      (_tui, _theme, _keybindings, done) =>
-        new QuailbotSettingsMenu(
+      (_tui, _theme, _keybindings, done) => {
+        activeMenuClose = (action) => {
+          postMenuAction = action;
+          done();
+        };
+        return new QuailbotSettingsMenu(
           items,
           onChange,
           () => done(),
-        ),
+        );
+      },
       { overlay: true },
     );
   } catch (error) {
     ctx.ui.notify(`Could not open Quailbot menu: ${errorMessage(error)}`, "warning");
+  } finally {
+    activeMenuClose = undefined;
+  }
+
+  if (postMenuAction !== undefined) {
+    await postMenuAction();
   }
 }
 

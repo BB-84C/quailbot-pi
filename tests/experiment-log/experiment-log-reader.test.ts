@@ -93,6 +93,98 @@ describe("readExperiment", () => {
     expect(result.events.map((entry) => entry.event_kind)).toEqual(["experiment_open", "tool_result"]);
   });
 
+  it("does not report a resumed experiment as closed when the resume segment has no close yet", () => {
+    const root = makeTempDir();
+    const eventsPath = writeExperiment(root, "2026-06-16/exp_resumed/events.jsonl", [
+      event({
+        event_id: "evt-open",
+        experiment_id: "exp_resumed",
+        sequence: 1,
+        timestamp_utc: "2026-06-16T06:30:00.000Z",
+        event_kind: "experiment_open",
+      }),
+      event({
+        event_id: "evt-close",
+        experiment_id: "exp_resumed",
+        sequence: 2,
+        timestamp_utc: "2026-06-16T06:32:00.000Z",
+        event_kind: "experiment_close",
+        reason: "session_shutdown",
+        event_count: 2,
+        last_sequence: 2,
+      }),
+      event({
+        event_id: "evt-reopen",
+        experiment_id: "exp_resumed",
+        sequence: 3,
+        timestamp_utc: "2026-06-16T07:00:00.000Z",
+        event_kind: "experiment_open",
+        resumed: true,
+      }),
+      event({
+        event_id: "evt-result",
+        experiment_id: "exp_resumed",
+        sequence: 4,
+        timestamp_utc: "2026-06-16T07:01:00.000Z",
+        event_kind: "tool_result",
+        outcome: "measured",
+        result: { ok: true, action: "cli_get", action_input: {}, primary_result: { ok: true } },
+      }),
+    ]);
+
+    const result = readExperiment(eventsPath);
+
+    expect(result.summary.status).toBe("interrupted_unknown");
+    expect(result.summary.closed_at).toBeUndefined();
+    expect(result.summary.started_at).toBe("2026-06-16T06:30:00.000Z");
+  });
+
+  it("reports a resumed experiment as closed when the resume segment ends with a close", () => {
+    const root = makeTempDir();
+    const eventsPath = writeExperiment(root, "2026-06-16/exp_resumed_closed/events.jsonl", [
+      event({
+        event_id: "evt-open",
+        experiment_id: "exp_resumed_closed",
+        sequence: 1,
+        timestamp_utc: "2026-06-16T06:30:00.000Z",
+        event_kind: "experiment_open",
+      }),
+      event({
+        event_id: "evt-close",
+        experiment_id: "exp_resumed_closed",
+        sequence: 2,
+        timestamp_utc: "2026-06-16T06:32:00.000Z",
+        event_kind: "experiment_close",
+        reason: "session_shutdown",
+        event_count: 2,
+        last_sequence: 2,
+      }),
+      event({
+        event_id: "evt-reopen",
+        experiment_id: "exp_resumed_closed",
+        sequence: 3,
+        timestamp_utc: "2026-06-16T07:00:00.000Z",
+        event_kind: "experiment_open",
+        resumed: true,
+      }),
+      event({
+        event_id: "evt-close-2",
+        experiment_id: "exp_resumed_closed",
+        sequence: 4,
+        timestamp_utc: "2026-06-16T07:05:00.000Z",
+        event_kind: "experiment_close",
+        reason: "session_shutdown",
+        event_count: 4,
+        last_sequence: 4,
+      }),
+    ]);
+
+    const result = readExperiment(eventsPath);
+
+    expect(result.summary.status).toBe("closed");
+    expect(result.summary.closed_at).toBe("2026-06-16T07:05:00.000Z");
+  });
+
   it("ignores and exposes a partial trailing line", () => {
     const root = makeTempDir();
     const eventsPath = join(root, "2026-06-16", "exp_partial", "events.jsonl");

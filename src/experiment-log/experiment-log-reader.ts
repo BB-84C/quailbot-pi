@@ -118,7 +118,11 @@ function parseEvents(lines: Array<{ lineNumber: number; line: string }>): {
 
 function summarize(eventsPath: string, events: ExperimentLogEvent[]): ExperimentLogSummary {
   const opened = events.find((event) => event.event_kind === "experiment_open");
-  const closed = [...events].reverse().find((event) => event.event_kind === "experiment_close");
+  // A close only marks the experiment as closed when no resumed experiment_open follows it;
+  // otherwise the latest resume segment determines the terminal state.
+  const lastOpenIndex = lastIndexOfKind(events, "experiment_open");
+  const lastCloseIndex = lastIndexOfKind(events, "experiment_close");
+  const closed = lastCloseIndex > lastOpenIndex ? events[lastCloseIndex] : undefined;
   const status = closed === undefined ? (events.length === 0 ? "open" : "interrupted_unknown") : "closed";
   const outcomeCounts = outcomeCountsFor(events);
   if (status === "interrupted_unknown") {
@@ -135,6 +139,16 @@ function summarize(eventsPath: string, events: ExperimentLogEvent[]): Experiment
     event_count: events.length,
     outcome_counts: outcomeCounts,
   };
+}
+
+function lastIndexOfKind(events: ExperimentLogEvent[], kind: ExperimentLogEvent["event_kind"]): number {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (events[index].event_kind === kind) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function outcomeCountsFor(events: ExperimentLogEvent[]): Partial<Record<ExperimentOutcome, number>> {
